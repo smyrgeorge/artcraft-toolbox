@@ -35,7 +35,7 @@ pub fn verify(kind: PackageKind, path: &Path) -> Result<Trust> {
 
 fn tool(cmd: &mut Command) -> std::io::Result<(bool, String)> {
     let out = cmd.stdin(Stdio::null()).output()?;
-    // codesign and spctl report on stderr; PowerShell on stdout.
+    // codesign and spctl report on stderr.
     let mut text = String::from_utf8_lossy(&out.stderr).into_owned();
     text.push_str(&String::from_utf8_lossy(&out.stdout));
     Ok((out.status.success(), text))
@@ -91,22 +91,27 @@ pub fn gatekeeper_accepts(exit_ok: bool, output: &str) -> bool {
 }
 
 fn windows(exe: &Path) -> Result<Trust> {
-    // The path travels in an environment variable, so no quoting can break the command.
-    let script =
-        "$s = Get-AuthenticodeSignature -LiteralPath $env:TOOLBOX_PATH; $s.Status.ToString(); if ($s.SignerCertificate) { $s.SignerCertificate.Subject }";
-    let mut cmd = Command::new("powershell");
-    cmd.args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script]).env("TOOLBOX_PATH", exe);
-    match tool(&mut cmd) {
-        Ok((_, text)) => authenticode(&text),
+    // The path travels in an environment variable, so no quoting can break the command. Only
+    // stdout is read, its lines marked: Windows PowerShell may write progress records ("#< CLIXML")
+    // to stderr when it loads a module for the first time.
+    let script = "$ProgressPreference = 'SilentlyContinue'; $s = Get-AuthenticodeSignature -LiteralPath $env:TOOLBOX_PATH; 'STATUS=' + $s.Status; if ($s.SignerCertificate) { 'SIGNER=' + $s.SignerCertificate.Subject }";
+    let out = Command::new("powershell")
+        .args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script])
+        .env("TOOLBOX_PATH", exe)
+        .stdin(Stdio::null())
+        .output();
+    match out {
+        Ok(out) => authenticode(&String::from_utf8_lossy(&out.stdout)),
         Err(e) => Ok(Trust::Unchecked { reason: format!("powershell: {e}") }),
     }
 }
 
-/// `Get-AuthenticodeSignature`'s status line, then the signer's subject.
+/// The `STATUS=` and `SIGNER=` lines of `Get-AuthenticodeSignature`'s result; other lines are
+/// ignored.
 pub fn authenticode(output: &str) -> Result<Trust> {
-    let mut lines = output.lines().map(str::trim).filter(|l| !l.is_empty());
-    let status = lines.next().unwrap_or("");
-    let subject = lines.next().map(|s| s.chars().take(MAX_SIGNER).collect::<String>());
+    let value = |key: &str| output.lines().find_map(|l| l.trim().strip_prefix(key)).map(str::trim);
+    let status = value("STATUS=").unwrap_or("");
+    let subject = value("SIGNER=").filter(|s| !s.is_empty()).map(|s| s.chars().take(MAX_SIGNER).collect::<String>());
     match (status, subject) {
         ("Valid", Some(signer)) => Ok(Trust::Signed { signer, team: None, notarized: false }),
         ("NotSigned", _) => Ok(Trust::Unsigned),
@@ -147,12 +152,22 @@ mod tests {
     #[test]
     fn authenticode_statuses() {
         assert_eq!(
-            authenticode("Valid\r\nCN=Learning Machines LLC, O=Learning Machines LLC\r\n").unwrap(),
+            authenticode("STATUS=Valid\r\nSIGNER=CN=Learning Machines LLC, O=Learning Machines LLC\r\n").unwrap(),
             Trust::Signed { signer: "CN=Learning Machines LLC, O=Learning Machines LLC".into(), team: None, notarized: false }
         );
-        assert_eq!(authenticode("NotSigned\r\n").unwrap(), Trust::Unsigned);
-        assert!(matches!(authenticode("HashMismatch\nCN=x\n"), Err(Error::BadPackage(_))));
-        assert_eq!(authenticode("NotTrusted\nCN=x\n").unwrap(), Trust::Unchecked { reason: "Authenticode status NotTrusted".into() });
+        // Anything else PowerShell prints around the marked lines is ignored.
+        assert_eq!(
+            authenticode("#< CLIXML\r\n<Objs Version=\"1.1.0.1\"></Objs>\r\nSTATUS=Valid\r\nSIGNER=CN=Microsoft Windows\r\n").unwrap(),
+            Trust::Signed { signer: "CN=Microsoft Windows".into(), team: None, notarized: false }
+        );
+        assert_eq!(authenticode("STATUS=NotSigned\r\n").unwrap(), Trust::Unsigned);
+        assert!(matches!(authenticode("STATUS=HashMismatch\nSIGNER=CN=x\n"), Err(Error::BadPackage(_))));
+        assert_eq!(authenticode("STATUS=NotTrusted\nSIGNER=CN=x\n").unwrap(), Trust::Unchecked { reason: "Authenticode status NotTrusted".into() });
+        assert_eq!(
+            authenticode("STATUS=Valid\n").unwrap(),
+            Trust::Unchecked { reason: "Authenticode status Valid".into() },
+            "valid but no signer: not trusted blindly"
+        );
         assert_eq!(authenticode("").unwrap(), Trust::Unchecked { reason: "Authenticode status unknown".into() });
     }
 
@@ -179,10 +194,12 @@ mod tests {
     #[test]
     fn windows_system_files_are_signed() {
         let cmd = Path::new(r"C:\Windows\System32\cmd.exe");
-        assert!(matches!(verify(PackageKind::PortableZip, cmd).unwrap(), Trust::Signed { .. }));
+        let trust = verify(PackageKind::PortableZip, cmd).unwrap();
+        assert!(matches!(trust, Trust::Signed { .. }), "cmd.exe: {trust:?}");
         let plain = std::env::temp_dir().join(format!("artcraft-toolbox-trust-{}.exe", std::process::id()));
         std::fs::write(&plain, b"not a program").unwrap();
-        assert!(!matches!(verify(PackageKind::PortableZip, &plain).unwrap(), Trust::Signed { .. }));
+        let trust = verify(PackageKind::PortableZip, &plain).unwrap();
+        assert!(!matches!(trust, Trust::Signed { .. }), "a file that isn't a program: {trust:?}");
         let _ = std::fs::remove_file(&plain);
     }
 }
