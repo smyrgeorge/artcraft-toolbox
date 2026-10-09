@@ -1,6 +1,6 @@
 # ArtCraft Toolbox architecture
 
-Status: v1 (2026-10-09). The crates marked *planned* are designed here and registered in
+Status: v1.1 (2026-10-09, M1). The crates marked *planned* are designed here and registered in
 `xtask/src/layers.rs`, but not written yet; `docs/roadmap.md` says when each one lands.
 
 ## 1. Goals and principles
@@ -39,8 +39,10 @@ artcraft-toolbox/
 │  ├─ catalog/    L0 standalone  App { id, name, tagline, repo, former_slugs, … } + catalog.toml
 │  ├─ model/      L1             Inventory (installed versions, active one), Settings (channel, …)
 │  ├─ feed/       L2             GitHub "list releases" JSON -> Release; Status per app; latest()
-│  ├─ net/        L3 planned     HTTPS client: GitHub-only, redirects to GitHub's CDN only, ETag,
-│  │                             size caps, resume, progress callbacks (native only)
+│  ├─ net/        L3             HTTPS (ureq + rustls, OS trust store): host policy checked per
+│  │                             redirect hop, token scoping, size caps, timeouts, rate-limit headers
+│  ├─ store/      L3             the toolbox's files: data dir, atomic writes, settings, inventory,
+│  │                             feed cache
 │  ├─ install/    L3 planned     per-OS: mount DMG + copy .app; extract portable zip; place AppImage;
 │  │                             shortcuts / desktop entries; uninstall; launch; running-app check
 │  ├─ jobs/       L4 planned     background jobs: download -> verify -> install -> record; self-update
@@ -54,9 +56,10 @@ artcraft-toolbox/
 └─ xtask/                        layers, ci, contract (live release check), version
 ```
 
-**What exists today** (M0): `release`, `catalog`, `model`, `feed`, `engine`, `ui-egui`, both apps
-and xtask. The engine answers "what is installed, what is available, what needs updating" from a
-feed it is given; fetching feeds is M1 and installing is M2.
+**What exists today** (M1): `release`, `catalog`, `model`, `feed`, `net`, `store`, `engine`,
+`ui-egui`, both apps and xtask. The toolbox checks GitHub for every app's releases in the
+background, caches them, persists its settings and inventory, and shows what is available and
+what needs updating. Installing is M2.
 
 ## 3. Layers (enforced)
 
@@ -65,7 +68,7 @@ feed it is given; fetching feeds is M1 and installing is M2.
  L6  ui-egui · automation           frontends' libraries (UI crates allowed from here)
  L5  engine                         Session + commands
  L4  jobs                           multi-step work in the background
- L3  net · install                  the machine: network, disk, OS (I/O crates allowed from here)
+ L3  net · store · install          the machine: network, disk, OS (I/O crates allowed from here)
  L2  feed                           pure: releases and statuses
  L1  model                          pure: toolbox state
  L0  release · catalog              pure, standalone: no workspace dependencies
@@ -79,7 +82,8 @@ tokio, zip, …) below L3, testkit as a normal dependency, or an unregistered cr
 
 ```text
 catalog.toml ─────────────► Catalog ───────────────────────────────┐
-GitHub /repos/<repo>/releases ─(net)─► feed::parse_releases ─► Feed ┤
+GitHub /repos/<repo>/releases?per_page=20 ─(net, If-None-Match)─►   │
+   worker: feed::parse_releases ─► feeds/<app>.json ─► Feed ────────┤
 inventory.json ───────────► Inventory (installed, active version) ──┼─► feed::status ─► AppStatus
 settings.json ────────────► Settings (channel, keep_previous, …) ───┘     (UI rows, `apps.status`)
 
@@ -95,12 +99,21 @@ predate arm64 builds), then the preferred per-user package for the OS
 (`PackageKind::preferred`): DMG on macOS, the portable zip on Windows (then MSI), AppImage on
 Linux (then tar.gz), tar.gz on FreeBSD.
 
-## 5. Install layout (proposal, decided in M2)
+## 5. Data directory and install layout
 
-The toolbox's own data directory (settings, inventory, feed cache, logs), following PhotoCraft's
-`app_dirs.rs`: `ARTCRAFT_TOOLBOX_CONFIG_DIR` when set; else macOS
-`~/Library/Application Support/ArtCraft Toolbox`, Windows `%APPDATA%\ArtCraft Toolbox`, Linux
-`$XDG_CONFIG_HOME/artcraft-toolbox` (`~/.config/artcraft-toolbox`).
+The toolbox's own data directory (`store::dirs`, from PhotoCraft's `app_dirs.rs`):
+`ARTCRAFT_TOOLBOX_CONFIG_DIR` when set; else macOS `~/Library/Application Support/ArtCraft Toolbox`,
+Windows `%APPDATA%\ArtCraft Toolbox`, Linux `$XDG_CONFIG_HOME/artcraft-toolbox`
+(`~/.config/artcraft-toolbox`).
+
+```text
+settings.json          Settings (replaced atomically; unreadable → backed up as .corrupt, defaults used)
+inventory.json         what is installed where (unreadable → reported, locked, never overwritten)
+feeds/<app>.json       the last release feed: raw GitHub body, ETag, check time
+logs/                  artcraft-toolbox.log, .1.log, .2.log (desktop app)
+```
+
+Installed apps (proposal, decided in M2):
 
 | OS | Versions kept in | Active version exposed as | Notes |
 |---|---|---|---|
@@ -126,15 +139,32 @@ accessors (`statuses()`, `app_status()`) serve the UI; commands serve everyone e
 | `apps.status` | `{}` | M0 |
 | `settings.get` | `{}` | M0 |
 | `settings.set` | any subset of `channel`, `checkIntervalHours`, `autoUpdate`, `keepPrevious`, `installDir` | M0 |
-| `updates.check` | `{"app"?:"<id>"}` | M1 |
+| `updates.check` (background) | `{"app"?:"<id>","force"?:bool}` | M1 |
 | `app.install`, `app.uninstall`, `app.launch` | `{"app":"<id>","version"?:"x.y.z"}` | M2 |
 | `app.update`, `apps.updateAll`, `app.rollback` | `{"app":"<id>"}` / `{}` | M3 |
 
-Long work (downloads, installs) will run as background jobs with progress, the way PhotoCraft's
-`Session` runs long commands (`crates/engine/src/jobs.rs` there).
+Long work runs as background jobs (`engine/src/jobs.rs`, PhotoCraft's pattern): a command with
+a `start` hook runs on worker threads when called through `Session::start` (the UI), and to
+completion through `Session::execute` (the CLI, tests). Workers never touch the session; they
+send messages that `Session::poll_jobs` applies on the session's thread, so rows update as each
+app's result arrives. `updates.check` runs up to 4 fetches at once, parses and caches each feed
+on the worker, stops when GitHub's rate limit is reached (and keeps checking disabled until its
+reset), and skips apps checked in the last minute. Install jobs (M2) reuse the same machinery.
 
 ## 7. Self-update
 
 The toolbox is distributed exactly like a craft (M5: PhotoCraft's release pipeline, ported) and
 follows the same release contract, so it can update itself through its own feed: download,
 verify, stage, and swap on next start (the running binary can't replace itself on Windows).
+
+## 8. The HTTP client (decided in M1)
+
+**ureq 3 with rustls and the platform verifier.** Blocking (the job workers are plain threads;
+no async runtime to carry), small, pure-Rust TLS, and certificates checked against the OS trust
+store, so a corporate TLS-inspecting proxy with its own CA works as it does in the user's
+browser; ureq also honours the usual `HTTPS_PROXY` variables. reqwest would bring tokio for no
+benefit here; native-tls would tie TLS behaviour to each OS's stack.
+
+ureq's own redirect following is off: `net::Client` follows redirects itself so every hop is
+checked against the policy's host list before it is contacted, and the `Authorization` header
+is sent only to the policy's token hosts (never along a redirect to another host).

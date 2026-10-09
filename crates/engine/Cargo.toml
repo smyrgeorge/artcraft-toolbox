@@ -13,6 +13,8 @@ artcraft-toolbox-release = { workspace = true }
 artcraft-toolbox-catalog = { workspace = true }
 artcraft-toolbox-model = { workspace = true }
 artcraft-toolbox-feed = { workspace = true }
+artcraft-toolbox-store = { workspace = true }
+artcraft-toolbox-net = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

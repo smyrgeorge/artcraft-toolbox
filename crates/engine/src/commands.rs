@@ -5,10 +5,11 @@ use std::sync::OnceLock;
 
 use serde_json::Value;
 
-use crate::{Result, Session};
+use crate::{JobId, Result, Session};
 
 type Run = fn(&mut Session, &Value) -> Result<Value>;
 type Enabled = fn(&Session) -> std::result::Result<(), String>;
+type Start = fn(&mut Session, &Value) -> Result<JobId>;
 
 /// Metadata + implementation for one command.
 pub struct CommandSpec {
@@ -18,7 +19,10 @@ pub struct CommandSpec {
     pub params: &'static str,
     /// Precondition (greys the action out in the UI).
     pub enabled: Enabled,
+    /// Runs the command to completion (what [`Session::execute`] calls).
     pub run: Run,
+    /// For long commands: starts it as a background job instead (what [`Session::start`] calls).
+    pub start: Option<Start>,
 }
 
 pub(crate) fn always(_: &Session) -> std::result::Result<(), String> {
@@ -33,6 +37,7 @@ pub fn command_specs() -> &'static [CommandSpec] {
         v.extend(crate::catalog_cmds::specs());
         v.extend(crate::status_cmds::specs());
         v.extend(crate::settings_cmds::specs());
+        v.extend(crate::update_cmds::specs());
         v
     })
 }

@@ -1,0 +1,17 @@
+[package]
+name = "artcraft-toolbox-net"
+description = "HTTPS for ArtCraft Toolbox: GitHub-only hosts, size caps, timeouts, rate-limit aware (native only)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+thiserror = { workspace = true }
+serde_json = { workspace = true }
+log = { workspace = true }
+# Blocking, small, pure-Rust TLS (rustls). The platform verifier trusts the OS certificate store,
+# so a corporate TLS-inspecting proxy with its own CA works like the user's browser does.
+ureq = { version = "3.4", default-features = false, features = ["rustls", "platform-verifier", "gzip"] }

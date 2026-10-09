@@ -5,7 +5,7 @@ Status legend: ✅ done · 🟡 in progress · ⬜ not started. Updated 2026-10-
 | M | Status | Goal |
 |---|---|---|
 | M0 Skeleton | ✅ | PhotoCraft's workspace, conventions and CI; the pure core; engine, CLI and UI shell |
-| M1 Live feeds | ⬜ | Fetch, cache and show every app's releases; persist settings and inventory |
+| M1 Live feeds | ✅ | Fetch, cache and show every app's releases; persist settings and inventory |
 | M2 Install and launch | ⬜ | Install, uninstall and open any craft on macOS, Windows and Linux |
 | M3 Updates, rollback, trust | ⬜ | Update one or all, keep and switch versions, verify signatures, adopt existing installs |
 | M4 Toolbox UX parity | ⬜ | Menu-bar/tray app, background checks, notifications, release notes, per-app settings |
@@ -14,7 +14,7 @@ Status legend: ✅ done · 🟡 in progress · ⬜ not started. Updated 2026-10-
 | M7 Catalog from the network | ⬜ | A signed remote catalog; non-conforming apps (ArtCraft itself) |
 | M8 Polish | ⬜ | Localization (PhotoCraft's `tl!` pattern), accessibility, light theme |
 
-## Current focus: M1 Live feeds
+## Current focus: M2 Install and launch
 
 Agents: pick the first unchecked item of the current milestone. Tick it in the same change that
 lands it.
@@ -33,17 +33,20 @@ lands it.
 - [x] `cargo xtask contract`: every craft's live release checked against the contract (12/12 pass)
 - [x] CI (`ci.yml`), daily contract check (`contract.yml`), AGENTS.md, docs
 
-### M1 Live feeds
+### M1 Live feeds ✅ (2026-10-09)
 
-- [ ] Data directory (`app_dirs.rs`, ported from PhotoCraft: `ARTCRAFT_TOOLBOX_CONFIG_DIR`, platform default; portable mode not needed)
-- [ ] Load and save `settings.json` and `inventory.json` atomically (temp file + rename); a corrupt inventory is reported, never overwritten
-- [ ] File logging with rotation (port PhotoCraft's `logging.rs`)
-- [ ] `net` crate (L3): HTTPS GET with a GitHub-only host allowlist, redirect only to GitHub's asset CDN, response size caps, timeouts, `ArtCraft-Toolbox/<version>` User-Agent; pick the client (ureq + rustls is the likely fit: blocking, small, pure Rust) and record why
-- [ ] Feed cache in the data dir with ETag / `If-None-Match` (304s don't count against the rate limit); optional `GITHUB_TOKEN`
-- [ ] `updates.check` command: all apps or one, as a background job; rate-limit (403/429) back-off with a clear message
-- [ ] UI: "Check for updates" button, last-checked time, per-row spinner, errors in the status bar
-- [ ] Check on start when the last check is older than `checkIntervalHours`
-- [ ] CLI: `artcraft-toolbox-cli check` (network) next to `status --feed` (offline)
+- [x] Data directory (`store::dirs`, ported from PhotoCraft's `app_dirs.rs`: `ARTCRAFT_TOOLBOX_CONFIG_DIR`, else the platform default; no portable mode)
+- [x] `settings.json` and `inventory.json` saved atomically (`store::atomic`, ported from PhotoCraft); unreadable settings are backed up and replaced by defaults, an unreadable inventory is reported, locked and never overwritten
+- [x] File logging with rotation (PhotoCraft's `logging.rs`, ported): `<data dir>/logs/artcraft-toolbox.log`
+- [x] `net` crate (L3): ureq + rustls with the OS trust store; GitHub-only host policy checked on every redirect hop; token only to `api.github.com`; body caps, timeouts, rate-limit headers (docs/architecture.md § 8 records the choice)
+- [x] Feed cache in the data dir (raw body + ETag); conditional requests; optional token in `ARTCRAFT_TOOLBOX_GITHUB_TOKEN`
+- [x] `updates.check` (all apps or one) as a background job (`Session::start` / `poll_jobs` / `wait_job` / `cancel_job`); stops at GitHub's rate limit and stays disabled until its reset; apps checked in the last minute aren't requested again
+- [x] UI: "Check for updates" with progress, per-row spinners, last-checked time and errors in the status bar
+- [x] Check on start when a feed is older than `checkIntervalHours`
+- [x] CLI: `check [--app <id>] [--force] [--json]`; `status` reads the cache; usage errors touch nothing
+
+Measured along the way: anonymous `304`s still count against GitHub's 60 requests/hour (see
+`docs/release-contract.md` › GitHub API), so one full check costs 12 of them. That shapes M7.
 
 ### M2 Install and launch
 
@@ -66,7 +69,7 @@ lands it.
 ### M4 Toolbox UX parity
 
 - [ ] Menu-bar (macOS) / tray (Windows, Linux) presence, closing to tray
-- [ ] Background checks and OS notifications for new versions
+- [ ] Periodic background checks while the app stays open (today: on start, and on demand), and OS notifications for new versions
 - [ ] Release notes view (Markdown) per version
 - [ ] Per-app overrides: channel, auto-update, pinned version
 - [ ] App icons from each craft's repository (cached), instead of monogram tiles
@@ -86,6 +89,7 @@ lands it.
 
 ### M7 Catalog from the network
 
+- [ ] One aggregated, signed release feed for the whole suite (a static file, not the rate-limited API): one request per check instead of 12, and no 60/hour ceiling for anonymous users
 - [ ] Signed remote catalog (new crafts appear without a toolbox release); the built-in catalog stays the fallback
 - [ ] Per-app asset patterns for apps outside the contract (ArtCraft's Tauri releases)
 

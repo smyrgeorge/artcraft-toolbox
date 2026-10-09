@@ -21,7 +21,7 @@ exact reproduction steps, and expected versus actual behaviour.
 
 | Threat | Mitigation |
 |---|---|
-| A feed or redirect points downloads at another host | Only `https://github.com/<repo>/releases/download/…` URLs are accepted (`feed::github::DOWNLOAD_PREFIX`); redirects only to GitHub's asset CDN (M1) |
+| A feed or redirect points requests at another host | `net::Policy`: HTTPS to the policy's hosts only (`api.github.com` for feeds), every redirect hop checked before it is contacted; asset URLs in feeds must start with `https://github.com/` (`feed::github::DOWNLOAD_PREFIX`); downloads (M2) add GitHub's asset CDN and nothing else |
 | A download is corrupted or swapped in transit or on a mirror | SHA-256 against the release's `SHA256SUMS.txt` before the file is opened (M2); no checksum entry, no install |
 | A craft's release itself is compromised | A checksum can't detect this. Platform signatures can: Developer ID and notarization on macOS, Authenticode on Windows where present (M3). Report unsigned builds instead of hiding it |
 | Malicious archives (zip-slip, symlinks, decompression bombs) | Paths confined to the staging dir, symlinks refused, entry count and total size capped (M2) |
@@ -29,7 +29,9 @@ exact reproduction steps, and expected versus actual behaviour.
 | A half-finished install breaks a working app | Stage, verify, then rename into place; the previous version is kept until the new one works |
 | Privilege escalation | Per-user installs need no admin rights; anything that would is an explicit user choice |
 | Automation surface (CLI now; control channel and MCP later) | Commands validate every param (`engine/tests/panic_hunt.rs`); the control channel will require a bearer token and localhost, like PhotoCraft's |
-| Personal data in network requests | Generic User-Agent, no identifiers; a GitHub token is used only when the user provides one, and only for `api.github.com` |
+| Personal data in network requests | Generic User-Agent (`ArtCraft-Toolbox/<version>`), no identifiers |
+| Token leakage | A GitHub token is used only when the user sets `ARTCRAFT_TOOLBOX_GITHUB_TOKEN`; it is sent only to `api.github.com` (never along a redirect to another host, tested in `crates/net/tests/client.rs`), never logged, never stored |
+| Hostile or corrupt local files (settings, inventory, cached feeds) | Size-capped reads, parsed without panics; atomic replacement; an unreadable inventory is never overwritten; app ids are validated before they name a file |
 
 ## Scope
 

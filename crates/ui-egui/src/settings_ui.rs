@@ -37,7 +37,6 @@ pub fn show(app: &mut ToolboxApp, ui: &mut egui::Ui, t: &Tokens) {
                 app.run("settings.set", json!({"keepPrevious": keep}));
             }
         });
-        ui.label(egui::RichText::new("Settings are not saved between launches yet.").small().color(t.text_faint));
     });
     ui.add_space(8.0);
     card(ui, t, |ui| {
@@ -45,5 +44,7 @@ pub fn show(app: &mut ToolboxApp, ui: &mut egui::Ui, t: &Tokens) {
         ui.label(format!("ArtCraft Toolbox {}", artcraft_toolbox_engine::build_info::long_version()));
         let host = app.session.host().map(|h| h.to_string()).unwrap_or_else(|| "unsupported platform".into());
         ui.label(egui::RichText::new(format!("This computer: {host}")).color(t.text_dim));
+        let data = app.session.store().map_or_else(|| "not saved (no data folder)".to_string(), |s| s.root().display().to_string());
+        ui.label(egui::RichText::new(format!("Data folder: {data}")).color(t.text_dim));
     });
 }

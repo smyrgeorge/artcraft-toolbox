@@ -9,6 +9,8 @@ pub mod settings;
 
 pub use inventory::{Installation, Inventory};
 pub use settings::{Channel, Settings};
+// The types the inventory and settings are made of.
+pub use artcraft_toolbox_release::{PackageKind, Version};
 
 /// Largest state file accepted (inventory or settings).
 pub const MAX_FILE_BYTES: usize = 4 * 1024 * 1024;

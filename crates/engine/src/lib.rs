@@ -3,30 +3,45 @@
 //! A [`Session`] holds the catalog, what is installed, the settings and the release feeds. Every
 //! user-visible action is a command ([`command_specs`]) with an id, a params doc and a `run`
 //! function; the desktop UI, the CLI and (later) the control channel and MCP all dispatch the
-//! same commands by id through [`Session::execute`]. No UI toolkit below L6 (`cargo xtask layers`).
+//! same commands by id through [`Session::execute`] (blocking) or [`Session::start`] (long
+//! commands such as `updates.check` run as background [jobs](crate::jobs)). No UI toolkit below
+//! L6 (`cargo xtask layers`).
+//!
+//! A session made with [`Session::new`] lives in memory and has no network access (tests, the
+//! snapshot example). [`setup::open_user_session`] opens the real one: the data directory's
+//! settings, inventory and feed cache, and a GitHub client.
 #![forbid(unsafe_code)]
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
 pub mod build_info;
 mod catalog_cmds;
 mod commands;
+pub mod jobs;
 mod params;
 mod settings_cmds;
+pub mod setup;
 mod status_cmds;
+pub mod time;
+pub mod update_cmds;
 
 use std::collections::BTreeMap;
 use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::sync::Arc;
 
-use artcraft_toolbox_catalog::Catalog;
 use artcraft_toolbox_feed::Release;
 use artcraft_toolbox_model::{Inventory, Settings};
-
+use artcraft_toolbox_net::Transport;
+use artcraft_toolbox_store::Store;
 use serde::Serialize;
 use serde_json::Value;
 
+pub use artcraft_toolbox_catalog::Catalog;
 pub use artcraft_toolbox_feed::Status;
+/// The network layer, for callers that pass a [`Transport`] (the apps, test fakes).
+pub use artcraft_toolbox_net as net;
 pub use artcraft_toolbox_release::{Target, Version};
 pub use commands::{CommandSpec, command_specs, find};
+pub use jobs::{JobEvent, JobId, JobInfo, Started};
 
 #[derive(Debug, thiserror::Error)]
 pub enum EngineError {
@@ -40,12 +55,18 @@ pub enum EngineError {
     UnknownApp(String),
     #[error("`{0}` failed with an internal error (logged); nothing else was changed")]
     Internal(String),
+    #[error("{0}")]
+    Locked(String),
+    #[error("{0}")]
+    Job(String),
     #[error(transparent)]
     Catalog(#[from] artcraft_toolbox_catalog::Error),
     #[error(transparent)]
     Feed(#[from] artcraft_toolbox_feed::Error),
     #[error(transparent)]
     Model(#[from] artcraft_toolbox_model::Error),
+    #[error(transparent)]
+    Store(#[from] artcraft_toolbox_store::Error),
 }
 
 pub type Result<T> = std::result::Result<T, EngineError>;
@@ -60,8 +81,10 @@ pub(crate) fn echo(s: &str) -> String {
 pub struct Feed {
     /// Newest first.
     pub releases: Vec<Release>,
-    /// Unix seconds.
+    /// Unix seconds of the last successful check.
     pub fetched_at: u64,
+    /// For the next conditional request.
+    pub etag: Option<String>,
 }
 
 /// One row of the app list: what the UI shows and `apps.status` returns.
@@ -72,6 +95,12 @@ pub struct AppStatus {
     pub name: String,
     pub tagline: String,
     pub status: Status,
+    /// Unix seconds of the last successful check of this app.
+    pub checked_at: Option<u64>,
+    /// A check of this app is in flight.
+    pub checking: bool,
+    /// Why the last check of this app failed, if it did.
+    pub error: Option<String>,
 }
 
 pub struct Session {
@@ -80,16 +109,90 @@ pub struct Session {
     settings: Settings,
     feeds: BTreeMap<String, Feed>,
     host: Option<Target>,
+    store: Option<Store>,
+    transport: Option<Arc<dyn Transport>>,
+    clock: fn() -> u64,
+    jobs: jobs::Jobs,
+    /// Unix seconds until which GitHub refuses requests from here, when it said so.
+    rate_limited_until: Option<u64>,
+    /// The last check's error, per app.
+    check_errors: BTreeMap<String, String>,
+    /// Set when the inventory file couldn't be read: it must not be overwritten.
+    inventory_locked: Option<String>,
 }
 
 impl Session {
-    /// A session over the built-in catalog, on this machine, with nothing installed.
+    /// A session over the built-in catalog, on this machine, with nothing installed, nothing
+    /// saved and no network access.
     pub fn new() -> Result<Session> {
         Ok(Session::with_catalog(Catalog::builtin()?))
     }
 
     pub fn with_catalog(catalog: Catalog) -> Session {
-        Session { catalog, inventory: Inventory::default(), settings: Settings::default(), feeds: BTreeMap::new(), host: Target::host() }
+        Session {
+            catalog,
+            inventory: Inventory::default(),
+            settings: Settings::default(),
+            feeds: BTreeMap::new(),
+            host: Target::host(),
+            store: None,
+            transport: None,
+            clock: time::now_unix,
+            jobs: jobs::Jobs::default(),
+            rate_limited_until: None,
+            check_errors: BTreeMap::new(),
+            inventory_locked: None,
+        }
+    }
+
+    /// A session that persists to `store` and reaches the network through `transport`. Loads the
+    /// settings, the inventory and the cached feeds; what can't be read is reported in the
+    /// returned warnings, never a reason not to start:
+    ///
+    /// - unreadable settings: kept as `settings.json.corrupt`, defaults used;
+    /// - unreadable inventory: left untouched and locked (nothing is written over the only record
+    ///   of what is installed where);
+    /// - unreadable cached feed: ignored, fetched again on the next check.
+    pub fn open(catalog: Catalog, store: Option<Store>, transport: Option<Arc<dyn Transport>>) -> (Session, Vec<String>) {
+        let mut s = Session::with_catalog(catalog);
+        s.transport = transport;
+        let mut warnings = Vec::new();
+        if let Some(store) = &store {
+            match store.load_settings() {
+                Ok(Some(settings)) => s.settings = settings,
+                Ok(None) => {}
+                Err(e) => {
+                    let kept =
+                        store.back_up(artcraft_toolbox_store::SETTINGS_FILE).map(|p| format!(" (a copy is kept as {})", p.display())).unwrap_or_default();
+                    warnings.push(format!("{e}; using the default settings{kept}"));
+                }
+            }
+            match store.load_inventory() {
+                Ok(Some(inventory)) => s.inventory = inventory,
+                Ok(None) => {}
+                Err(e) => {
+                    let msg = format!("{e}; it is left untouched, and installing is disabled until it can be read");
+                    s.inventory_locked = Some(msg.clone());
+                    warnings.push(msg);
+                }
+            }
+            let apps: Vec<(String, Vec<String>)> = s.catalog.apps.iter().map(|a| (a.id.clone(), a.slugs().iter().map(|x| x.to_string()).collect())).collect();
+            for (id, slugs) in apps {
+                let slugs: Vec<&str> = slugs.iter().map(String::as_str).collect();
+                match store.load_feed(&id) {
+                    Ok(Some(cached)) => match artcraft_toolbox_feed::parse_releases(&cached.body, &slugs) {
+                        Ok(releases) => {
+                            s.feeds.insert(id, Feed { releases, fetched_at: cached.fetched_at, etag: cached.etag });
+                        }
+                        Err(e) => log::warn!("cached feed of {id}: {e}; it will be fetched again"),
+                    },
+                    Ok(None) => {}
+                    Err(e) => log::warn!("{e}; it will be fetched again"),
+                }
+            }
+        }
+        s.store = store;
+        (s, warnings)
     }
 
     pub fn catalog(&self) -> &Catalog {
@@ -100,17 +203,33 @@ impl Session {
         &self.inventory
     }
 
-    /// Replace the inventory (the app loads it from its data directory at start).
+    /// Replace the inventory in memory (tests, the snapshot example).
     pub fn set_inventory(&mut self, inventory: Inventory) {
         self.inventory = inventory;
+    }
+
+    /// Write the inventory, unless it is locked because the file on disk couldn't be read.
+    pub fn save_inventory(&self) -> Result<()> {
+        if let Some(why) = &self.inventory_locked {
+            return Err(EngineError::Locked(why.clone()));
+        }
+        match &self.store {
+            Some(store) => Ok(store.save_inventory(&self.inventory)?),
+            None => Ok(()),
+        }
     }
 
     pub fn settings(&self) -> &Settings {
         &self.settings
     }
 
-    pub fn set_settings(&mut self, settings: Settings) {
+    /// Persist `settings`, then use them. If they can't be saved nothing changes.
+    pub fn set_settings(&mut self, settings: Settings) -> Result<()> {
+        if let Some(store) = &self.store {
+            store.save_settings(&settings)?;
+        }
         self.settings = settings;
+        Ok(())
     }
 
     /// The machine releases are chosen for; `None` on a platform no craft ships for.
@@ -123,6 +242,26 @@ impl Session {
         self.host = host;
     }
 
+    /// Where the session's files live, when it has any.
+    pub fn store(&self) -> Option<&Store> {
+        self.store.as_ref()
+    }
+
+    /// Can this session reach the network?
+    pub fn online(&self) -> bool {
+        self.transport.is_some()
+    }
+
+    /// Unix seconds now, from the session's clock.
+    pub fn now(&self) -> u64 {
+        (self.clock)()
+    }
+
+    /// Replace the clock (tests).
+    pub fn set_clock(&mut self, clock: fn() -> u64) {
+        self.clock = clock;
+    }
+
     pub fn feed(&self, app: &str) -> Option<&Feed> {
         self.feeds.get(app)
     }
@@ -132,16 +271,24 @@ impl Session {
         let entry = self.catalog.get(app).ok_or_else(|| EngineError::UnknownApp(echo(app)))?;
         let releases = artcraft_toolbox_feed::parse_releases(json, &entry.slugs())?;
         let n = releases.len();
-        self.feeds.insert(app.to_string(), Feed { releases, fetched_at });
+        self.feeds.insert(app.to_string(), Feed { releases, fetched_at, etag: None });
         Ok(n)
     }
 
     pub fn app_status(&self, app: &str) -> Result<AppStatus> {
         let entry = self.catalog.get(app).ok_or_else(|| EngineError::UnknownApp(echo(app)))?;
         let installed = self.inventory.current(app).map(|i| &i.version);
-        let releases = self.feeds.get(app).map(|f| f.releases.as_slice());
-        let status = artcraft_toolbox_feed::status(installed, releases, self.settings.channel, self.host);
-        Ok(AppStatus { id: entry.id.clone(), name: entry.name.clone(), tagline: entry.tagline.clone(), status })
+        let feed = self.feeds.get(app);
+        let status = artcraft_toolbox_feed::status(installed, feed.map(|f| f.releases.as_slice()), self.settings.channel, self.host);
+        Ok(AppStatus {
+            id: entry.id.clone(),
+            name: entry.name.clone(),
+            tagline: entry.tagline.clone(),
+            status,
+            checked_at: feed.map(|f| f.fetched_at),
+            checking: self.jobs.checking(app),
+            error: self.check_errors.get(app).cloned(),
+        })
     }
 
     /// Every catalog app, in catalog order.
@@ -149,9 +296,43 @@ impl Session {
         self.catalog.apps.iter().filter_map(|a| self.app_status(&a.id).ok()).collect()
     }
 
-    /// Run a command by id. `params` must be a JSON object (or null for none). Never panics: a
-    /// panic that escapes a command anyway is caught here and reported as [`EngineError::Internal`].
+    /// When the most recent check ended (Unix seconds), if there ever was one.
+    pub fn last_checked(&self) -> Option<u64> {
+        self.feeds.values().map(|f| f.fetched_at).max()
+    }
+
+    /// Until when GitHub refuses requests from here (Unix seconds), if it does now.
+    pub fn rate_limited_until(&self) -> Option<u64> {
+        let now = self.now();
+        self.rate_limited_until.filter(|t| *t > now)
+    }
+
+    /// Is an automatic update check due? When checks are on (`checkIntervalHours` > 0), the
+    /// session is online, nothing runs, GitHub isn't refusing requests, and some app's feed is
+    /// older than the interval (or was never fetched).
+    pub fn check_due(&self) -> bool {
+        let hours = u64::from(self.settings.check_interval_hours);
+        if hours == 0 || !self.online() || self.has_jobs() || self.rate_limited_until().is_some() {
+            return false;
+        }
+        let oldest = self.catalog.apps.iter().map(|a| self.feeds.get(&a.id).map_or(0, |f| f.fetched_at)).min().unwrap_or(0);
+        self.now().saturating_sub(oldest) >= hours.saturating_mul(3600)
+    }
+
+    /// Run a command by id and wait for it, background-capable ones included. `params` must be a
+    /// JSON object (or null for none). Never panics: a panic that escapes a command anyway is
+    /// caught here and reported as [`EngineError::Internal`].
     pub fn execute(&mut self, id: &str, params: Value) -> Result<Value> {
+        let (spec, params) = self.prepare(id, params)?;
+        log::debug!("execute {id}");
+        catch_unwind(AssertUnwindSafe(|| (spec.run)(self, &params))).unwrap_or_else(|_| {
+            log::error!("command `{id}` panicked");
+            Err(EngineError::Internal(spec.id.into()))
+        })
+    }
+
+    /// Find a command, check that it can run, and normalise its params.
+    pub(crate) fn prepare(&self, id: &str, params: Value) -> Result<(&'static CommandSpec, Value)> {
         let spec = find(id).ok_or_else(|| EngineError::UnknownCommand(echo(id)))?;
         if let Err(reason) = (spec.enabled)(self) {
             return Err(EngineError::Disabled { id: spec.id.into(), reason });
@@ -161,15 +342,96 @@ impl Session {
             Value::Object(_) => params,
             other => return Err(EngineError::BadParams(format!("params must be a JSON object, got {}", params::kind(&other)))),
         };
-        log::debug!("execute {id}");
-        catch_unwind(AssertUnwindSafe(|| (spec.run)(self, &params))).unwrap_or_else(|_| {
-            log::error!("command `{id}` panicked");
-            Err(EngineError::Internal(spec.id.into()))
-        })
+        Ok((spec, params))
     }
 
     /// Why the command can't run now (`None` = it can, or it doesn't exist: see [`find`]).
     pub fn disabled_reason(&self, id: &str) -> Option<String> {
         find(id).and_then(|s| (s.enabled)(self).err())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use artcraft_toolbox_store::CachedFeed;
+    use std::path::PathBuf;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    pub(crate) fn temp(tag: &str) -> PathBuf {
+        static N: AtomicUsize = AtomicUsize::new(0);
+        let d = std::env::temp_dir().join(format!("artcraft-toolbox-engine-{tag}-{}-{}", std::process::id(), N.fetch_add(1, Ordering::Relaxed)));
+        let _ = std::fs::remove_dir_all(&d);
+        d
+    }
+
+    const FEED: &str = include_str!("../../feed/tests/fixtures/photocraft-releases.json");
+
+    #[test]
+    fn open_loads_settings_inventory_and_cached_feeds() {
+        let root = temp("open");
+        let store = Store::open(&root).unwrap();
+        store.save_settings(&Settings { check_interval_hours: 2, ..Settings::default() }).unwrap();
+        store.save_feed("photocraft", &CachedFeed { etag: Some("W/\"e\"".into()), fetched_at: 42, body: FEED.into() }).unwrap();
+        let (s, warnings) = Session::open(Catalog::builtin().unwrap(), Some(store), None);
+        assert!(warnings.is_empty(), "{warnings:?}");
+        assert_eq!(s.settings().check_interval_hours, 2);
+        let f = s.feed("photocraft").unwrap();
+        assert_eq!((f.fetched_at, f.etag.as_deref(), f.releases.len()), (42, Some("W/\"e\""), 4));
+        assert_eq!(s.last_checked(), Some(42));
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn unreadable_files_are_warnings_not_failures() {
+        let root = temp("corrupt");
+        let store = Store::open(&root).unwrap();
+        std::fs::write(root.join("settings.json"), "{broken").unwrap();
+        std::fs::write(root.join("inventory.json"), "[not an inventory]").unwrap();
+        std::fs::write(root.join("feeds/photocraft.json"), "garbage").unwrap();
+        let (mut s, warnings) = Session::open(Catalog::builtin().unwrap(), Some(store), None);
+        assert_eq!(warnings.len(), 2, "{warnings:?}");
+        assert!(warnings[0].contains("default settings") && warnings[0].contains("settings.json.corrupt"), "{}", warnings[0]);
+        assert!(root.join("settings.json.corrupt").exists());
+        assert!(warnings[1].contains("left untouched"), "{}", warnings[1]);
+        assert!(s.feed("photocraft").is_none());
+        // The unreadable inventory is never written over.
+        assert!(matches!(s.save_inventory(), Err(EngineError::Locked(_))));
+        assert_eq!(std::fs::read_to_string(root.join("inventory.json")).unwrap(), "[not an inventory]");
+        // Settings still save (the corrupt one was backed up).
+        s.execute("settings.set", serde_json::json!({"channel": "prerelease"})).unwrap();
+        assert!(std::fs::read_to_string(root.join("settings.json")).unwrap().contains("prerelease"));
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn check_due_follows_the_interval() {
+        fn t0() -> u64 {
+            1_000_000
+        }
+        struct Never;
+        impl Transport for Never {
+            fn get(&self, _: &artcraft_toolbox_net::Request<'_>) -> std::result::Result<artcraft_toolbox_net::Response, artcraft_toolbox_net::NetError> {
+                Err(artcraft_toolbox_net::NetError::Timeout)
+            }
+        }
+        let (mut s, _) = Session::open(Catalog::builtin().unwrap(), None, Some(Arc::new(Never)));
+        s.set_clock(t0);
+        assert!(s.check_due(), "never checked");
+        let ids: Vec<String> = s.catalog().apps.iter().map(|a| a.id.clone()).collect();
+        for id in &ids {
+            s.feeds.insert(id.clone(), Feed { releases: Vec::new(), fetched_at: t0() - 3600, etag: None });
+        }
+        assert!(!s.check_due(), "checked an hour ago, interval 6 h");
+        if let Some(f) = s.feeds.get_mut("photocraft") {
+            f.fetched_at = t0() - 7 * 3600;
+        }
+        assert!(s.check_due(), "one app is older than the interval");
+        s.settings.check_interval_hours = 0;
+        assert!(!s.check_due(), "0 turns automatic checks off");
+        s.settings.check_interval_hours = 6;
+        s.rate_limited_until = Some(t0() + 60);
+        assert!(!s.check_due(), "not while GitHub refuses requests");
+        assert!(!Session::new().unwrap().check_due(), "never without network access");
     }
 }

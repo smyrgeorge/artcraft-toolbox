@@ -8,8 +8,8 @@ use crate::{Result, Session, params};
 
 pub(crate) fn specs() -> Vec<CommandSpec> {
     vec![
-        CommandSpec { id: "catalog.list", label: "List Apps", params: "{}", enabled: always, run: list },
-        CommandSpec { id: "app.info", label: "App Info", params: r#"{"app":"<id>"}"#, enabled: always, run: info },
+        CommandSpec { id: "catalog.list", label: "List Apps", params: "{}", enabled: always, run: list, start: None },
+        CommandSpec { id: "app.info", label: "App Info", params: r#"{"app":"<id>"}"#, enabled: always, run: info, start: None },
     ]
 }
 

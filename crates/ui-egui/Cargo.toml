@@ -19,5 +19,6 @@ log = { workspace = true }
 
 [dev-dependencies]
 egui_kittest = { workspace = true, features = ["wgpu", "snapshot", "eframe"] }
-# Only examples/snapshot.rs (fake installations for every status).
+# Only examples/snapshot.rs: fake installations for every status, and drawing a data folder's state.
 artcraft-toolbox-release = { workspace = true }
+artcraft-toolbox-store = { workspace = true }

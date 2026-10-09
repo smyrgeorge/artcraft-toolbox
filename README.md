@@ -13,9 +13,10 @@
 </p>
 
 > [!NOTE]
-> **Pre-alpha.** Milestone M0 is done: the toolbox lists every app and works out what is
-> installed, what's available and what needs updating from the apps' real release feeds. It does
-> not fetch, install or update anything yet; see [the roadmap](docs/roadmap.md).
+> **Pre-alpha.** Milestones M0 and M1 are done: the toolbox checks GitHub for every app's
+> releases in the background, caches them, and shows what's available and what needs updating
+> for your machine. It does not install or update anything yet (M2); see
+> [the roadmap](docs/roadmap.md).
 
 ## What it manages
 
@@ -51,6 +52,7 @@ release against that contract; on 2026-10-09 all twelve pass.
 ```sh
 cargo run --release -p artcraft-toolbox            # the desktop app
 cargo run -p artcraft-toolbox-cli -- list          # the catalog, headless
+cargo run -p artcraft-toolbox-cli -- check         # check GitHub for new releases
 cargo run -p artcraft-toolbox-cli -- status \
   --feed photocraft=crates/feed/tests/fixtures/photocraft-releases.json
 cargo xtask ci                                     # fmt, clippy, tests, layering

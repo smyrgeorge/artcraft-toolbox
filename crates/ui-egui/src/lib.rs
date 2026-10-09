@@ -12,7 +12,8 @@ pub mod state;
 pub mod theme;
 pub mod widgets;
 
-use artcraft_toolbox_engine::Session;
+use artcraft_toolbox_engine::update_cmds::CHECK;
+use artcraft_toolbox_engine::{Session, Started, time};
 use serde_json::Value;
 
 use state::{Tab, UiState};
@@ -51,8 +52,40 @@ impl ToolboxApp {
         }
     }
 
+    /// Start a background check for updates (all apps). Disabled states (offline, already
+    /// running, GitHub's rate limit) land in the status bar.
+    pub fn start_check(&mut self) {
+        match self.session.start(CHECK, Value::Null) {
+            Ok(Started::Job(_) | Started::Done(_)) => self.notice = None,
+            Err(e) => self.notice = Some(e.to_string()),
+        }
+    }
+
+    /// Start a check if one is due (`checkIntervalHours`); the desktop app calls this at start.
+    pub fn check_if_due(&mut self) {
+        if self.session.check_due() {
+            self.start_check();
+        }
+    }
+
+    /// Apply background job progress; report the jobs that ended.
+    fn poll(&mut self, ctx: &egui::Context) {
+        for event in self.session.poll_jobs() {
+            self.notice = match &event.result {
+                Ok(v) if event.command == CHECK => self.session.check_notice(v),
+                Ok(_) => None,
+                Err(e) => Some(e.clone()),
+            };
+        }
+        if self.session.has_jobs() {
+            // Results arrive from worker threads; keep drawing until they are all in.
+            ctx.request_repaint_after(std::time::Duration::from_millis(100));
+        }
+    }
+
     /// Draw one frame into `ui` (the eframe root, or a test harness).
     pub fn show(&mut self, ui: &mut egui::Ui) {
+        self.poll(ui.ctx());
         let t = Tokens::get(ui.ctx());
         egui::Panel::top("header").frame(egui::Frame::NONE.fill(t.chrome).inner_margin(egui::Margin::symmetric(16, 12))).show(ui, |ui| self.header(ui, &t));
         egui::Panel::bottom("status")
@@ -80,16 +113,25 @@ impl ToolboxApp {
     fn status_bar(&mut self, ui: &mut egui::Ui, t: &Tokens) {
         ui.horizontal(|ui| {
             if let Some(n) = &self.notice {
-                ui.label(egui::RichText::new(n).small().color(t.danger));
+                ui.label(egui::RichText::new(n).small().color(t.danger)).on_hover_text(n);
                 return;
             }
-            let host = self.session.host().map(|h| h.to_string()).unwrap_or_else(|| "unsupported platform".into());
-            ui.label(egui::RichText::new(format!("{} apps · {host}", self.session.catalog().apps.len())).small().color(t.text_dim));
+            ui.label(egui::RichText::new(status_line(&self.session)).small().color(t.text_dim));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.label(egui::RichText::new(artcraft_toolbox_engine::build_info::long_version()).small().color(t.text_faint));
             });
         });
     }
+}
+
+/// `Checked 5 min ago · 12 apps · macos-aarch64`.
+pub fn status_line(session: &Session) -> String {
+    let checked = match session.last_checked() {
+        Some(at) => format!("Checked {}", time::ago(session.now(), at)),
+        None => "Not checked yet".into(),
+    };
+    let host = session.host().map(|h| h.to_string()).unwrap_or_else(|| "unsupported platform".into());
+    format!("{checked} · {} apps · {host}", session.catalog().apps.len())
 }
 
 impl eframe::App for ToolboxApp {

@@ -1,46 +1,135 @@
-//! The CLI's contract: output, exit codes, and no panic on bad input.
+//! The CLI's contract: output, exit codes, no panic on bad input, and no side effects from usage
+//! errors. Every test runs in its own temp data folder with a fake network.
 
+use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 
-fn cli(args: &[&str]) -> (i32, String, String) {
-    let (mut out, mut err) = (Vec::new(), Vec::new());
-    let code = artcraft_toolbox_cli::run(args, &mut out, &mut err);
-    (code, String::from_utf8(out).unwrap(), String::from_utf8(err).unwrap())
+use artcraft_toolbox_cli::{Env, run};
+use artcraft_toolbox_engine::net::{NetError, RateLimit, Request, Response, Transport};
+
+const PHOTOCRAFT: &str = include_str!("../../../crates/feed/tests/fixtures/photocraft-releases.json");
+const FEED: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../crates/feed/tests/fixtures/photocraft-releases.json");
+
+fn temp() -> PathBuf {
+    static N: AtomicUsize = AtomicUsize::new(0);
+    let d = std::env::temp_dir().join(format!("artcraft-toolbox-cli-{}-{}", std::process::id(), N.fetch_add(1, Ordering::Relaxed)));
+    let _ = std::fs::remove_dir_all(&d);
+    d
 }
 
-const FEED: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../crates/feed/tests/fixtures/photocraft-releases.json");
+/// PhotoCraft's real feed; an empty feed for the rest; a timeout for VectorCraft when `flaky`.
+struct Fake {
+    flaky: bool,
+    requests: Mutex<usize>,
+}
+
+impl Transport for Fake {
+    fn get(&self, req: &Request<'_>) -> Result<Response, NetError> {
+        *self.requests.lock().unwrap() += 1;
+        if self.flaky && req.url.contains("/vectorcraft/") {
+            return Err(NetError::Timeout);
+        }
+        let body = if req.url.contains("/photocraft/") { PHOTOCRAFT } else { "[]" };
+        Ok(Response::Ok { body: body.as_bytes().to_vec(), etag: Some("W/\"e\"".into()), rate: RateLimit::default() })
+    }
+}
+
+struct Run {
+    code: i32,
+    out: String,
+    err: String,
+}
+
+fn cli_in(dir: &Path, fake: &Arc<Fake>, args: &[&str]) -> Run {
+    let (mut out, mut err) = (Vec::new(), Vec::new());
+    let (dir, fake) = (dir.to_path_buf(), Arc::clone(fake));
+    let code = run(args, &mut out, &mut err, move || Env { data_dir: Ok(dir), transport: Some(fake) });
+    Run { code, out: String::from_utf8(out).unwrap(), err: String::from_utf8(err).unwrap() }
+}
+
+fn fake(flaky: bool) -> Arc<Fake> {
+    Arc::new(Fake { flaky, requests: Mutex::new(0) })
+}
+
+fn cli(args: &[&str]) -> Run {
+    cli_in(&temp(), &fake(false), args)
+}
 
 #[test]
 fn help_and_version() {
-    let (code, out, _) = cli(&[]);
-    assert_eq!(code, 0);
-    assert!(out.contains("usage: artcraft-toolbox-cli"));
-    let (code, out, _) = cli(&["--version"]);
-    assert_eq!(code, 0);
-    assert!(out.starts_with("artcraft-toolbox-cli 0."));
-    assert_eq!(cli(&["status", "--help"]).0, 0);
+    let r = cli(&[]);
+    assert_eq!(r.code, 0);
+    assert!(r.out.contains("usage: artcraft-toolbox-cli") && r.out.contains("ARTCRAFT_TOOLBOX_GITHUB_TOKEN"));
+    let r = cli(&["--version"]);
+    assert_eq!(r.code, 0);
+    assert!(r.out.starts_with("artcraft-toolbox-cli 0."));
+    assert_eq!(cli(&["check", "--help"]).code, 0);
 }
 
 #[test]
 fn list_and_commands() {
-    let (code, out, _) = cli(&["list"]);
-    assert_eq!(code, 0);
-    assert!(out.lines().any(|l| l.starts_with("photocraft") && l.contains("PhotoCraft")));
-    let (code, out, _) = cli(&["list", "--json"]);
-    assert_eq!(code, 0);
-    let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+    let r = cli(&["list"]);
+    assert_eq!(r.code, 0);
+    assert!(r.out.lines().any(|l| l.starts_with("photocraft") && l.contains("PhotoCraft")));
+    let r = cli(&["list", "--json"]);
+    let v: serde_json::Value = serde_json::from_str(&r.out).unwrap();
     assert_eq!(v.as_array().map(Vec::len), Some(12));
-    let (code, out, _) = cli(&["commands", "--json"]);
-    assert_eq!(code, 0);
-    assert!(out.contains("\"apps.status\""));
+    let r = cli(&["commands", "--json"]);
+    assert_eq!(r.code, 0);
+    let v: serde_json::Value = serde_json::from_str(&r.out).unwrap();
+    let check = v.as_array().unwrap().iter().find(|c| c["id"] == "updates.check").unwrap();
+    assert_eq!(check["background"], true);
+}
+
+#[test]
+fn check_then_status_reads_the_cache() {
+    let dir = temp();
+    let net = fake(false);
+    let r = cli_in(&dir, &net, &["check"]);
+    assert_eq!(r.code, 0, "{}", r.err);
+    assert!(r.out.contains("Checked just now."), "{}", r.out);
+    assert_eq!(*net.requests.lock().unwrap(), 12);
+    assert!(dir.join("feeds/photocraft.json").exists());
+
+    // A later run (a new process, in effect) reads the cached feeds without the network.
+    let offline = fake(false);
+    let r = cli_in(&dir, &offline, &["status", "--json"]);
+    assert_eq!(r.code, 0);
+    let v: serde_json::Value = serde_json::from_str(&r.out).unwrap();
+    let pc = v.as_array().unwrap().iter().find(|r| r["id"] == "photocraft").unwrap();
+    assert_eq!(pc["status"]["latest"], "0.5.0");
+    assert!(pc["checkedAt"].is_u64());
+    assert_eq!(*offline.requests.lock().unwrap(), 0, "status never touches the network");
+
+    // Checked seconds ago: nothing is requested again unless forced.
+    let again = fake(false);
+    assert_eq!(cli_in(&dir, &again, &["check", "--app", "photocraft"]).code, 0);
+    assert_eq!(*again.requests.lock().unwrap(), 0);
+    assert_eq!(cli_in(&dir, &again, &["check", "--app", "photocraft", "--force"]).code, 0);
+    assert_eq!(*again.requests.lock().unwrap(), 1);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_partial_check_exits_1_and_says_why() {
+    let dir = temp();
+    let r = cli_in(&dir, &fake(true), &["check", "--json"]);
+    assert_eq!(r.code, 1, "{}", r.err);
+    assert!(r.err.contains("Couldn't check VectorCraft: the server took too long to answer"), "{}", r.err);
+    let v: serde_json::Value = serde_json::from_str(&r.out).unwrap();
+    assert_eq!(v["check"]["failed"][0]["app"], "vectorcraft");
+    assert_eq!(v["apps"].as_array().map(Vec::len), Some(12));
+    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
 fn status_with_an_offline_feed() {
     let feed = format!("photocraft={FEED}");
-    let (code, out, err) = cli(&["status", "--json", "--feed", &feed]);
-    assert_eq!(code, 0, "{err}");
-    let v: serde_json::Value = serde_json::from_str(&out).unwrap();
+    let r = cli(&["status", "--json", "--feed", &feed]);
+    assert_eq!(r.code, 0, "{}", r.err);
+    let v: serde_json::Value = serde_json::from_str(&r.out).unwrap();
     let pc = v.as_array().unwrap().iter().find(|r| r["id"] == "photocraft").unwrap();
     // Every CI and dev platform gets a PhotoCraft build.
     assert_eq!(pc["status"], serde_json::json!({"state": "notInstalled", "latest": "0.5.0"}));
@@ -49,33 +138,53 @@ fn status_with_an_offline_feed() {
 }
 
 #[test]
-fn run_dispatches_engine_commands() {
-    let (code, out, _) = cli(&["run", "app.status", r#"{"app":"vectorcraft"}"#]);
-    assert_eq!(code, 0);
-    assert!(out.contains("\"VectorCraft\""));
-    let (code, _, err) = cli(&["run", "app.status", r#"{"app":"nope"}"#]);
-    assert_eq!(code, 1);
-    assert!(err.contains("unknown app"));
+fn run_dispatches_engine_commands_and_settings_persist() {
+    let dir = temp();
+    let net = fake(false);
+    let r = cli_in(&dir, &net, &["run", "app.status", r#"{"app":"vectorcraft"}"#]);
+    assert_eq!(r.code, 0);
+    assert!(r.out.contains("\"VectorCraft\""));
+    let r = cli_in(&dir, &net, &["run", "app.status", r#"{"app":"nope"}"#]);
+    assert_eq!(r.code, 1);
+    assert!(r.err.contains("unknown app"));
+    assert_eq!(cli_in(&dir, &net, &["run", "settings.set", r#"{"channel":"prerelease"}"#]).code, 0);
+    let r = cli_in(&dir, &net, &["run", "settings.get"]);
+    assert!(r.out.contains("\"prerelease\""), "{}", r.out);
+    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]
-fn usage_errors_exit_2() {
+fn usage_errors_exit_2_and_touch_nothing() {
     for args in [
         vec!["nope"],
         vec!["list", "--nope"],
         vec!["list", "--json", "--json"],
         vec!["status", "--feed"],
         vec!["status", "--feed", "photocraft"],
+        vec!["check", "--app"],
+        vec!["check", "--app", "a", "--app", "b"],
+        vec!["check", "--feed", "x=y"],
+        vec!["list", "--force"],
         vec!["run"],
         vec!["run", "app.status", "{not json"],
         vec!["run", "a", "{}", "extra"],
     ] {
-        let (code, _, err) = cli(&args);
+        let (mut out, mut err) = (Vec::new(), Vec::new());
+        let code = run(&args, &mut out, &mut err, || panic!("a usage error must not open the session ({args:?})"));
+        let err = String::from_utf8(err).unwrap();
         assert_eq!(code, 2, "{args:?}: {err}");
         assert!(err.contains("usage:"), "{args:?}");
     }
     // A missing feed file is a failure, not a usage error.
-    assert_eq!(cli(&["status", "--feed", "photocraft=/definitely/missing.json"]).0, 1);
+    assert_eq!(cli(&["status", "--feed", "photocraft=/definitely/missing.json"]).code, 1);
+}
+
+#[test]
+fn no_data_folder_is_a_warning() {
+    let (mut out, mut err) = (Vec::new(), Vec::new());
+    let code = run(&["list"], &mut out, &mut err, || Env { data_dir: Err("no HOME".into()), transport: None });
+    assert_eq!(code, 0);
+    assert!(String::from_utf8(err).unwrap().contains("warning: no HOME; nothing will be saved"));
 }
 
 #[test]

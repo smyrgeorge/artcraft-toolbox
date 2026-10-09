@@ -7,8 +7,8 @@ use crate::{EngineError, Result, Session, params};
 
 pub(crate) fn specs() -> Vec<CommandSpec> {
     vec![
-        CommandSpec { id: "app.status", label: "App Status", params: r#"{"app":"<id>"}"#, enabled: always, run: one },
-        CommandSpec { id: "apps.status", label: "All Apps Status", params: "{}", enabled: always, run: all },
+        CommandSpec { id: "app.status", label: "App Status", params: r#"{"app":"<id>"}"#, enabled: always, run: one, start: None },
+        CommandSpec { id: "apps.status", label: "All Apps Status", params: "{}", enabled: always, run: all, start: None },
     ]
 }
 

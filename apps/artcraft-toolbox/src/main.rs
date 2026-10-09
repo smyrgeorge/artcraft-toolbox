@@ -13,7 +13,7 @@ mod logging;
 use std::ffi::OsString;
 use std::process::ExitCode;
 
-use artcraft_toolbox_engine::{Session, build_info};
+use artcraft_toolbox_engine::{build_info, setup};
 use artcraft_toolbox_ui_egui::ToolboxApp;
 
 /// Matches the `.desktop` file and hicolor icon name (packaging, docs/roadmap.md M5), so Wayland
@@ -73,23 +73,39 @@ fn main() -> ExitCode {
             return ExitCode::from(2);
         }
     }
-    logging::init();
+    let logger = logging::install();
     crash_guard::install_hook();
     log::info!("ArtCraft Toolbox {} starting", build_info::long_version());
-    let session = match Session::new() {
-        Ok(s) => s,
+    let opened = match setup::open_user_session() {
+        Ok(o) => o,
         Err(e) => {
             log::error!("{e}");
             eprintln!("ArtCraft Toolbox could not start: {e}");
             return ExitCode::FAILURE;
         }
     };
+    if let (Some(logger), Some(store)) = (logger, opened.session.store()) {
+        match logger.attach_dir(&store.logs_dir()) {
+            Ok(path) => log::info!("logging to {}", path.display()),
+            Err(e) => log::warn!("no log file: {e}"),
+        }
+    }
+    for w in &opened.warnings {
+        log::warn!("{w}");
+    }
+    let (session, warning) = (opened.session, opened.warnings.into_iter().next());
     let result = eframe::run_native(
         "ArtCraft Toolbox",
         native_options(),
         Box::new(move |cc| {
             ToolboxApp::setup_context(&cc.egui_ctx);
-            Ok(Box::new(ToolboxApp::new(session)))
+            let mut app = ToolboxApp::new(session);
+            app.check_if_due();
+            // A file that couldn't be read matters more than "checking started".
+            if warning.is_some() {
+                app.notice = warning;
+            }
+            Ok(Box::new(app))
         }),
     );
     match result {

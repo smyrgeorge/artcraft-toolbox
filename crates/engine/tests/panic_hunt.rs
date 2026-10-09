@@ -5,7 +5,10 @@
 use std::sync::mpsc;
 use std::time::Duration;
 
-use artcraft_toolbox_engine::{Session, command_specs};
+use std::sync::Arc;
+
+use artcraft_toolbox_engine::net::{NetError, Request, Response, Transport};
+use artcraft_toolbox_engine::{Catalog, Session, command_specs};
 use serde_json::{Value, json};
 
 fn adversarial() -> Vec<Value> {
@@ -32,22 +35,38 @@ fn adversarial() -> Vec<Value> {
         json!({"installDir": ""}),
         json!({"installDir": "\u{0}"}),
         json!({"autoUpdate": "true"}),
+        json!({"force": "yes"}),
+        json!({"force": null}),
+        json!({"app": "photocraft", "force": 1}),
     ];
     out.push(json!({ (long.clone()): 1 }));
     out
+}
+
+/// A network that always fails: online sessions run their commands' full validation, offline.
+struct Offline;
+
+impl Transport for Offline {
+    fn get(&self, _: &Request<'_>) -> Result<Response, NetError> {
+        Err(NetError::Connect("offline (test)".into()))
+    }
+}
+
+fn sessions() -> [fn() -> Session; 2] {
+    [|| Session::new().unwrap(), || Session::open(Catalog::builtin().unwrap(), None, Some(Arc::new(Offline))).0]
 }
 
 #[test]
 fn no_command_panics_or_hangs_on_adversarial_params() {
     let mut failures = Vec::new();
     for spec in command_specs() {
-        for p in adversarial() {
+        for (p, make) in adversarial().into_iter().flat_map(|p| sessions().map(move |m| (p.clone(), m))) {
             let id = spec.id;
             let (tx, rx) = mpsc::channel();
             let p2 = p.clone();
             std::thread::spawn(move || {
                 let r = std::panic::catch_unwind(|| {
-                    let mut s = Session::new().unwrap();
+                    let mut s = make();
                     let _ = s.execute(id, p2);
                 });
                 let _ = tx.send(r.is_ok());

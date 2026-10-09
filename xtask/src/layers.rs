@@ -41,8 +41,10 @@ pub const TABLE: &[(&str, Class)] = &[
     ("model", Class::Layer(1)),
     // L2: release feeds and update status.
     ("feed", Class::Layer(2)),
-    // L3: the edges that touch the machine (planned): HTTPS downloads, per-OS install/launch.
+    // L3: the edges that touch the machine: HTTPS (net), the toolbox's own files (store), per-OS
+    // install/launch (install, planned).
     ("net", Class::Layer(3)),
+    ("store", Class::Layer(3)),
     ("install", Class::Layer(3)),
     // L4: jobs that combine them (planned): download → verify → install → record, self-update.
     ("jobs", Class::Layer(4)),

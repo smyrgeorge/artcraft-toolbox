@@ -7,13 +7,14 @@ use crate::{EngineError, Result, Session, params};
 
 pub(crate) fn specs() -> Vec<CommandSpec> {
     vec![
-        CommandSpec { id: "settings.get", label: "Settings", params: "{}", enabled: always, run: get },
+        CommandSpec { id: "settings.get", label: "Settings", params: "{}", enabled: always, run: get, start: None },
         CommandSpec {
             id: "settings.set",
             label: "Change Settings",
             params: r#"{"channel"?:"stable|prerelease","checkIntervalHours"?:0..168,"autoUpdate"?:bool,"keepPrevious"?:0..5,"installDir"?:"<path>"|null}"#,
             enabled: always,
             run: set,
+            start: None,
         },
     ]
 }
@@ -23,7 +24,7 @@ fn get(s: &mut Session, p: &Value) -> Result<Value> {
     serde_json::to_value(s.settings()).map_err(|e| EngineError::BadParams(e.to_string()))
 }
 
-/// All or nothing: one bad value leaves every setting unchanged.
+/// All or nothing: one bad value, or settings that can't be saved, leave every setting unchanged.
 fn set(s: &mut Session, p: &Value) -> Result<Value> {
     let changes = params::object(p)?;
     if changes.is_empty() {
@@ -33,7 +34,7 @@ fn set(s: &mut Session, p: &Value) -> Result<Value> {
     for (k, v) in changes {
         next.set(k, v)?;
     }
-    s.set_settings(next);
+    s.set_settings(next)?;
     get(s, &Value::Object(Default::default()))
 }
 

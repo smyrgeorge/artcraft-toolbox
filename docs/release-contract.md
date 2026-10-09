@@ -17,6 +17,24 @@ a craft changed how it publishes: update this page, the parser and a fixture in 
   which redirects to GitHub's asset CDN. The toolbox follows that redirect and no other
   (`feed::github::DOWNLOAD_PREFIX`).
 
+## GitHub API (measured 2026-10-09)
+
+- The toolbox asks for `?per_page=20`: enough to find the newest stable build behind a run of
+  pre-releases. Responses are large because release notes are inlined: PhotoCraft's 30 newest
+  releases were 304 KB uncompressed (gzip is negotiated); cached feeds are 45–320 KB per app.
+- **Anonymous requests: 60 per hour per IP address, and a `304 Not Modified` still counts.**
+  Measured: three conditional requests in a row, all answered `304`, took
+  `x-ratelimit-remaining` from 47 to 44. ETags save bandwidth, not quota. One full check of 12 apps costs 12 requests, so an anonymous user
+  gets about five full checks an hour. Hence the toolbox's back-off (`engine::update_cmds`) and
+  roadmap M7's single aggregated feed.
+- With a token (`ARTCRAFT_TOOLBOX_GITHUB_TOKEN`) the limit is 5,000 per hour. Observed: the first
+  authenticated request with an ETag from an anonymous response got a full `200`, not a `304`.
+- A refusal is `403` with `x-ratelimit-remaining: 0` and `x-ratelimit-reset` (Unix seconds), or
+  `429`/`403` with `retry-after` for secondary limits; `net::classify` turns either into
+  `NetError::RateLimited`.
+- Public release lists need no credentials, so a `401` means the user's token is bad; the toolbox
+  says so.
+
 ## Releases
 
 - Tag `v<version>`; version is `MAJOR.MINOR.PATCH` with an optional pre-release

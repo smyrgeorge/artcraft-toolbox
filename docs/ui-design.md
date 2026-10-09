@@ -8,28 +8,34 @@ never copy their code, icons or assets).
 ## Layout
 
 ```text
-┌──────────────────────────────────────┐
-│ ArtCraft Toolbox        [Apps] Settings │  header: title, tabs (M4: refresh, menu)
-├──────────────────────────────────────┤
-│ [ Search apps                      ] │
-│ INSTALLED · 1                        │  installed first: what you use
-│ ┌──┐ PhotoCraft            [Update]  │  tile · name · status line · one action
-│ └──┘ 0.5.0 available · 0.3.0 installed│
-│ AVAILABLE · 11                       │
-│ ┌──┐ VectorCraft           [Install] │
-│ └──┘ Vector illustration             │
-│ …                                    │
-├──────────────────────────────────────┤
-│ 12 apps · macos-aarch64   0.1.0 (dev)│  status bar: errors replace it
-└──────────────────────────────────────┘
+┌────────────────────────────────────────────┐
+│ ArtCraft Toolbox           [Apps] Settings │  header: title, tabs (M4: menu)
+├────────────────────────────────────────────┤
+│ [ Search apps        ] [Check for updates] │  or a spinner and "Checking 3 of 12"
+│ INSTALLED · 1                              │  installed first: what you use
+│ ┌──┐ PhotoCraft                  [Update]  │  tile · name · status line · one action
+│ └──┘ 0.5.0 available · 0.3.0 installed     │
+│ AVAILABLE · 11                             │
+│ ┌──┐ VectorCraft                 [Install] │
+│ └──┘ Vector illustration                   │
+│ …                                          │
+├────────────────────────────────────────────┤
+│ Checked 5 min ago · 12 apps · linux-x86_64 │  status bar: errors replace it
+└────────────────────────────────────────────┘
 ```
 
 - Default window 440 × 720 points, minimum 360 × 480.
 - **One action per row**, chosen by status: Install (not installed), Update (update available),
-  Open (installed and current). No action when there is no build for this computer.
+  Open (installed and current). No action when there is no build for this computer. A spinner
+  replaces it while that app is being checked.
+- Names and status lines are truncated with an ellipsis before they reach the action column
+  (the tooltip has the full text). Check at 360 points wide.
+- "Check for updates" is disabled with its reason as the tooltip: no network, a check running,
+  or GitHub's rate limit (with when it resets).
 - Status line colours: accent for "update available", success for "up to date", warning for
   "no build for this computer", dim for everything else.
 - Errors from commands replace the status bar text (`ToolboxApp::notice`) until the next action.
+  A check that couldn't reach an app also marks that row ("Couldn't check: …") until it succeeds.
 
 ### Planned behaviour (M3–M4)
 

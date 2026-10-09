@@ -12,7 +12,8 @@
 ```sh
 cargo run --release -p artcraft-toolbox                 # desktop app
 cargo run -p artcraft-toolbox-cli -- list               # the catalog
-cargo run -p artcraft-toolbox-cli -- status             # statuses (no feed loaded: "Not installed")
+cargo run -p artcraft-toolbox-cli -- check              # check GitHub now (uses the data folder's cache)
+cargo run -p artcraft-toolbox-cli -- status             # statuses from the last check, no network
 cargo test --workspace                                  # everything
 cargo xtask ci                                          # fmt + clippy + tests + layers
 cargo xtask layers                                      # dependency layering
@@ -26,13 +27,17 @@ like PhotoCraft, so debug builds of the UI stay responsive.
 
 ```sh
 artcraft-toolbox-cli list [--json]
+artcraft-toolbox-cli check [--json] [--app <id>] [--force]   # GitHub, in the background job, waited for
 artcraft-toolbox-cli status [--json] [--feed <app>=<releases.json>]...
 artcraft-toolbox-cli commands [--json]                   # every engine command and its params
 artcraft-toolbox-cli run <command-id> [<json-params>]    # e.g. run app.status '{"app":"photocraft"}'
 ```
 
-Exit codes: 0 success, 1 a command failed, 2 a usage error. `status --feed` loads a saved GitHub
-"list releases" response, so scripts and tests can see real statuses without the network:
+Exit codes: 0 success, 1 a command failed (or `check` couldn't reach every app), 2 a usage error.
+Usage errors are found before anything runs, so they never touch the data folder or the network.
+The CLI uses the same data folder as the desktop app: `status` shows the last check's results.
+`status --feed` loads a saved GitHub "list releases" response instead, so scripts and tests can
+see real statuses without the network:
 
 ```sh
 cargo run -p artcraft-toolbox-cli -- status \
@@ -49,7 +54,9 @@ cargo run -p artcraft-toolbox-ui-egui --example snapshot -- --out target/snapsho
 ```
 
 `--feed` and `--installed` put the app list in any state (update available, up to date, not
-installed); `--host` picks releases for another machine; `--search` filters the list. Look at the
+installed); `--host` picks releases for another machine; `--search` filters the list;
+`--data-dir <dir>` draws a real data folder's state (copied first, never written; no network);
+`--checking` draws a check in progress. Look at the
 PNG after every UI change (AGENTS.md rule 7). Rendering needs a wgpu adapter: a GPU, or a
 software one such as llvmpipe (Linux) or WARP (Windows).
 
@@ -62,13 +69,16 @@ accessibility tree (`get_by_label`) and click, so they run anywhere, including C
 |---|---|
 | `release`, `catalog`, `model` | Unit tests with hostile input: malformed, oversized, overflowing, non-UTF-8-boundary strings |
 | `feed` | Real GitHub responses captured in `crates/feed/tests/fixtures/` plus synthetic edge cases |
-| `engine` | Command tests per module; `tests/panic_hunt.rs` runs every command with adversarial params |
+| `net` | URL policy and error classification unit tests; `tests/client.rs` runs the real client against a local HTTP server (redirect checks, token scoping, 304, rate limits, size caps) |
+| `store` | Temp folders: round trips, corrupt and oversized files, hostile app ids, atomic writes |
+| `engine` | Command tests per module (checks run against fake transports: rate limits, 304s, failures, cancel); `tests/panic_hunt.rs` runs every command with adversarial params, offline and online |
 | `ui-egui` | kittest (accessibility tree), the glyph test, and offscreen snapshots you look at |
 | apps | CLI integration tests (output, exit codes, the real binary); desktop arg parsing |
 | contract | `cargo xtask contract` against live GitHub, daily in CI (`contract.yml`) |
 
-Never call the network from `cargo test`. Code that needs it (M1+) takes its transport as a
-parameter, and tests pass a fake.
+Never call the network from `cargo test`. Code that needs it takes a `net::Transport`; tests pass
+a fake (or the real client against a local server, `crates/net/tests/client.rs`). The CLI's
+`run(args, out, err, env)` takes its data folder and transport the same way.
 
 ## Environment variables
 
@@ -77,15 +87,17 @@ parameter, and tests pass a fake.
 | `RUST_LOG` | The toolbox's own log level (`debug`, `trace`, `off`); other crates log warnings only |
 | `ARTCRAFT_TOOLBOX_BUILD_SHA` | Commit baked into `--version` and About (set by CI and packaging) |
 | `ARTCRAFT_TOOLBOX_BUILD_DATE` | Build date baked into `--version` and About |
-| `GITHUB_TOKEN` | `cargo xtask contract`: authenticated GitHub API requests (5,000/hour instead of 60) |
-
-Planned (M1): `ARTCRAFT_TOOLBOX_CONFIG_DIR` (data directory override, for tests and agents).
+| `ARTCRAFT_TOOLBOX_CONFIG_DIR` | Data folder override (settings, inventory, feed cache, logs); tests and agents use a temp folder |
+| `ARTCRAFT_TOOLBOX_GITHUB_TOKEN` | GitHub token for the apps' checks: 5,000 requests/hour instead of 60; sent only to `api.github.com` |
+| `GITHUB_TOKEN` | `cargo xtask contract` only: authenticated GitHub API requests |
 
 ## Logs
 
-The desktop app logs to standard error: `info` for the toolbox's crates, `warn` for everything
-else. A log file in the data directory, rotated per launch like PhotoCraft's, comes with the data
-directory in M1.
+The desktop app logs to standard error and to `<data dir>/logs/artcraft-toolbox.log` (each
+launch moves the previous log to `.1.log`, then `.2.log`; the file stops at 16 MiB). That file is
+what a bug report attaches. Defaults: `info` for the toolbox's crates, `warn` for everything else;
+`RUST_LOG` takes env_logger-style directives (`debug`, `warn,artcraft_toolbox_net=trace`,
+`artcraft_toolbox*=debug`). The logger is PhotoCraft's, ported (`apps/artcraft-toolbox/src/logging.rs`).
 
 ## Versions
 
