@@ -439,17 +439,8 @@ fn install(s: &mut Session, command: &str, app: &str, version: Option<String>, j
     };
     let mut last = String::new();
     loop {
-        for event in s.poll_jobs() {
-            if event.id == id {
-                if !last.is_empty() {
-                    let _ = writeln!(err);
-                }
-                return event.result.and_then(|v| report_change(out, json, &v, done));
-            }
-        }
-        if !s.has_jobs() {
-            return Err("the install stopped unexpectedly".into());
-        }
+        // The phase before polling: the job's state only moves when `poll_jobs` applies the
+        // worker's messages, so the first line is always "Starting", however fast the worker.
         if let Some(job) = s.job_for(command, app) {
             let line = match (job.phase.as_deref(), job.fraction) {
                 (Some("Downloading"), Some(f)) => format!("Downloading {:.0}%", f * 100.0),
@@ -461,6 +452,17 @@ fn install(s: &mut Session, command: &str, app: &str, version: Option<String>, j
                 let _ = err.flush();
                 last = line;
             }
+        }
+        for event in s.poll_jobs() {
+            if event.id == id {
+                if !last.is_empty() {
+                    let _ = writeln!(err);
+                }
+                return event.result.and_then(|v| report_change(out, json, &v, done));
+            }
+        }
+        if !s.has_jobs() {
+            return Err("the install stopped unexpectedly".into());
         }
         std::thread::sleep(std::time::Duration::from_millis(100));
     }
