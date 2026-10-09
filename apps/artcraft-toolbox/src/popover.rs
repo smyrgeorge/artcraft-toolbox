@@ -18,6 +18,15 @@ const MARGIN: f32 = 8.0;
 /// A tray click this soon after the popover hid because that click took the focus away is the
 /// same click: it meant "close", so the popover stays hidden.
 const REOPEN_GUARD: Duration = Duration::from_millis(500);
+/// How long the first showing waits for the menu bar to place the icon (then it shows anyway, in
+/// a corner).
+const PLACE_WAIT: Duration = Duration::from_secs(2);
+
+/// Where the window is made, off every screen. eframe shows a window after its first frame
+/// whatever its viewport says, and until the menu bar has placed the icon there is nowhere right
+/// to show it; without a position macOS would centre it near the top of the screen, and it would
+/// jump when placed. It is hidden again until [`Popover::start`] can place it.
+pub const PARKED: Pos2 = Pos2::new(-20000.0, -20000.0);
 
 /// Platforms where the window is a popover (when their tray icon exists).
 pub const SUPPORTED: bool = cfg!(any(target_os = "macos", windows));
@@ -32,8 +41,9 @@ pub fn size_for(screen: Option<Vec2>) -> Vec2 {
 
 /// Where the popover's top-left corner goes, in points: under the icon when it is in the top
 /// half of the screen (a menu bar), above it otherwise (a taskbar), centred on it and kept on the
-/// screen. Without the icon's position: the screen's top-right corner (`top`: a menu bar) or its
-/// bottom-right corner (a taskbar).
+/// screen. `top`: the platform's bar is usually at the top (macOS's menu bar), which decides when
+/// the screen isn't known. Without the icon's position: the screen's top-right corner (`top`) or
+/// its bottom-right corner.
 pub fn place(icon: Option<Rect>, size: Vec2, screen: Option<Vec2>, top: bool) -> Pos2 {
     let Some(icon) = icon else {
         let s = screen.unwrap_or(Vec2::new(1440.0, 900.0));
@@ -41,7 +51,7 @@ pub fn place(icon: Option<Rect>, size: Vec2, screen: Option<Vec2>, top: bool) ->
         let y = if top { 32.0 } else { s.y - size.y - 56.0 };
         return Pos2::new(x.max(0.0), y.max(0.0));
     };
-    let below = screen.is_none_or(|s| icon.center().y < s.y / 2.0);
+    let below = screen.map_or(top, |s| icon.center().y < s.y / 2.0);
     let y = if below { icon.bottom() + GAP } else { icon.top() - GAP - size.y };
     let mut x = icon.center().x - size.x / 2.0;
     // Kept on the screen we know the size of, when the icon is on it (an icon on another monitor
@@ -54,6 +64,13 @@ pub fn place(icon: Option<Rect>, size: Vec2, screen: Option<Vec2>, top: bool) ->
     Pos2::new(x, y)
 }
 
+/// Is this where the icon really is? Just after start, before the menu bar has laid the icon
+/// out, macOS reports its frame at the screen's origin, which comes out as the bottom-left
+/// corner; no menu-bar or tray icon sits at x = 0.
+pub fn plausible(icon: &tray_icon::Rect) -> bool {
+    icon.size.width > 0 && icon.size.height > 0 && icon.position.x.is_finite() && icon.position.y.is_finite() && icon.position.x > 0.0
+}
+
 /// The tray icon's rectangle (physical pixels) in points.
 pub fn icon_rect(icon: &tray_icon::Rect, pixels_per_point: f32) -> Rect {
     let ppp = if pixels_per_point.is_finite() && pixels_per_point > 0.0 { pixels_per_point } else { 1.0 };
@@ -61,30 +78,93 @@ pub fn icon_rect(icon: &tray_icon::Rect, pixels_per_point: f32) -> Rect {
     Rect::from_min_size(min, Vec2::new(icon.size.width as f32 / ppp, icon.size.height as f32 / ppp))
 }
 
-/// The popover's state: shown or not, focused or not, and when it last hid on losing the focus.
+/// The popover's state: shown or not, focused or not, when it last hid on losing the focus, and
+/// since when it waits to be shown the first time.
 #[derive(Debug, Default)]
 pub struct Popover {
     shown: bool,
     focused: bool,
     hid_on_blur: Option<Instant>,
+    starting: Option<Instant>,
+    /// Hidden again after eframe showed it (parked) while it waits to be placed.
+    rehidden: bool,
+    /// Placed without knowing the screen (it was parked off every screen): the icon it was placed
+    /// at, to place it again once the screen is known.
+    unsure: Option<Option<tray_icon::Rect>>,
+    /// Where it was placed last (position, size).
+    placed: Option<(Pos2, Vec2)>,
+}
+
+/// Show the popover the first time now? Once the icon's position and the display's scale are
+/// known, or after [`PLACE_WAIT`] without them.
+pub fn ready_to_place(icon_known: bool, scale_known: bool, waited: Duration) -> bool {
+    (icon_known && scale_known) || waited >= PLACE_WAIT
 }
 
 impl Popover {
+    /// A popover to show as soon as it can be placed ([`Popover::start`]).
+    pub fn starting() -> Popover {
+        Popover { starting: Some(Instant::now()), ..Popover::default() }
+    }
+
     pub fn shown(&self) -> bool {
         self.shown
     }
 
+    /// The first showing, at start: under the icon once the menu bar has placed it (call every
+    /// frame; `icon` is where the tray says the icon is now).
+    pub fn start(&mut self, ctx: &egui::Context, icon: Option<tray_icon::Rect>) {
+        let Some(since) = self.starting else { return };
+        let icon = icon.filter(plausible);
+        let scale_known = ctx.input(|i| i.viewport().native_pixels_per_point.is_some());
+        if ready_to_place(icon.is_some(), scale_known, since.elapsed()) {
+            self.show(ctx, icon.as_ref());
+        } else {
+            if !std::mem::replace(&mut self.rehidden, true) {
+                ctx.send_viewport_cmd(ViewportCommand::Visible(false));
+            }
+            ctx.request_repaint_after(Duration::from_millis(50));
+        }
+    }
+
     /// Show it under (or above) `icon`, in front, with the focus.
     pub fn show(&mut self, ctx: &egui::Context, icon: Option<&tray_icon::Rect>) {
-        let (ppp, screen) = ctx.input(|i| (i.viewport().native_pixels_per_point.unwrap_or(1.0), i.viewport().monitor_size));
-        let size = size_for(screen);
-        let pos = place(icon.map(|r| icon_rect(r, ppp)), size, screen, cfg!(target_os = "macos"));
-        ctx.send_viewport_cmd(ViewportCommand::InnerSize(size));
-        ctx.send_viewport_cmd(ViewportCommand::OuterPosition(pos));
+        let icon = icon.copied().filter(plausible);
+        let screen_known = self.place(ctx, icon);
+        self.unsure = (!screen_known).then_some(icon);
+        self.starting = None;
         ctx.send_viewport_cmd(ViewportCommand::Visible(true));
         ctx.send_viewport_cmd(ViewportCommand::Focus);
         self.shown = true;
         self.hid_on_blur = None;
+    }
+
+    /// Size and move the window for `icon`. Returns whether the screen's size was known.
+    fn place(&mut self, ctx: &egui::Context, icon: Option<tray_icon::Rect>) -> bool {
+        let (ppp, screen) = ctx.input(|i| (i.viewport().native_pixels_per_point, i.viewport().monitor_size));
+        let size = size_for(screen);
+        let icon_points = icon.map(|r| icon_rect(&r, ppp.unwrap_or(1.0)));
+        let pos = place(icon_points, size, screen, cfg!(target_os = "macos"));
+        if self.placed != Some((pos, size)) {
+            log::info!("popover at {pos:?}, {size:?} (icon {icon_points:?} in points, scale {ppp:?}, screen {screen:?})");
+            ctx.send_viewport_cmd(ViewportCommand::InnerSize(size));
+            ctx.send_viewport_cmd(ViewportCommand::OuterPosition(pos));
+            self.placed = Some((pos, size));
+        }
+        screen.is_some()
+    }
+
+    /// Once the screen is known after a placement without it: place it again, now kept on the
+    /// screen and sized for it (usually where it already is). Call every frame.
+    pub fn refine(&mut self, ctx: &egui::Context) {
+        let Some(icon) = self.unsure else { return };
+        if !self.shown {
+            self.unsure = None;
+        } else if let Some(screen) = ctx.input(|i| i.viewport().monitor_size) {
+            log::debug!("popover: the screen is {screen:?} now; placing it again");
+            self.unsure = None;
+            self.place(ctx, icon);
+        }
     }
 
     pub fn hide(&mut self, ctx: &egui::Context) {
@@ -153,6 +233,12 @@ mod tests {
     }
 
     #[test]
+    fn without_the_screen_the_platform_decides_above_or_below() {
+        assert_eq!(place(icon(700.0, 0.0), SIZE, None, true).y, 24.0 + GAP);
+        assert_eq!(place(icon(1300.0, 1050.0), SIZE, None, false).y, 1050.0 - GAP - SIZE.y);
+    }
+
+    #[test]
     fn without_an_icon_position_a_corner() {
         assert_eq!(place(None, SIZE, Some(SCREEN), true), Pos2::new(SCREEN.x - SIZE.x - MARGIN, 32.0));
         assert_eq!(place(None, SIZE, Some(SCREEN), false), Pos2::new(SCREEN.x - SIZE.x - MARGIN, SCREEN.y - SIZE.y - 56.0));
@@ -166,6 +252,25 @@ mod tests {
         assert_eq!(size_for(Some(Vec2::new(1280.0, 600.0))).y, 520.0);
         assert_eq!(size_for(Some(Vec2::new(800.0, 100.0))).y, 360.0);
         assert_eq!(size_for(None), SIZE);
+    }
+
+    #[test]
+    fn an_icon_the_menu_bar_has_not_placed_yet_is_ignored() {
+        let at =
+            |x: f64, y: f64, w: u32| tray_icon::Rect { size: tray_icon::dpi::PhysicalSize::new(w, 44), position: tray_icon::dpi::PhysicalPosition::new(x, y) };
+        // macOS before layout: the screen's origin, flipped to the bottom-left corner.
+        assert!(!plausible(&at(0.0, 1920.0, 44)));
+        assert!(!plausible(&at(1400.0, 0.0, 0)));
+        assert!(!plausible(&at(f64::NAN, 0.0, 44)));
+        assert!(plausible(&at(2700.0, 0.0, 44)));
+    }
+
+    #[test]
+    fn the_first_showing_waits_for_a_place_but_not_forever() {
+        assert!(!ready_to_place(false, true, Duration::from_millis(100)));
+        assert!(!ready_to_place(true, false, Duration::from_millis(100)));
+        assert!(ready_to_place(true, true, Duration::ZERO));
+        assert!(ready_to_place(false, false, PLACE_WAIT));
     }
 
     #[test]

@@ -73,6 +73,7 @@ fn native_options(popover: bool) -> eframe::NativeOptions {
     viewport = if popover {
         viewport
             .with_inner_size(popover::SIZE)
+            .with_position(popover::PARKED)
             .with_decorations(false)
             .with_transparent(TRANSPARENT)
             .with_resizable(false)
@@ -183,7 +184,7 @@ fn main() -> ExitCode {
             if warning.is_some() {
                 app.notice = warning;
             }
-            let popover = popover.then(|| (Popover::default(), true));
+            let popover = popover.then(Popover::starting);
             Ok(Box::new(Desktop { app, tray, popover }))
         }),
     );
@@ -201,8 +202,7 @@ fn main() -> ExitCode {
 struct Desktop {
     app: ToolboxApp,
     tray: Option<Tray>,
-    /// The popover, and whether it still has to be shown the first time.
-    popover: Option<(Popover, bool)>,
+    popover: Option<Popover>,
 }
 
 impl Desktop {
@@ -214,14 +214,13 @@ impl Desktop {
     /// A popover hides on losing the focus and on Escape (unless Escape is for something in it:
     /// the search, a dialog, an open menu); Cmd+Q quits (a menu-bar app has no app menu).
     fn popover_keys_and_focus(&mut self, ctx: &egui::Context) {
-        let Some((popover, first)) = &mut self.popover else { return };
-        if std::mem::take(first) {
-            popover.show(ctx, self.tray.as_ref().and_then(Tray::rect).as_ref());
-        }
+        let Some(popover) = &mut self.popover else { return };
+        popover.start(ctx, self.tray.as_ref().and_then(Tray::rect));
         // A close request (Alt+F4) hides it to the tray, or quits (`ToolboxApp::tick`).
         if ctx.input(|i| i.viewport().close_requested()) {
             popover.hidden();
         }
+        popover.refine(ctx);
         popover.follow_focus(ctx);
         let busy = self.app.ui.search_open || self.app.ui.confirm_uninstall.is_some() || egui::Popup::is_any_open(ctx);
         if popover.shown() && !busy && ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
@@ -239,8 +238,8 @@ impl eframe::App for Desktop {
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         for action in self.tray.as_ref().map(Tray::actions).unwrap_or_default() {
             match (action, &mut self.popover) {
-                (TrayAction::Toggle(rect), Some((popover, _))) => popover.toggle(ctx, Some(&rect)),
-                (TrayAction::Open, Some((popover, _))) => {
+                (TrayAction::Toggle(rect), Some(popover)) => popover.toggle(ctx, Some(&rect)),
+                (TrayAction::Open, Some(popover)) => {
                     let rect = self.tray.as_ref().and_then(Tray::rect);
                     popover.show(ctx, rect.as_ref());
                 }
