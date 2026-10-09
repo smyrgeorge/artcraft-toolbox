@@ -99,6 +99,19 @@ what the desktop app shows, with notifications and a tray icon available. Fill a
 folder for it with `ARTCRAFT_TOOLBOX_CONFIG_DIR=<dir> artcraft-toolbox-cli check` and
 `… run icons.refresh`.
 
+The README's screenshots (`docs/images/toolbox-*.png`) are rendered this way from a data folder
+with PhotoCraft installed and every feed and icon cached (`check`, `run icons.refresh`), at 2×:
+
+```sh
+D="$HOME/Library/Application Support/ArtCraft Toolbox"   # or a scratch folder
+snap() { cargo run -q -p artcraft-toolbox-ui-egui --example snapshot -- --size 440x620 --scale 2 \
+  --online --popover --data-dir "$D" "$@"; }
+snap --out docs/images/toolbox-apps-dark.png
+snap --out docs/images/toolbox-apps-light.png --theme light
+snap --out docs/images/toolbox-details.png --details photocraft
+snap --out docs/images/toolbox-japanese.png --lang ja
+```
+
 The tray, notifications, the popover's placement and hiding, and the hidden-window behaviour
 can only be seen in the real app (the tray needs a running event loop). Run it against a scratch
 data folder and read its log:

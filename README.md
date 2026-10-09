@@ -19,6 +19,34 @@
 > platform signature first. It opens as a popover from the menu bar or tray, in 15 languages and a
 > dark or light theme. It isn't packaged for download yet (M5); see [the roadmap](docs/roadmap.md).
 
+## Screenshots
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/images/toolbox-apps-dark.png" alt="The ArtCraft Toolbox popover in the dark theme: PhotoCraft 0.5.0 installed and up to date with an Open button and a menu, then the available apps (VectorCraft, FilmCraft, LightCraft, PdfCraft) with their descriptions, Install buttons and versions" width="100%">
+      <br><sub>Installed apps first, then everything you can install. Click the menu-bar icon to open it.</sub>
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/images/toolbox-details.png" alt="PhotoCraft's page: version 0.5.0, up to date, signed by Learning Machines LLC and notarized; links to GitHub, Releases and the website; Open and Uninstall; its own channel, update and version settings; the start of its versions list" width="100%">
+      <br><sub>Each app's page: its signature, its own update settings and every version, with release notes.</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/images/toolbox-apps-light.png" alt="The same app list in the light theme" width="100%">
+      <br><sub>Light or dark, or the same as the system.</sub>
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/images/toolbox-japanese.png" alt="The app list in Japanese: アプリ and 設定 tabs, インストール済み and 入手可能なアプリ panels, インストール buttons" width="100%">
+      <br><sub>In 15 languages, switched without a restart.</sub>
+    </td>
+  </tr>
+</table>
+
+Every screenshot is the real app, rendered offscreen by its snapshot example from a real data
+folder (PhotoCraft installed by the toolbox); see [docs/development.md](docs/development.md).
+
 ## What it manages
 
 | App | What it's for | Code |

@@ -16,6 +16,12 @@ next to them.
 | `assets/icons/{arrow-left,check,chevron-down,chevron-right,download,external-link,info,search,trash,x}.svg` | Lucide icons derived from Feather (subset of the row above) | Cole Bemis (Feather), Lucide Contributors | <https://github.com/feathericons/feather> via Lucide | MIT (Feather) and ISC (Lucide), [`assets/icons/LICENSE-lucide.txt`](assets/icons/LICENSE-lucide.txt) |
 | `crates/ui-egui/src/i18n/*.tsv` | UI translations (cs, de, el, es, fr, id, it, ja, ko, pl, pt-br, ru, zh-hans, zh-hant) | ArtCraft Toolbox contributors; strings shared with PhotoCraft reuse PhotoCraft contributors' translations | Original translations of the toolbox's English labels, and PhotoCraft's catalogs | MIT OR Apache-2.0, [`LICENSE-translations.txt`](crates/ui-egui/src/i18n/LICENSE-translations.txt) |
 
+## In the documentation
+
+| Path | Title | Author | Source | License |
+|---|---|---|---|---|
+| `docs/images/toolbox-*.png` | Screenshots of ArtCraft Toolbox, rendered offscreen by `crates/ui-egui/examples/snapshot.rs` | ArtCraft Toolbox contributors | Original | MIT OR Apache-2.0; the Crafting Apps' icons shown in them are those apps' own artwork, from their repositories (`storytold/<app>`), shown as the toolbox displays them |
+
 No Crafting App icon or ArtCraft logo is bundled. The app list shows each craft's own icon,
 fetched at run time from that craft's repository (docs/release-contract.md › Icons) and cached
 in the user's data folder, and a monogram tile until then.
