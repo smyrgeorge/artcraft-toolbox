@@ -14,6 +14,11 @@
 //! the network). `--checking` draws a check in progress. `--details <app>` opens an app's page,
 //! and `--confirm-uninstall` its uninstall question. `--installing <app>` draws an install
 //! stopped at 45% of its download (the app's release from `--feed`; nothing is installed).
+//! `--installed` may name several versions of an app (the last is in use, the others kept);
+//! `--signed` draws them signed and notarized. `--found <app>=<version>` draws a copy installed
+//! outside the toolbox, offered for adoption (as a Linux AppImage: use `--host linux-x86_64`).
+//! `--online` draws the buttons that need the network enabled (requests fail at once; no
+//! automatic check runs).
 
 use std::sync::Arc;
 
@@ -23,7 +28,7 @@ use std::io::Read;
 use artcraft_toolbox_engine::install_cmds::INSTALL;
 use artcraft_toolbox_engine::net::{Download, NetError, RateLimit, Request, Response, Transport};
 use artcraft_toolbox_engine::{Catalog, Layout, Session};
-use artcraft_toolbox_model::{Installation, Inventory};
+use artcraft_toolbox_model::{Installation, Inventory, Trust};
 use artcraft_toolbox_release::{PackageKind, Target, Version};
 use artcraft_toolbox_ui_egui::ToolboxApp;
 use artcraft_toolbox_ui_egui::state::Tab;
@@ -104,9 +109,11 @@ fn main() -> Result<(), String> {
         .into_iter()
         .map(|(app, file)| std::fs::read_to_string(&file).map(|json| (app, json)).map_err(|e| format!("{file}: {e}")))
         .collect::<Result<Vec<_>, _>>()?;
+    let online = args.iter().any(|a| a == "--online");
     let transport: Option<Arc<dyn Transport>> = if checking {
         Some(Arc::new(Stall))
-    } else if installing.is_some() {
+    } else if installing.is_some() || online {
+        // Answers only checksums for `--installing`; everything else fails at once.
         Some(Arc::new(Halfway { sizes: feeds.iter().flat_map(|(_, json)| asset_sizes(json)).collect() }))
     } else {
         None
@@ -132,10 +139,16 @@ fn main() -> Result<(), String> {
         session.ingest_releases(app, json, artcraft_toolbox_engine::time::now_unix()).map_err(|e| e.to_string())?;
     }
     let mut inventory = Inventory::default();
-    for (app, v) in all(&args, "--installed") {
+    let signed = args.iter().any(|a| a == "--signed");
+    for (n, (app, v)) in all(&args, "--installed").into_iter().enumerate() {
         let version = Version::parse(&v).map_err(|e| e.to_string())?;
+        let trust = if signed {
+            Trust::Signed { signer: "Developer ID Application: Learning Machines LLC (DJ6XS33FX8)".into(), team: Some("DJ6XS33FX8".into()), notarized: true }
+        } else {
+            Trust::Unsigned
+        };
         inventory
-            .record(Installation { app, version, kind: PackageKind::AppImage, path: String::new(), installed_at: 0, active: true })
+            .record(Installation { app, version, kind: PackageKind::AppImage, path: String::new(), installed_at: n as u64, active: true, trust: Some(trust) })
             .map_err(|e| e.to_string())?;
     }
     if !inventory.installations.is_empty() {
@@ -151,15 +164,26 @@ fn main() -> Result<(), String> {
     // Installing is on, as in the desktop app, into a scratch folder removed at the end (only
     // `--installing` writes to it).
     let scratch = std::env::temp_dir().join(format!("artcraft-toolbox-snapshot-install-{}", std::process::id()));
+    for (id, v) in all(&args, "--found") {
+        let file = scratch.join("apps").join(&id).join(&v).join(format!("{id}.AppImage"));
+        if let Some(dir) = file.parent() {
+            std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+        }
+        std::fs::write(&file, b"\x7fELF\x02\x01\x01\x00AI\x02").map_err(|e| format!("{}: {e}", file.display()))?;
+    }
     app.session.set_layout(Some(Layout {
         apps: scratch.join("apps"),
         desktop_entries: None,
         icons: None,
         start_menu: None,
         downloads: scratch.join("downloads"),
+        kept: scratch.join("kept"),
     }));
-    if let Some(id) = &installing {
+    app.session.rescan();
+    if online || installing.is_some() {
         app.session.execute("settings.set", serde_json::json!({ "checkIntervalHours": 0 })).map_err(|e| e.to_string())?;
+    }
+    if let Some(id) = &installing {
         app.session.start(INSTALL, serde_json::json!({ "app": id })).map_err(|e| e.to_string())?;
         // Let the download reach its stopping point.
         std::thread::sleep(std::time::Duration::from_millis(500));

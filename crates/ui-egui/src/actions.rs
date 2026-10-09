@@ -1,28 +1,34 @@
-//! An app's one action, shared by its row and its page: Install, Open, or Cancel while it
-//! installs (the progress bar goes under the status line, [`bar`]). Each is an engine command
-//! (`app.install` in the background, `app.launch`).
+//! An app's one action, shared by its row and its page: Install, Update, Open, Adopt (a copy
+//! installed by hand), or Cancel while it installs or updates (the progress bar goes under the
+//! status line, [`bar`]). Each is an engine command (`app.install` and `app.update` in the
+//! background, `app.rollback`, `app.adopt`, `app.launch`).
 
-use artcraft_toolbox_engine::install_cmds::{INSTALL, LAUNCH};
-use artcraft_toolbox_engine::{AppStatus, JobId, JobInfo, Session, Status};
+use artcraft_toolbox_engine::install_cmds::{INSTALL, LAUNCH, UPDATE};
+use artcraft_toolbox_engine::versions_cmds::{ADOPT, ROLLBACK};
+use artcraft_toolbox_engine::{AppStatus, JobId, JobInfo, Session, Status, Version};
 use serde_json::json;
 
 use crate::ToolboxApp;
 use crate::theme::Tokens;
 
 /// What the user clicked.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Clicked {
     Install,
+    Update,
     Open,
+    Adopt,
     Cancel(JobId),
+    /// Make this installed version or release the one in use (the details page's versions).
+    UseVersion(Version),
 }
 
-/// The install job running for `r`, if any.
+/// The install or update job running for `r`, if any.
 pub fn installing(session: &Session, r: &AppStatus) -> Option<JobInfo> {
-    session.job_for(INSTALL, &r.id)
+    session.job_for(INSTALL, &r.id).or_else(|| session.job_for(UPDATE, &r.id))
 }
 
-/// Is the app installed (whatever its update state)?
+/// Is the app installed by the toolbox (whatever its update state)?
 pub fn installed(r: &AppStatus) -> bool {
     matches!(
         r.status,
@@ -60,25 +66,33 @@ pub fn bar(ui: &mut egui::Ui, job: &JobInfo, width: f32, t: &Tokens) {
     }
 }
 
+/// A button that is disabled, with the reason as its tooltip, while `command` can't run.
+pub fn command_button(ui: &mut egui::Ui, session: &Session, command: &str, label: &str, hover: String) -> bool {
+    let reason = session.disabled_reason(command);
+    let b = ui.add_enabled(reason.is_none(), egui::Button::new(label));
+    let b = match &reason {
+        Some(why) => b.on_disabled_hover_text(why),
+        None => b.on_hover_text(hover),
+    };
+    b.clicked()
+}
+
 /// Draw the action and return what was clicked.
 pub fn draw(ui: &mut egui::Ui, session: &Session, r: &AppStatus, _t: &Tokens) -> Option<Clicked> {
     if let Some(job) = installing(session, r) {
         let cancel = ui.button("Cancel").on_hover_text("Stop; installing again resumes the download");
         return cancel.clicked().then_some(Clicked::Cancel(job.id));
     }
-    if installed(r) {
-        return ui.button("Open").on_hover_text(format!("Open {}", r.name)).clicked().then_some(Clicked::Open);
-    }
     match &r.status {
-        Status::NotInstalled { latest } => {
-            let reason = session.disabled_reason(INSTALL);
-            let b = ui.add_enabled(reason.is_none(), egui::Button::new("Install"));
-            let b = match &reason {
-                Some(why) => b.on_disabled_hover_text(why),
-                None => b.on_hover_text(format!("Install {} {latest}", r.name)),
-            };
-            b.clicked().then_some(Clicked::Install)
+        Status::UpdateAvailable { installed, latest } => {
+            command_button(ui, session, UPDATE, "Update", format!("Update {} from {installed} to {latest}", r.name)).then_some(Clicked::Update)
         }
+        _ if installed(r) => ui.button("Open").on_hover_text(format!("Open {}", r.name)).clicked().then_some(Clicked::Open),
+        _ if r.found.is_some() => {
+            command_button(ui, session, ADOPT, "Adopt", format!("Let the toolbox update and roll back the {} found on this computer", r.name))
+                .then_some(Clicked::Adopt)
+        }
+        Status::NotInstalled { latest } => command_button(ui, session, INSTALL, "Install", format!("Install {} {latest}", r.name)).then_some(Clicked::Install),
         Status::Unknown { installed: None } => {
             ui.add_enabled(false, egui::Button::new("Install")).on_disabled_hover_text("Check for updates first");
             None
@@ -89,11 +103,39 @@ pub fn draw(ui: &mut egui::Ui, session: &Session, r: &AppStatus, _t: &Tokens) ->
 
 /// Run what was clicked. Errors land in the status bar.
 pub fn perform(app: &mut ToolboxApp, id: &str, clicked: Clicked) {
+    let start = |app: &mut ToolboxApp, command: &str, params: serde_json::Value| match app.session.start(command, params) {
+        Ok(_) => app.notice = None,
+        Err(e) => app.notice = Some(e.to_string()),
+    };
     match clicked {
-        Clicked::Install => match app.session.start(INSTALL, json!({ "app": id })) {
-            Ok(_) => app.notice = None,
-            Err(e) => app.notice = Some(e.to_string()),
-        },
+        Clicked::Install => start(app, INSTALL, json!({ "app": id })),
+        Clicked::Update => {
+            // A kept version is switched to; anything else is downloaded.
+            let latest = app.session.app_status(id).ok().and_then(|st| match st.status {
+                Status::UpdateAvailable { latest, .. } => Some(latest),
+                _ => None,
+            });
+            match latest.filter(|v| app.session.inventory().get(id, v).is_some()) {
+                Some(v) => {
+                    app.run(ROLLBACK, json!({ "app": id, "version": v }));
+                }
+                None => start(app, UPDATE, json!({ "app": id })),
+            }
+        }
+        Clicked::UseVersion(v) => {
+            let kept = app.session.inventory().get(id, &v).is_some();
+            let installed = app.session.inventory().current(id).is_some();
+            match (kept, installed) {
+                (true, _) => {
+                    app.run(ROLLBACK, json!({ "app": id, "version": v }));
+                }
+                (false, true) => start(app, UPDATE, json!({ "app": id, "version": v })),
+                (false, false) => start(app, INSTALL, json!({ "app": id, "version": v })),
+            }
+        }
+        Clicked::Adopt => {
+            app.run(ADOPT, json!({ "app": id }));
+        }
         Clicked::Open => {
             app.run(LAUNCH, json!({ "app": id }));
         }

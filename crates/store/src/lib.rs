@@ -268,6 +268,7 @@ mod tests {
             path: "/Applications/PhotoCraft.app".into(),
             installed_at: 1,
             active: true,
+            trust: None,
         })
         .unwrap();
         store.save_inventory(&inv).unwrap();

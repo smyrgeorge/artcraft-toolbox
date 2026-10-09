@@ -106,6 +106,9 @@ fn main() -> ExitCode {
     for w in &opened.warnings {
         log::warn!("{w}");
     }
+    for change in &opened.changes {
+        log::info!("{change}");
+    }
     let (session, warning) = (opened.session, opened.warnings.into_iter().next());
     let result = eframe::run_native(
         "ArtCraft Toolbox",

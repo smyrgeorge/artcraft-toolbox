@@ -114,6 +114,7 @@ fn a_background_check_notifies_once_per_new_version() {
         path: "/x".into(),
         installed_at: 0,
         active: true,
+        trust: None,
     })
     .unwrap();
     s.set_inventory(inv);

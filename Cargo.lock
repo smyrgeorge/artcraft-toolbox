@@ -271,6 +271,7 @@ dependencies = [
 name = "artcraft-toolbox-install"
 version = "0.1.0"
 dependencies = [
+ "artcraft-toolbox-model",
  "artcraft-toolbox-release",
  "flate2",
  "log",

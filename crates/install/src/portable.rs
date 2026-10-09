@@ -6,13 +6,14 @@
 //! and total size are capped ([`Limits`]); an entry can't write more than it declared. The one
 //! shared top-level folder is dropped, `portable.txt` deleted (with it the app would keep its
 //! settings beside the exe, inside a version folder the next update replaces), and the result
-//! renamed into `<apps>\<Name>\<version>`.
+//! renamed into `<apps>\<Name>\<version>`. Versions live side by side; the active one is the one
+//! the Start Menu shortcut opens.
 
 use std::fs::File;
 use std::io::{BufReader, Read};
 use std::path::{Component, Path, PathBuf};
 
-use crate::{AppInfo, Error, Layout, Result, io, occupied, staging};
+use crate::{Activated, AppInfo, Error, Found, Layout, Result, io, is_running, occupied, staging};
 
 /// How much an archive may hold.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -32,7 +33,8 @@ fn portable_markers(app: &AppInfo) -> [String; 2] {
     ["portable.txt".to_string(), format!("{}.portable", app.name)]
 }
 
-pub(crate) fn install(layout: &Layout, app: &AppInfo, package: &Path, limits: Limits) -> Result<PathBuf> {
+/// Extract the version into `<apps>\<Name>\<version>`; returns its `<id>.exe`.
+pub(crate) fn place(layout: &Layout, app: &AppInfo, package: &Path, limits: Limits) -> Result<PathBuf> {
     let parent = layout.apps.join(app.name);
     let dir = parent.join(app.version);
     if occupied(&dir) {
@@ -58,14 +60,28 @@ pub(crate) fn install(layout: &Layout, app: &AppInfo, package: &Path, limits: Li
     if result.is_err() {
         let _ = std::fs::remove_dir_all(&stage);
     }
-    let exe = result?;
+    result
+}
+
+/// Point the Start Menu shortcut at `exe`. The app works without it (the toolbox can still open
+/// it), so a failure is a warning.
+pub(crate) fn activate(layout: &Layout, app: &AppInfo, exe: &Path) -> Activated {
     if let Some(menu) = &layout.start_menu
-        && let Err(e) = shortcut(menu, app, &exe)
+        && let Err(e) = shortcut(menu, app, exe)
     {
-        // The app works without it; the toolbox can still open it.
         log::warn!("no Start Menu shortcut for {}: {e}", app.name);
     }
-    Ok(exe)
+    Activated { active: exe.to_path_buf(), previous: None }
+}
+
+/// Versions in `<apps>\<Name>\` with an `<id>.exe`.
+pub(crate) fn find(layout: &Layout, app: &AppInfo) -> Vec<Found> {
+    let exe = format!("{}.exe", app.id);
+    crate::version_dirs(&layout.apps.join(app.name))
+        .into_iter()
+        .map(|(dir, version)| Found { path: dir.join(&exe), version })
+        .filter(|f| f.path.is_file())
+        .collect()
 }
 
 /// Extract `package` into the new folder `dest` (see the module docs).
@@ -163,7 +179,8 @@ fn shortcut(menu: &Path, app: &AppInfo, exe: &Path) -> Result<()> {
     }
 }
 
-pub(crate) fn uninstall(layout: &Layout, app: &AppInfo, exe: &Path) -> Result<()> {
+/// Remove one version's folder (not the shortcut).
+pub(crate) fn remove_version(app: &AppInfo, exe: &Path) -> Result<()> {
     // `<…>\<Name>\<version>\<id>.exe`, nothing else.
     let ok = exe.file_name().is_some_and(|f| f.eq_ignore_ascii_case(format!("{}.exe", app.id).as_str()))
         && exe.parent().and_then(Path::file_name).is_some_and(|v| v == app.version)
@@ -171,6 +188,10 @@ pub(crate) fn uninstall(layout: &Layout, app: &AppInfo, exe: &Path) -> Result<()
     let (Some(dir), true) = (exe.parent(), ok) else {
         return Err(Error::Refused(format!("{} doesn't look like {} {}; not removing it", exe.display(), app.name, app.version)));
     };
+    // A running exe is locked: removing the folder around it would leave half of it behind.
+    if is_running(exe) {
+        return Err(Error::Refused(format!("{} {} is running; quit it first", app.name, app.version)));
+    }
     if occupied(dir) {
         std::fs::remove_dir_all(dir).map_err(|e| io(dir.display(), &e))?;
     }
@@ -178,6 +199,12 @@ pub(crate) fn uninstall(layout: &Layout, app: &AppInfo, exe: &Path) -> Result<()
         // Only if nothing else is left in `<Name>`.
         let _ = std::fs::remove_dir(parent);
     }
+    Ok(())
+}
+
+/// Remove the active version and its shortcut.
+pub(crate) fn uninstall(layout: &Layout, app: &AppInfo, exe: &Path) -> Result<()> {
+    remove_version(app, exe)?;
     if let Some(menu) = &layout.start_menu {
         let lnk = menu.join(format!("{}.lnk", app.name));
         if lnk.is_file() {

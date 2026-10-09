@@ -89,7 +89,22 @@ release; it does not prove who made the release. Platform signatures add that wh
   secrets are configured (PhotoCraft 0.2.0 shipped notarized).
 - Windows: Authenticode signing is optional in the pipeline and skipped with a warning when the
   signing material is missing (PhotoCraft's scorecard, DIST-2: partial). The toolbox can't require
-  it yet; it should report unsigned builds.
+  it; it reports unsigned builds.
+
+What the toolbox does with them (M3, `install::trust`): a broken signature is refused, a missing
+one is shown ("No platform signature"), and the developer that signed the installed version is
+recorded: an update signed by anyone else is refused. Measured 2026-10-09: PhotoCraft 0.3.0 and
+0.5.0 are both "Developer ID Application: Learning Machines LLC (DJ6XS33FX8)", notarized
+(`spctl`: "source=Notarized Developer ID").
+
+## Managed apps
+
+The toolbox opens a craft with `ARTCRAFT_TOOLBOX_MANAGED=1` in its environment (on macOS through
+`open --env`). A craft that checks for updates itself can leave that to the toolbox when it sees
+it: the toolbox keeps versions for rollback and checks signatures, and an in-place self-update
+makes its inventory drift. The toolbox never passes its own `ARTCRAFT_TOOLBOX_*` variables (a
+GitHub token among them) to an app. Started any other way (the Dock, the Start Menu), a craft gets
+no signal; the toolbox notices a self-update on its next look at the disk (Gotchas 4).
 
 ## Measured state (2026-10-09)
 
@@ -119,8 +134,10 @@ installable, every asset listed in `SHA256SUMS.txt`).
    extracting (M2).
 4. **Some crafts check for updates themselves.** PdfCraft has an in-app check ("check only when
    asked", 0.2.1 notes); PhotoCraft has none (2026-10-09). If a craft ever updates itself in place,
-   the inventory drifts, so the toolbox re-reads the installed version on refresh (`Info.plist`
-   `CFBundleShortVersionString`, or `<exe> --version`: PhotoCraft has it; check each craft in M3).
+   the inventory drifts, so the toolbox re-reads the installed version when it looks at the disk
+   (`apps.rescan`, and at start): on macOS from `Info.plist` `CFBundleShortVersionString`
+   (verified by replacing an installed PhotoCraft 0.3.0 with 0.5.0). On Windows and Linux the
+   version is the folder's name; a craft updating itself there would have to write a new folder.
 5. **AppImages carry update information** (`gh-releases-zsync|storytold|<id>|latest|…`) and a
    `.zsync` file sits beside each: delta updates are possible later.
 6. **ArtCraft itself does not follow the contract.** `storytold/artcraft` (the AI studio) is a
@@ -131,6 +148,11 @@ installable, every asset listed in `SHA256SUMS.txt`).
    an `Applications` link. The toolbox mounts it at a private mount point, so two installs never
    collide on `/Volumes/<Name>`, and requires exactly one `.app` whose `CFBundleIdentifier` is
    `ai.storyteller.<id>`.
+8. **The apps in the DMGs carry Finder information on some files** (`com.apple.FinderInfo` on 15
+   files of PhotoCraft 0.3.0 and 0.5.0, inside the image already). `codesign --verify --strict`
+   rejects that as "detritus" although the signature is intact and Gatekeeper accepts the app, so
+   the toolbox verifies without `--strict` (a changed file or executable still fails). Fixing the
+   crafts' packaging would let it use `--strict`.
 
 ## Refreshing the fixtures
 

@@ -72,7 +72,14 @@ fn sessions() -> [fn() -> Session; 3] {
         || {
             let mut s = Session::open(Catalog::builtin().unwrap(), None, Some(Arc::new(Offline))).0;
             let dir = std::env::temp_dir().join(format!("artcraft-toolbox-hunt-{}", std::process::id()));
-            s.set_layout(Some(Layout { apps: dir.join("apps"), desktop_entries: None, icons: None, start_menu: None, downloads: dir.join("downloads") }));
+            s.set_layout(Some(Layout {
+                apps: dir.join("apps"),
+                desktop_entries: None,
+                icons: None,
+                start_menu: None,
+                downloads: dir.join("downloads"),
+                kept: dir.join("kept"),
+            }));
             s
         },
     ]

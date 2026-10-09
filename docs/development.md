@@ -30,6 +30,11 @@ artcraft-toolbox-cli list [--json]
 artcraft-toolbox-cli check [--json] [--app <id>] [--force]   # GitHub, in the background job, waited for
 artcraft-toolbox-cli status [--json] [--feed <app>=<releases.json>]...
 artcraft-toolbox-cli install <app> [--version <x.y.z>] [--json]   # progress on stderr; check first
+artcraft-toolbox-cli update <app> [--version <x.y.z>] [--json]    # keeps the replaced version
+artcraft-toolbox-cli update --all [--json]
+artcraft-toolbox-cli rollback <app> [--version <x.y.z>] [--json]  # switch to a kept version
+artcraft-toolbox-cli versions <app> [--json]                      # installed, kept, signatures
+artcraft-toolbox-cli adopt <app> [--json]                         # take over a copy installed by hand
 artcraft-toolbox-cli uninstall <app> [--json]
 artcraft-toolbox-cli open <app>
 artcraft-toolbox-cli commands [--json]                   # every engine command and its params
@@ -56,9 +61,16 @@ resume:
 export ARTCRAFT_TOOLBOX_CONFIG_DIR=/tmp/tb
 artcraft-toolbox-cli run settings.set '{"installDir": "/tmp/tb-apps"}'
 artcraft-toolbox-cli check --app photocraft
-artcraft-toolbox-cli install photocraft
-artcraft-toolbox-cli uninstall photocraft
+artcraft-toolbox-cli install photocraft --version 0.3.0
+artcraft-toolbox-cli update photocraft          # 0.5.0 in use, 0.3.0 kept
+artcraft-toolbox-cli versions photocraft
+artcraft-toolbox-cli rollback photocraft        # back to 0.3.0, no download
+artcraft-toolbox-cli uninstall photocraft       # both versions
 ```
+
+On macOS the kept versions live in the data folder (`/tmp/tb/versions.noindex/`). Any command
+first looks at the disk: a copy of an app put in the apps folder by hand shows up in `versions`
+(and `adopt` takes it over), and an app that updated itself is reported as a `note:`.
 
 On Linux the desktop entry and icon still go to `~/.local/share` (only the apps folder moves).
 
@@ -76,7 +88,11 @@ installed); `--host` picks releases for another machine; `--search` filters the 
 `--data-dir <dir>` draws a real data folder's state (copied first, never written; no network);
 `--checking` draws a check in progress; `--details <app>` opens an app's page and
 `--confirm-uninstall` its uninstall question; `--installing <app>` draws an install stopped at
-45% of its download (needs that app's `--feed`; nothing is installed). The example draws
+45% of its download (needs that app's `--feed`; nothing is installed). `--installed` may name
+several versions of an app (the last one is in use, the others kept) and `--signed` draws them
+signed and notarized; `--found <app>=<version>` draws a copy installed outside the toolbox (use
+`--host linux-x86_64`); `--online` draws the network-dependent buttons enabled (requests fail at
+once, no automatic check). The example draws
 what the desktop app shows, with notifications and a tray icon available. Fill a scratch data
 folder for it with `ARTCRAFT_TOOLBOX_CONFIG_DIR=<dir> artcraft-toolbox-cli check` and
 `… run icons.refresh`.
@@ -102,9 +118,9 @@ accessibility tree (`get_by_label`) and click, so they run anywhere, including C
 | `feed` | Real GitHub responses captured in `crates/feed/tests/fixtures/` plus synthetic edge cases |
 | `net` | URL policy and error classification unit tests; `tests/client.rs` runs the real client against a local HTTP server (redirect checks, token scoping, 304, rate limits, size caps) |
 | `store` | Temp folders: round trips, corrupt and oversized files, hostile app ids, atomic writes |
-| `install` | Temp folders: hostile zips (zip-slip, drive paths, symlinks, duplicates, bombs), AppImage and desktop entry checks, uninstall refusing foreign paths; on macOS a real DMG made with `hdiutil` |
-| `engine` | Command tests per module (checks and installs run against fake transports: rate limits, 304s, failures, cancel, resume, bad checksums); `tests/panic_hunt.rs` runs every command with adversarial params, offline, online and with a scratch install layout |
-| `ui-egui` | kittest (accessibility tree): rows, details page, pinning, check button, notifications, close-to-tray, install and uninstall; the glyph test; offscreen snapshots you look at |
+| `install` | Temp folders: hostile zips (zip-slip, drive paths, symlinks, duplicates, bombs), AppImage and desktop entry checks, versions side by side, removal refusing foreign paths; on macOS real DMGs made with `hdiutil` (install, update by swap, roll back, prune, refuse to replace a copy installed by hand); signature-output parsers on every OS, real `codesign` and Authenticode checks where they exist |
+| `engine` | Command tests per module (checks, installs and updates run against fake transports: rate limits, 304s, failures, cancel, resume, bad checksums, rollback, pruning, a signer change, adoption); `tests/panic_hunt.rs` runs every command with adversarial params, offline, online and with a scratch install layout |
+| `ui-egui` | kittest (accessibility tree): rows, details page, pinning, check button, notifications, close-to-tray, install and uninstall, update all, switching versions, adopting, automatic updates; the glyph test; offscreen snapshots you look at. Tests that wait for background work wait by a deadline, not a frame count, and don't tick unless they need to; check them with a slowed fake network before pushing (CI machines are slower) |
 | apps | CLI integration tests (output, exit codes, install / uninstall / open against a fake GitHub, the real binary); desktop arg parsing |
 | contract | `cargo xtask contract` against live GitHub, daily in CI (`contract.yml`) |
 

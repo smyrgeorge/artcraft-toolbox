@@ -58,6 +58,15 @@ pub fn section(ui: &mut egui::Ui, title: &str, count: usize, t: &Tokens) {
     subhead(ui, &format!("{title} · {count}"), t);
 }
 
+/// [`section`] with something on its right (a button), on one line.
+pub fn section_with(ui: &mut egui::Ui, title: &str, count: usize, t: &Tokens, right: impl FnOnce(&mut egui::Ui)) {
+    ui.add_space(6.0);
+    ui.horizontal(|ui| {
+        ui.label(egui::RichText::new(format!("{title} · {count}").to_uppercase()).small().strong().color(t.text_dim));
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), right);
+    });
+}
+
 /// A section heading: `SETTINGS FOR PHOTOCRAFT`.
 pub fn subhead(ui: &mut egui::Ui, title: &str, t: &Tokens) {
     ui.add_space(6.0);

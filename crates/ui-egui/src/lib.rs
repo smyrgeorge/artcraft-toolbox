@@ -21,8 +21,9 @@ use std::time::Duration;
 
 use artcraft_toolbox_engine::icons::REFRESH_ICONS;
 use artcraft_toolbox_engine::update_cmds::CHECK;
-use artcraft_toolbox_engine::{Session, Started, time};
-use serde_json::Value;
+use artcraft_toolbox_engine::versions_cmds::UPDATE_ALL;
+use artcraft_toolbox_engine::{JobId, Session, Started, time};
+use serde_json::{Value, json};
 
 use state::{Tab, UiState};
 use theme::Tokens;
@@ -53,6 +54,8 @@ pub struct ToolboxApp {
     pub(crate) markdown: egui_commonmark::CommonMarkCache,
     /// App icons uploaded to the GPU, with the revision they were made from.
     textures: HashMap<String, (u64, egui::TextureHandle)>,
+    /// Updates started automatically (`autoUpdate`): announced when they finish.
+    auto_updates: std::collections::HashSet<JobId>,
 }
 
 impl ToolboxApp {
@@ -69,7 +72,52 @@ impl ToolboxApp {
             quitting: false,
             markdown: egui_commonmark::CommonMarkCache::default(),
             textures: HashMap::new(),
+            auto_updates: std::collections::HashSet::new(),
         }
+    }
+
+    /// Update every app that has an update (`only_automatic`: those set to update automatically,
+    /// after a check). Reports why an app was skipped in the status bar, for a request the user
+    /// made; automatic updates are announced when they finish.
+    pub fn update_all(&mut self, only_automatic: bool) {
+        let out = if only_automatic {
+            // Quietly: a session that can't update (or nothing to do) leaves the status bar alone.
+            if self.session.disabled_reason(UPDATE_ALL).is_some() {
+                return;
+            }
+            match self.session.execute(UPDATE_ALL, json!({ "onlyAutomatic": true })) {
+                Ok(v) => v,
+                Err(e) => {
+                    log::warn!("automatic updates: {e}");
+                    return;
+                }
+            }
+        } else {
+            let Some(out) = self.run(UPDATE_ALL, json!({})) else { return };
+            out
+        };
+        let jobs = out["started"].as_array().into_iter().flatten().filter_map(|j| j["job"].as_u64()).map(JobId);
+        if only_automatic {
+            self.auto_updates.extend(jobs);
+            for done in out["switched"].as_array().into_iter().flatten() {
+                self.announce_updated(done["app"].as_str().unwrap_or_default(), done["version"].as_str().unwrap_or_default());
+            }
+            for skipped in out["skipped"].as_array().into_iter().flatten() {
+                log::info!("automatic update of {} skipped: {}", skipped["app"], skipped["reason"]);
+            }
+        } else if let Some(first) = out["skipped"].as_array().and_then(|a| a.first()) {
+            let name = self.session.catalog().get(first["app"].as_str().unwrap_or_default()).map(|a| a.name.clone()).unwrap_or_default();
+            self.notice = Some(format!("{name}: {}", first["reason"].as_str().unwrap_or_default()));
+        }
+    }
+
+    /// "PhotoCraft updated to 0.5.0", when notifications are on.
+    fn announce_updated(&self, app: &str, version: &str) {
+        if !self.session.settings().notifications {
+            return;
+        }
+        let (Some(notify), Some(entry)) = (&self.services.notify, self.session.catalog().get(app)) else { return };
+        notify("Updated", &format!("{} {version}", entry.name));
     }
 
     /// Theme and style; call once on the egui context before the first frame.
@@ -118,10 +166,18 @@ impl ToolboxApp {
     /// Apply background job progress; react to the jobs that ended.
     fn poll(&mut self, ctx: &egui::Context) {
         for event in self.session.poll_jobs() {
+            if self.auto_updates.remove(&event.id) {
+                match &event.result {
+                    Ok(v) => self.announce_updated(v["app"].as_str().unwrap_or_default(), v["version"].as_str().unwrap_or_default()),
+                    Err(e) => self.notice = Some(format!("An automatic update failed: {e}")),
+                }
+                continue;
+            }
             match (&event.result, event.command.as_str()) {
                 (Ok(v), CHECK) => {
                     self.notice = self.session.check_notice(v);
                     self.announce_updates();
+                    self.update_all(true);
                 }
                 // Icons failing is not worth the status bar: the monogram stays.
                 (Ok(_), _) => {}

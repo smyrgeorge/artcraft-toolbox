@@ -12,9 +12,10 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use artcraft_toolbox_engine::install_cmds::{INSTALL, LAUNCH, UNINSTALL};
+use artcraft_toolbox_engine::install_cmds::{INSTALL, LAUNCH, UNINSTALL, UPDATE};
 use artcraft_toolbox_engine::net::Transport;
 use artcraft_toolbox_engine::update_cmds::{CHECK, CheckSummary};
+use artcraft_toolbox_engine::versions_cmds::{ADOPT, ROLLBACK, UPDATE_ALL, VERSIONS};
 use artcraft_toolbox_engine::{Layout, Session, Started, Target, build_info, command_specs, setup, time};
 use serde_json::{Value, json};
 
@@ -32,7 +33,15 @@ commands:
   install <app> [--version <x.y.z>] [--json]
                                      download, verify (SHA-256) and install an app; progress on
                                      stderr (check first, so the toolbox knows its releases)
-  uninstall <app> [--json]           remove an app the toolbox installed (its documents stay)
+  update <app> [--version <x.y.z>] [--json]
+                                     update an installed app (or install another release of it);
+                                     the version it replaces is kept for rollback (keepPrevious)
+  update --all [--json]              update every app that has an update
+  rollback <app> [--version <x.y.z>] [--json]
+                                     switch to a kept version (default: the newest older one)
+  versions <app> [--json]            the versions installed and kept, and their signatures
+  adopt <app> [--json]               take over a copy installed outside the toolbox
+  uninstall <app> [--json]           remove an app and its kept versions (its documents stay)
   open <app>                         open an installed app
   commands [--json]                  every engine command with its params
   run <command-id> [<json-params>]   run one engine command and print its JSON result
@@ -115,6 +124,9 @@ pub fn run(args: &[&str], out: &mut dyn Write, err: &mut dyn Write, env: impl Fn
     for w in &opened.warnings {
         let _ = writeln!(err, "warning: {w}");
     }
+    for change in &opened.changes {
+        let _ = writeln!(err, "note: {change}");
+    }
     let s = &mut opened.session;
     if layout.is_some() {
         s.set_layout(layout);
@@ -122,11 +134,34 @@ pub fn run(args: &[&str], out: &mut dyn Write, err: &mut dyn Write, env: impl Fn
     if host.is_some() {
         s.set_host(host);
     }
+    if s.layout().is_some() {
+        // Where apps are may have changed above: look again (apps installed by hand, for adopt).
+        for change in s.rescan() {
+            let _ = writeln!(err, "note: {change}");
+        }
+    }
     let result = match cmd {
         Cmd::List { json } => list(s, json, out),
         Cmd::Status { json, feeds } => status(s, json, &feeds, out),
         Cmd::Check { json, app, force } => check(s, json, app, force, out, err),
-        Cmd::Install { app, version, json } => install(s, &app, version, json, out, err),
+        Cmd::Install { command, app, version, json } => install(s, command, &app, version, json, out, err),
+        Cmd::UpdateAll { json } => update_all(s, json, out, err),
+        Cmd::Rollback { app, version, json } => {
+            let mut params = json!({ "app": app });
+            if let Some(v) = version {
+                params["version"] = Value::String(v);
+            }
+            s.execute(ROLLBACK, params).map_err(|e| e.to_string()).and_then(|v| report_change(out, json, &v, "in use"))
+        }
+        Cmd::Versions { app, json } => s.execute(VERSIONS, json!({ "app": app })).map_err(|e| e.to_string()).and_then(|v| versions(out, json, &v)),
+        Cmd::Adopt { app, json } => s.execute(ADOPT, json!({ "app": app })).map_err(|e| e.to_string()).and_then(|v| {
+            if json {
+                return print_json(out, &v);
+            }
+            let adopted: Vec<&str> = v["adopted"].as_array().into_iter().flatten().filter_map(Value::as_str).collect();
+            let _ = writeln!(out, "{} adopted: {}", v["app"].as_str().unwrap_or(""), adopted.join(", "));
+            Ok(())
+        }),
         Cmd::Uninstall { app, json } => {
             s.execute(UNINSTALL, json!({ "app": app })).map_err(|e| e.to_string()).and_then(|v| report_change(out, json, &v, "removed"))
         }
@@ -154,14 +189,55 @@ enum Parsed {
 }
 
 enum Cmd {
-    List { json: bool },
-    Status { json: bool, feeds: Vec<(String, String)> },
-    Check { json: bool, app: Option<String>, force: bool },
-    Install { app: String, version: Option<String>, json: bool },
-    Uninstall { app: String, json: bool },
-    Open { app: String },
-    Commands { json: bool },
-    Run { id: String, params: Value },
+    List {
+        json: bool,
+    },
+    Status {
+        json: bool,
+        feeds: Vec<(String, String)>,
+    },
+    Check {
+        json: bool,
+        app: Option<String>,
+        force: bool,
+    },
+    /// `app.install` or `app.update`, in the background.
+    Install {
+        command: &'static str,
+        app: String,
+        version: Option<String>,
+        json: bool,
+    },
+    UpdateAll {
+        json: bool,
+    },
+    Rollback {
+        app: String,
+        version: Option<String>,
+        json: bool,
+    },
+    Versions {
+        app: String,
+        json: bool,
+    },
+    Adopt {
+        app: String,
+        json: bool,
+    },
+    Uninstall {
+        app: String,
+        json: bool,
+    },
+    Open {
+        app: String,
+    },
+    Commands {
+        json: bool,
+    },
+    Run {
+        id: String,
+        params: Value,
+    },
 }
 
 fn short(s: &str) -> String {
@@ -211,17 +287,27 @@ fn parse(args: &[&str]) -> Result<Parsed, String> {
                 _ => Cmd::Check { json, app, force },
             }
         }
-        "install" | "uninstall" | "open" => {
+        "update" if rest.first() == Some(&"--all") => {
+            for a in rest.iter().skip(1) {
+                match *a {
+                    "--json" => flag(&mut json, "--json")?,
+                    other => return Err(format!("unexpected argument `{}`", short(other))),
+                }
+            }
+            Cmd::UpdateAll { json }
+        }
+        "install" | "update" | "rollback" | "versions" | "adopt" | "uninstall" | "open" => {
             let (app, rest) = match rest.split_first() {
                 Some((a, r)) if !a.starts_with('-') => (a.to_string(), r),
+                _ if cmd == "update" => return Err("update needs an app id (see `list`), or --all".into()),
                 _ => return Err(format!("{cmd} needs an app id (see `list`)")),
             };
             let mut version = None;
             let mut it = rest.iter();
             while let Some(a) = it.next() {
                 match (cmd, *a) {
-                    ("install" | "uninstall", "--json") => flag(&mut json, "--json")?,
-                    ("install", "--version") => {
+                    (c, "--json") if c != "open" => flag(&mut json, "--json")?,
+                    ("install" | "update" | "rollback", "--version") => {
                         let v = it.next().ok_or("--version needs a version, like 0.5.0")?;
                         if version.replace(v.to_string()).is_some() {
                             return Err("`--version` given twice".into());
@@ -231,7 +317,11 @@ fn parse(args: &[&str]) -> Result<Parsed, String> {
                 }
             }
             match cmd {
-                "install" => Cmd::Install { app, version, json },
+                "install" => Cmd::Install { command: INSTALL, app, version, json },
+                "update" => Cmd::Install { command: UPDATE, app, version, json },
+                "rollback" => Cmd::Rollback { app, version, json },
+                "versions" => Cmd::Versions { app, json },
+                "adopt" => Cmd::Adopt { app, json },
                 "uninstall" => Cmd::Uninstall { app, json },
                 _ => Cmd::Open { app },
             }
@@ -336,15 +426,16 @@ fn report_change(out: &mut dyn Write, json: bool, v: &Value, what: &str) -> Resu
     Ok(())
 }
 
-/// Install in the background, printing progress to stderr until it ends.
-fn install(s: &mut Session, app: &str, version: Option<String>, json: bool, out: &mut dyn Write, err: &mut dyn Write) -> Result<(), String> {
+/// Install or update in the background, printing progress to stderr until it ends.
+fn install(s: &mut Session, command: &str, app: &str, version: Option<String>, json: bool, out: &mut dyn Write, err: &mut dyn Write) -> Result<(), String> {
     let mut params = json!({ "app": app });
     if let Some(v) = version {
         params["version"] = Value::String(v);
     }
-    let id = match s.start(INSTALL, params).map_err(|e| e.to_string())? {
+    let done = if command == UPDATE { "updated" } else { "installed" };
+    let id = match s.start(command, params).map_err(|e| e.to_string())? {
         Started::Job(id) => id,
-        Started::Done(v) => return report_change(out, json, &v, "installed"),
+        Started::Done(v) => return report_change(out, json, &v, done),
     };
     let mut last = String::new();
     loop {
@@ -353,13 +444,13 @@ fn install(s: &mut Session, app: &str, version: Option<String>, json: bool, out:
                 if !last.is_empty() {
                     let _ = writeln!(err);
                 }
-                return event.result.and_then(|v| report_change(out, json, &v, "installed"));
+                return event.result.and_then(|v| report_change(out, json, &v, done));
             }
         }
         if !s.has_jobs() {
             return Err("the install stopped unexpectedly".into());
         }
-        if let Some(job) = s.job_for(INSTALL, app) {
+        if let Some(job) = s.job_for(command, app) {
             let line = match (job.phase.as_deref(), job.fraction) {
                 (Some("Downloading"), Some(f)) => format!("Downloading {:.0}%", f * 100.0),
                 (Some(p), _) => p.to_string(),
@@ -373,4 +464,64 @@ fn install(s: &mut Session, app: &str, version: Option<String>, json: bool, out:
         }
         std::thread::sleep(std::time::Duration::from_millis(100));
     }
+}
+
+/// Update every app that has an update and wait for them all; skipped apps are reported on
+/// stderr. Fails when an update failed.
+fn update_all(s: &mut Session, json: bool, out: &mut dyn Write, err: &mut dyn Write) -> Result<(), String> {
+    let started = s.execute(UPDATE_ALL, json!({})).map_err(|e| e.to_string())?;
+    let mut results = Vec::new();
+    let mut failed = 0;
+    for job in started["started"].as_array().into_iter().flatten() {
+        let (Some(id), app) = (job["job"].as_u64(), job["app"].as_str().unwrap_or("")) else { continue };
+        match s.wait_job(artcraft_toolbox_engine::JobId(id)) {
+            Ok(v) => results.push(v),
+            Err(e) => {
+                failed += 1;
+                let _ = writeln!(err, "error: {app}: {e}");
+            }
+        }
+    }
+    for skipped in started["skipped"].as_array().into_iter().flatten() {
+        let _ = writeln!(err, "skipped {}: {}", skipped["app"].as_str().unwrap_or(""), skipped["reason"].as_str().unwrap_or(""));
+    }
+    if json {
+        print_json(out, &json!({"updated": results, "switched": started["switched"], "skipped": started["skipped"]}))?;
+    } else {
+        for v in &results {
+            report_change(out, false, v, "updated")?;
+        }
+        for v in started["switched"].as_array().into_iter().flatten() {
+            let _ = writeln!(out, "{} {} in use (it was kept)", v["app"].as_str().unwrap_or(""), v["version"].as_str().unwrap_or(""));
+        }
+        if results.is_empty() && started["switched"].as_array().is_none_or(Vec::is_empty) && failed == 0 {
+            let _ = writeln!(out, "nothing to update");
+        }
+    }
+    if failed > 0 { Err(format!("{failed} update(s) failed")) } else { Ok(()) }
+}
+
+/// `0.5.0  in use  Signed by …  /path`, one line per version.
+fn versions(out: &mut dyn Write, json: bool, v: &Value) -> Result<(), String> {
+    if json {
+        return print_json(out, v);
+    }
+    for i in v["installed"].as_array().into_iter().flatten() {
+        let trust =
+            serde_json::from_value::<artcraft_toolbox_engine::Trust>(i["trust"].clone()).map(|t| t.label()).unwrap_or_else(|_| "signature not recorded".into());
+        let state = if i["active"].as_bool() == Some(true) { "in use" } else { "kept" };
+        let _ = writeln!(out, "{:<10} {state:<7} {trust}  {}", i["version"].as_str().unwrap_or(""), i["path"].as_str().unwrap_or(""));
+    }
+    for f in v["foundOutsideToolbox"].as_array().into_iter().flatten() {
+        let _ = writeln!(
+            out,
+            "{:<10} found outside the toolbox (adopt it to manage it)  {}",
+            f["version"].as_str().unwrap_or(""),
+            f["path"].as_str().unwrap_or("")
+        );
+    }
+    if v["installed"].as_array().is_none_or(Vec::is_empty) && v["foundOutsideToolbox"].as_array().is_none_or(Vec::is_empty) {
+        let _ = writeln!(out, "{} isn't installed", v["app"].as_str().unwrap_or(""));
+    }
+    Ok(())
 }

@@ -47,7 +47,8 @@ struct Run {
 fn cli_in(dir: &Path, fake: &Arc<Fake>, args: &[&str]) -> Run {
     let (mut out, mut err) = (Vec::new(), Vec::new());
     let (dir, fake) = (dir.to_path_buf(), Arc::clone(fake));
-    let layout = Layout { apps: dir.join("apps"), desktop_entries: None, icons: None, start_menu: None, downloads: dir.join("downloads") };
+    let layout =
+        Layout { apps: dir.join("apps"), desktop_entries: None, icons: None, start_menu: None, downloads: dir.join("downloads"), kept: dir.join("kept") };
     let code = run(args, &mut out, &mut err, move || Env { data_dir: Ok(dir), transport: Some(fake), layout: Some(layout), host: None });
     Run { code, out: String::from_utf8(out).unwrap(), err: String::from_utf8(err).unwrap() }
 }
@@ -181,6 +182,17 @@ fn usage_errors_exit_2_and_touch_nothing() {
         vec!["uninstall", "photocraft", "--version", "1.0.0"],
         vec!["open"],
         vec!["open", "photocraft", "--json"],
+        vec!["update"],
+        vec!["update", "--json"],
+        vec!["update", "--all", "photocraft"],
+        vec!["update", "photocraft", "--version"],
+        vec!["rollback"],
+        vec!["rollback", "photocraft", "--version"],
+        vec!["rollback", "photocraft", "--force"],
+        vec!["versions"],
+        vec!["versions", "photocraft", "--version", "1.0.0"],
+        vec!["adopt"],
+        vec!["adopt", "photocraft", "--all"],
     ] {
         let (mut out, mut err) = (Vec::new(), Vec::new());
         let code = run(&args, &mut out, &mut err, || panic!("a usage error must not open the session ({args:?})"));
@@ -246,7 +258,8 @@ impl Transport for Installable {
 fn cli_installable(dir: &Path, args: &[&str]) -> Run {
     let (mut out, mut err) = (Vec::new(), Vec::new());
     let dir = dir.to_path_buf();
-    let layout = Layout { apps: dir.join("apps"), desktop_entries: None, icons: None, start_menu: None, downloads: dir.join("downloads") };
+    let layout =
+        Layout { apps: dir.join("apps"), desktop_entries: None, icons: None, start_menu: None, downloads: dir.join("downloads"), kept: dir.join("kept") };
     let code = run(args, &mut out, &mut err, move || Env {
         data_dir: Ok(dir),
         transport: Some(Arc::new(Installable)),
@@ -285,4 +298,107 @@ fn opening_or_removing_what_isnt_installed_fails_cleanly() {
         assert!(r.err.contains("isn't installed"), "{args:?}: {}", r.err);
     }
     assert!(cli(&["open", "nope"]).err.contains("unknown app"));
+}
+
+/// A GitHub with PhotoCraft 8.0.0 and 9.0.0 for Linux.
+struct TwoReleases;
+
+fn appimage_of(v: &str) -> Vec<u8> {
+    let mut b = appimage();
+    b.extend(v.as_bytes());
+    b
+}
+
+fn release_url(v: &str, file: &str) -> String {
+    format!("https://github.com/storytold/photocraft/releases/download/v{v}/{file}")
+}
+
+impl Transport for TwoReleases {
+    fn get(&self, req: &Request<'_>) -> Result<Response, NetError> {
+        let v = if req.url.contains("/v8.0.0/") { "8.0.0" } else { "9.0.0" };
+        let body = if req.url.ends_with("SHA256SUMS.txt") {
+            let hex: String = sha2::Sha256::digest(appimage_of(v)).iter().map(|b| format!("{b:02x}")).collect();
+            format!("{hex}  photocraft-{v}-linux-x86_64.AppImage\n")
+        } else if req.url.contains("/photocraft/") {
+            let rel = |v: &str| {
+                let file = format!("photocraft-{v}-linux-x86_64.AppImage");
+                serde_json::json!({"tag_name": format!("v{v}"), "assets": [
+                    {"name": file, "size": appimage_of(v).len(), "browser_download_url": release_url(v, &file)},
+                    {"name": "SHA256SUMS.txt", "size": 100, "browser_download_url": release_url(v, "SHA256SUMS.txt")},
+                ]})
+            };
+            serde_json::json!([rel("9.0.0"), rel("8.0.0")]).to_string()
+        } else {
+            "[]".into()
+        };
+        Ok(Response::Ok { body: body.into_bytes(), etag: None, rate: RateLimit::default() })
+    }
+    fn download(&self, url: &str, from: u64) -> Result<Download, NetError> {
+        let v = if url.contains("/v8.0.0/") { "8.0.0" } else { "9.0.0" };
+        let body = appimage_of(v);
+        let rest = body.get(from as usize..).unwrap_or_default().to_vec();
+        Ok(Download { reader: Box::new(std::io::Cursor::new(rest)), offset: from, total: Some(body.len() as u64) })
+    }
+}
+
+fn cli_two(dir: &Path, args: &[&str]) -> Run {
+    let (mut out, mut err) = (Vec::new(), Vec::new());
+    let dir = dir.to_path_buf();
+    let layout =
+        Layout { apps: dir.join("apps"), desktop_entries: None, icons: None, start_menu: None, downloads: dir.join("downloads"), kept: dir.join("kept") };
+    let code = run(args, &mut out, &mut err, move || Env {
+        data_dir: Ok(dir),
+        transport: Some(Arc::new(TwoReleases)),
+        layout: Some(layout),
+        host: Target::from_consts("linux", "x86_64"),
+    });
+    Run { code, out: String::from_utf8(out).unwrap(), err: String::from_utf8(err).unwrap() }
+}
+
+#[test]
+fn update_versions_rollback_and_update_all() {
+    let dir = temp();
+    assert_eq!(cli_two(&dir, &["check", "--app", "photocraft"]).code, 0);
+    let r = cli_two(&dir, &["update", "--all"]);
+    assert_eq!((r.code, r.out.as_str()), (0, "nothing to update\n"), "{}", r.err);
+    let r = cli_two(&dir, &["update", "photocraft"]);
+    assert_eq!(r.code, 1);
+    assert!(r.err.contains("isn't installed"), "{}", r.err);
+
+    assert_eq!(cli_two(&dir, &["install", "photocraft", "--version", "8.0.0"]).code, 0);
+    let r = cli_two(&dir, &["update", "photocraft"]);
+    assert_eq!(r.code, 0, "{}", r.err);
+    assert!(r.out.starts_with("photocraft 9.0.0 updated: "), "{}", r.out);
+    let r = cli_two(&dir, &["versions", "photocraft"]);
+    assert_eq!(r.code, 0, "{}", r.err);
+    let lines: Vec<&str> = r.out.lines().collect();
+    assert!(lines.len() == 2 && lines[0].starts_with("9.0.0      in use  No platform signature") && lines[1].starts_with("8.0.0      kept"), "{}", r.out);
+
+    let r = cli_two(&dir, &["rollback", "photocraft"]);
+    assert_eq!(r.code, 0, "{}", r.err);
+    assert!(r.out.starts_with("photocraft 8.0.0 in use: "), "{}", r.out);
+    // The newer version is kept: update --all switches back to it.
+    let r = cli_two(&dir, &["update", "--all"]);
+    assert_eq!((r.code, r.out.as_str()), (0, "photocraft 9.0.0 in use (it was kept)\n"), "{}", r.err);
+
+    let r = cli_two(&dir, &["uninstall", "photocraft", "--json"]);
+    assert_eq!(r.code, 0, "{}", r.err);
+    assert!(r.out.contains("\"removedVersions\": [\n    \"8.0.0\"\n  ]"), "{}", r.out);
+    assert!(!dir.join("apps/photocraft").exists());
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_copy_installed_by_hand_is_adopted() {
+    let dir = temp();
+    let by_hand = dir.join("apps/photocraft/8.0.0/photocraft.AppImage");
+    std::fs::create_dir_all(by_hand.parent().unwrap()).unwrap();
+    std::fs::write(&by_hand, appimage_of("8.0.0")).unwrap();
+    let r = cli_two(&dir, &["versions", "photocraft"]);
+    assert!(r.out.starts_with("8.0.0      found outside the toolbox"), "{}", r.out);
+    let r = cli_two(&dir, &["adopt", "photocraft"]);
+    assert_eq!((r.code, r.out.as_str()), (0, "photocraft adopted: 8.0.0\n"), "{}", r.err);
+    let r = cli_two(&dir, &["adopt", "photocraft"]);
+    assert!(r.code == 1 && r.err.contains("already managed"), "{}", r.err);
+    let _ = std::fs::remove_dir_all(&dir);
 }

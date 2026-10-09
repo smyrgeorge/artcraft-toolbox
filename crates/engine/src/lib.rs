@@ -26,10 +26,14 @@ pub mod setup;
 mod status_cmds;
 pub mod time;
 pub mod update_cmds;
+pub mod versions_cmds;
 
 use std::collections::BTreeMap;
 use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
+
+use artcraft_toolbox_release::PackageKind;
 
 use artcraft_toolbox_feed::Release;
 use artcraft_toolbox_model::{Channel, Inventory, Settings, ToolboxState};
@@ -41,6 +45,7 @@ use serde_json::Value;
 pub use artcraft_toolbox_catalog::Catalog;
 pub use artcraft_toolbox_feed::Status;
 pub use artcraft_toolbox_install::Layout;
+pub use artcraft_toolbox_model::Trust;
 /// The network layer, for callers that pass a [`Transport`] (the apps, test fakes).
 pub use artcraft_toolbox_net as net;
 pub use artcraft_toolbox_release::{Target, Version};
@@ -114,6 +119,9 @@ pub struct AppStatus {
     pub checking: bool,
     /// Why the last check of this app failed, if it did.
     pub error: Option<String>,
+    /// The newest version found installed outside the toolbox, for an app it hasn't installed
+    /// (offered for adoption, `app.adopt`).
+    pub found: Option<Version>,
 }
 
 pub struct Session {
@@ -143,6 +151,9 @@ pub struct Session {
     layout: Option<Layout>,
     /// The layout follows the platform and the `installDir` setting (the apps' sessions).
     platform_layout: bool,
+    /// Versions on disk that the toolbox didn't install, per app it hasn't installed, newest
+    /// first ([`Session::rescan`]).
+    pub(crate) found: BTreeMap<String, Vec<(Version, PathBuf)>>,
 }
 
 /// After a check, an automatic one waits at least this long, whatever the outcome (an offline
@@ -177,6 +188,7 @@ impl Session {
             state: ToolboxState::default(),
             layout: None,
             platform_layout: false,
+            found: BTreeMap::new(),
         }
     }
 
@@ -358,7 +370,61 @@ impl Session {
             checked_at: feed.map(|f| f.fetched_at),
             checking: self.jobs.working_on(update_cmds::CHECK, app),
             error: self.check_errors.get(app).cloned(),
+            found: self.found.get(app).and_then(|f| f.first()).map(|(v, _)| v.clone()),
         })
+    }
+
+    /// Look at the disk where apps are installed: versions installed outside the toolbox (for
+    /// the apps it hasn't installed), apps that updated themselves (macOS: the bundle says another
+    /// version than the record; release contract › Gotchas 4), and records whose files are gone
+    /// (when the folder around them is still there: an unplugged drive is not a deletion).
+    /// Changes are saved; what changed is returned for the log.
+    pub fn rescan(&mut self) -> Vec<String> {
+        let mut notes = Vec::new();
+        self.found.clear();
+        let kind = self.host.and_then(|h| install_cmds::kind_for(h.os));
+        let (Some(layout), Some(kind), None) = (self.layout.clone(), kind, &self.inventory_locked) else { return notes };
+        let mut changed = false;
+        for app in self.catalog.apps.clone() {
+            let bundle_id = app.bundle_id();
+            if self.inventory.versions(&app.id).is_empty() {
+                let info = install_cmds::info(&app, &bundle_id, "0", None);
+                let mut found: Vec<(Version, PathBuf)> = artcraft_toolbox_install::find_unmanaged(&layout, &info, kind)
+                    .into_iter()
+                    .filter_map(|f| Some((Version::parse(&f.version).ok()?, f.path)))
+                    .collect();
+                found.sort_by(|a, b| b.0.cmp(&a.0));
+                if !found.is_empty() {
+                    self.found.insert(app.id.clone(), found);
+                }
+                continue;
+            }
+            for inst in self.inventory.versions(&app.id).into_iter().cloned().collect::<Vec<_>>() {
+                let path = Path::new(&inst.path);
+                if !path.exists() && path.parent().is_some_and(Path::exists) {
+                    self.inventory.remove(&app.id, &inst.version);
+                    notes.push(format!("{} {} is no longer at {}; forgotten", app.name, inst.version, inst.path));
+                    changed = true;
+                }
+            }
+            if let Some(cur) = self.inventory.current(&app.id).filter(|c| c.active && c.kind == PackageKind::Dmg).cloned()
+                && let Some(now) = artcraft_toolbox_install::bundle_version(Path::new(&cur.path)).and_then(|v| Version::parse(&v).ok())
+                && now != cur.version
+                && self.inventory.set_version(&app.id, &cur.version, now.clone()).is_ok()
+            {
+                notes.push(format!("{} updated itself from {} to {now}", app.name, cur.version));
+                changed = true;
+            }
+        }
+        if changed && let Err(e) = self.save_inventory() {
+            notes.push(format!("the inventory couldn't be saved: {e}"));
+        }
+        notes
+    }
+
+    /// Versions of `app` found by the last [`Session::rescan`] outside the toolbox, newest first.
+    pub fn found(&self, app: &str) -> &[(Version, PathBuf)] {
+        self.found.get(app).map_or(&[], Vec::as_slice)
     }
 
     /// Every catalog app, in catalog order.
@@ -399,12 +465,17 @@ impl Session {
     /// `state.json`), so each version is announced once.
     pub fn take_new_updates(&mut self) -> Vec<(String, Version)> {
         let mut fresh = Vec::new();
+        // Apps that update automatically are announced when they have updated instead.
+        let automatic = self.disabled_reason(versions_cmds::UPDATE_ALL).is_none();
         for st in self.statuses() {
             if let Status::UpdateAvailable { latest, .. } = st.status
                 && self.state.notified.get(&st.id).is_none_or(|v| *v < latest)
             {
+                let quiet = automatic && self.settings.auto_update_for(&st.id);
                 self.state.notified.insert(st.id, latest.clone());
-                fresh.push((st.name, latest));
+                if !quiet {
+                    fresh.push((st.name, latest));
+                }
             }
         }
         if !fresh.is_empty()
@@ -557,6 +628,7 @@ mod tests {
                 path: "/x".into(),
                 installed_at: 0,
                 active: true,
+                trust: None,
             })
             .unwrap();
             s.set_inventory(inv);

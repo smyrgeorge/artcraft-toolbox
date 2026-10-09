@@ -1,17 +1,19 @@
 //! Linux AppImages: `<id>-<v>-linux-<arch>.AppImage`, a type 2 AppImage (an ELF with `AI\x02`
 //! at byte 8). Placed at `<apps>/<id>/<version>/<id>.AppImage`, made executable, and announced to
 //! the desktop with `<bundle id>.desktop` (marked as the toolbox's, so uninstall removes only its
-//! own) and the app's icon in the hicolor theme.
+//! own) and the app's icon in the hicolor theme. Versions live side by side; the active one is the
+//! one the desktop entry runs.
 
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
-use crate::{AppInfo, Error, Layout, Result, io, occupied, staging};
+use crate::{Activated, AppInfo, Error, Found, Layout, Result, io, is_running, occupied, staging};
 
 /// Marks desktop entries the toolbox wrote.
 const MARKER: &str = "X-ArtCraft-Toolbox=true";
 
-pub(crate) fn install(layout: &Layout, app: &AppInfo, package: &Path) -> Result<PathBuf> {
+/// Put the AppImage at `<apps>/<id>/<version>/<id>.AppImage`.
+pub(crate) fn place(layout: &Layout, app: &AppInfo, package: &Path) -> Result<PathBuf> {
     check_magic(package)?;
     let parent = layout.apps.join(app.id);
     let dir = parent.join(app.version);
@@ -32,12 +34,26 @@ pub(crate) fn install(layout: &Layout, app: &AppInfo, package: &Path) -> Result<
     if result.is_err() {
         let _ = std::fs::remove_dir_all(&stage);
     }
-    let path = result?;
-    // The app works without its menu entry (the toolbox opens it): failures are warnings.
-    if let Err(e) = integrate(layout, app, &path) {
+    result
+}
+
+/// Point the desktop entry at `path`. The app works without its menu entry (the toolbox opens
+/// it), so a failure is a warning.
+pub(crate) fn activate(layout: &Layout, app: &AppInfo, path: &Path) -> Activated {
+    if let Err(e) = integrate(layout, app, path) {
         log::warn!("no desktop entry for {}: {e}", app.name);
     }
-    Ok(path)
+    Activated { active: path.to_path_buf(), previous: None }
+}
+
+/// Versions in `<apps>/<id>/` with an `<id>.AppImage`.
+pub(crate) fn find(layout: &Layout, app: &AppInfo) -> Vec<Found> {
+    let file = format!("{}.AppImage", app.id);
+    crate::version_dirs(&layout.apps.join(app.id))
+        .into_iter()
+        .map(|(dir, version)| Found { path: dir.join(&file), version })
+        .filter(|f| f.path.is_file())
+        .collect()
 }
 
 fn check_magic(package: &Path) -> Result<()> {
@@ -130,7 +146,8 @@ pub fn exec_quote(path: &Path) -> Result<String> {
     Ok(out)
 }
 
-pub(crate) fn uninstall(layout: &Layout, app: &AppInfo, appimage: &Path) -> Result<()> {
+/// Remove one version's folder (not the desktop entry).
+pub(crate) fn remove_version(app: &AppInfo, appimage: &Path) -> Result<()> {
     // `<…>/<id>/<version>/<id>.AppImage`, nothing else.
     let ok = appimage.file_name().is_some_and(|f| f == format!("{}.AppImage", app.id).as_str())
         && appimage.parent().and_then(Path::file_name).is_some_and(|v| v == app.version)
@@ -138,12 +155,22 @@ pub(crate) fn uninstall(layout: &Layout, app: &AppInfo, appimage: &Path) -> Resu
     let (Some(dir), true) = (appimage.parent(), ok) else {
         return Err(Error::Refused(format!("{} doesn't look like {} {}; not removing it", appimage.display(), app.name, app.version)));
     };
+    if is_running(appimage) {
+        return Err(Error::Refused(format!("{} {} is running; quit it first", app.name, app.version)));
+    }
     if occupied(dir) {
         std::fs::remove_dir_all(dir).map_err(|e| io(dir.display(), &e))?;
     }
     if let Some(parent) = dir.parent() {
         let _ = std::fs::remove_dir(parent);
     }
+    Ok(())
+}
+
+/// Remove the active version, and its desktop entry and icon when the entry is the toolbox's
+/// and points at this version.
+pub(crate) fn uninstall(layout: &Layout, app: &AppInfo, appimage: &Path) -> Result<()> {
+    remove_version(app, appimage)?;
     if let Some(entry) = entry_path(layout, app)
         && std::fs::read_to_string(&entry)
             .is_ok_and(|t| t.lines().any(|l| l.trim() == MARKER) && t.contains(&format!("X-ArtCraft-Toolbox-Version={}", app.version)))

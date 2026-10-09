@@ -7,14 +7,14 @@ Status legend: ✅ done · 🟡 in progress · ⬜ not started. Updated 2026-10-
 | M0 Skeleton | ✅ | PhotoCraft's workspace, conventions and CI; the pure core; engine, CLI and UI shell |
 | M1 Live feeds | ✅ | Fetch, cache and show every app's releases; persist settings and inventory |
 | M2 Install and launch | ✅ | Install, uninstall and open any craft on macOS, Windows and Linux |
-| M3 Updates, rollback, trust | ⬜ | Update one or all, keep and switch versions, verify signatures, adopt existing installs |
+| M3 Updates, rollback, trust | ✅ | Update one or all, keep and switch versions, verify signatures, adopt existing installs |
 | M4 Toolbox UX parity | ✅ | Menu-bar/tray app, background checks, notifications, release notes, per-app settings |
 | M5 Distribution and self-update | ⬜ | Signed installers via PhotoCraft's release pipeline; the toolbox updates itself |
 | M6 Automation | ⬜ | Control channel and MCP over the command registry |
 | M7 Catalog from the network | ⬜ | A signed remote catalog; non-conforming apps (ArtCraft itself) |
 | M8 Polish | ⬜ | Localization (PhotoCraft's `tl!` pattern), accessibility, light theme |
 
-## Current focus: M3 Updates, rollback, trust
+## Current focus: M5 Distribution and self-update
 
 Agents: pick the first unchecked item of the current milestone. Tick it in the same change that
 lands it.
@@ -64,13 +64,24 @@ Not run on a real machine yet: the Windows Start Menu shortcut and the Linux des
 are covered by tests up to the OS call). An app that is already installed can't be installed
 again: updating it is M3.
 
-### M3 Updates, rollback, trust
+### M3 Updates, rollback, trust ✅ (2026-10-09)
 
-- [ ] `app.update`, `apps.updateAll` (with "Update all" in the UI), never replacing a running app (the install crate's `is_running`)
-- [ ] Keep `keepPrevious` versions; `app.rollback`; versions list per app
-- [ ] macOS: `codesign --verify` + Gatekeeper assessment before activating (the toolbox's installs carry no quarantine attribute, so nothing else assesses them; `spctl -a -vv` accepts PhotoCraft 0.5.0 as "Notarized Developer ID", team DJ6XS33FX8); Windows: Authenticode status reported
-- [ ] Detect apps installed by hand and offer to adopt them; re-read installed versions on refresh (release contract › Gotchas 4)
-- [ ] Coordinate with crafts that check for updates themselves
+- [x] `app.update`, `apps.updateAll` ("Update all" in the UI when more than one update waits); on macOS never while the app runs (its bundle would move), elsewhere the new version goes in beside the running one
+- [x] Keep `keepPrevious` versions (macOS: `versions.noindex/<id>/<version>/`); `app.rollback` switches without a download; `app.versions`; the details page lists versions in use, kept, and installable
+- [x] macOS: `codesign --verify --deep` + Gatekeeper (`spctl --assess`) before activating; Windows: Authenticode; a broken signature is refused, and an update signed by another developer than the version it replaces is refused (team id recorded per installation)
+- [x] Detect apps installed by hand (`apps.rescan`) and adopt them (`app.adopt`, signature checked); re-read installed versions on rescan (an app that updated itself), forget installs whose files are gone
+- [x] Coordinate with crafts that check for updates themselves: launched apps get `ARTCRAFT_TOOLBOX_MANAGED=1` (release contract › Managed apps); honouring it is up to each craft
+- [x] Automatic updates (`autoUpdate`, global and per app) after each check, announced when done ("Updated: PhotoCraft 0.5.0") instead of when found
+- [x] CLI: `update <app>` / `update --all`, `rollback`, `versions`, `adopt`
+
+Verified live on macOS with real PhotoCraft releases: installed 0.3.0, updated to 0.5.0 (both
+"Signed by Learning Machines LLC (DJ6XS33FX8) · notarized"), rolled back in 0.45 s, switched
+forward by `update --all` without a download, uninstalled both; a copy installed by hand was
+adopted, a tampered one refused ("a sealed resource is missing or invalid"), and an app replaced
+in place by a newer version was noticed. Found on the way: `codesign --verify --strict` rejects
+genuine PhotoCraft releases (Finder information left on files in the disk image), so the check
+runs without `--strict` (release contract › Gotchas 8). Not run on a real machine yet: Windows
+Authenticode and the Windows running-app check (CI runs their tests), Linux desktop entries.
 
 ### M4 Toolbox UX parity ✅ (2026-10-09, ahead of M2/M3)
 
@@ -108,4 +119,6 @@ click doesn't open the toolbox yet. Install / Open went live in M2; Update stays
 
 - Should Windows default to the MSI (per-user) instead of the portable zip? The zip gives side-by-side versions and no installer UI; the MSI gives Add/Remove Programs and file associations.
 - Do crafts' file associations (`.pcraft`, PSD) need registering when the toolbox installs from a portable zip?
+- Should the catalog pin each craft's signing team (DJ6XS33FX8 for PhotoCraft) so even the first install is checked against it? Today the first install's signer is trusted and later updates must match it.
+- Will the crafts honour `ARTCRAFT_TOOLBOX_MANAGED=1` (PdfCraft's in-app update check), and should the crafts' DMGs drop the Finder information that makes `codesign --strict` fail?
 - Publishing: does the toolbox live in `storytold/` with the other crafts? Its name and app id (`ai.storyteller.toolbox`) should be confirmed with the ArtCraft team.

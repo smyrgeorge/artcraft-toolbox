@@ -7,7 +7,8 @@
 //! | Linux | `~/.local/share/artcraft-toolbox/apps/<id>/<version>/<id>.AppImage` | `~/.local/share/applications/<bundle id>.desktop`, hicolor icon |
 //!
 //! The `installDir` setting replaces the apps folder. Downloads are staged in the toolbox's data
-//! folder (`downloads/`).
+//! folder (`downloads/`). On macOS, where only one version can be in the apps folder, the others
+//! are kept in `versions.noindex/<id>/<version>/` there (Spotlight skips `.noindex` folders).
 
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -24,6 +25,8 @@ pub struct Layout {
     pub start_menu: Option<PathBuf>,
     /// Partial and verified downloads, before they are installed.
     pub downloads: PathBuf,
+    /// macOS: the versions that aren't active (`<kept>/<id>/<version>/<Name>.app`).
+    pub kept: PathBuf,
 }
 
 impl Layout {
@@ -32,19 +35,19 @@ impl Layout {
     /// environment names no home.
     pub fn platform(data_dir: &Path, install_dir: Option<&Path>, env: impl Fn(&str) -> Option<OsString>) -> Option<Layout> {
         let var = |k: &str| env(k).filter(|v| !v.is_empty()).map(PathBuf::from);
-        let downloads = data_dir.join("downloads");
+        let (downloads, kept) = (data_dir.join("downloads"), data_dir.join("versions.noindex"));
         if cfg!(target_os = "macos") {
             let apps = install_dir.map(Path::to_path_buf).or_else(|| var("HOME").map(|h| h.join("Applications")))?;
-            return Some(Layout { apps, desktop_entries: None, icons: None, start_menu: None, downloads });
+            return Some(Layout { apps, desktop_entries: None, icons: None, start_menu: None, downloads, kept });
         }
         if cfg!(windows) {
             let apps = install_dir.map(Path::to_path_buf).or_else(|| var("LOCALAPPDATA").map(|l| l.join("Programs").join("ArtCraft")))?;
             let start_menu = var("APPDATA").map(|a| a.join("Microsoft").join("Windows").join("Start Menu").join("Programs").join("ArtCraft"));
-            return Some(Layout { apps, desktop_entries: None, icons: None, start_menu, downloads });
+            return Some(Layout { apps, desktop_entries: None, icons: None, start_menu, downloads, kept });
         }
         let data_home = var("XDG_DATA_HOME").or_else(|| var("HOME").map(|h| h.join(".local").join("share")))?;
         let apps = install_dir.map(Path::to_path_buf).unwrap_or_else(|| data_home.join("artcraft-toolbox").join("apps"));
-        Some(Layout { apps, desktop_entries: Some(data_home.join("applications")), icons: Some(data_home.join("icons")), start_menu: None, downloads })
+        Some(Layout { apps, desktop_entries: Some(data_home.join("applications")), icons: Some(data_home.join("icons")), start_menu: None, downloads, kept })
     }
 }
 

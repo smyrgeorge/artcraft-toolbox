@@ -30,16 +30,29 @@ never copy their code, icons or assets).
   version: combo boxes whose first entry is "Default (…)" naming the global value), and its
   versions, newest first and open, each with its release notes rendered from Markdown. "Back"
   or the Apps tab returns to the list.
-- **One action per row**, chosen by status: Install (not installed), Open (installed). Update
-  (update available) comes with M3; until then an installed app shows Open. No action when there
-  is no build for this computer. A spinner replaces it while that app is being checked.
-- **Installing** (M2): the row's action becomes Cancel and its status line the phase
-  ("Verifying the release", "Downloading 45%", "Verifying", "Installing") in the accent colour,
-  with a thin bar under it (a sliding segment while there is no fraction). Cancel keeps the
-  partial download, so Install resumes it. Several apps can install at once.
-- **The details page's actions**: the row's action, then Update (disabled until M3) and
-  Uninstall, which asks first: "Uninstall PhotoCraft 0.5.0?", its Uninstall in the danger colour;
-  Cancel, Escape or a click outside keeps the app.
+- **One action per row**, chosen by status: Install (not installed), Update (update available),
+  Open (installed and current), Adopt (a copy installed outside the toolbox, listed under
+  Installed as "0.3.0 installed outside the toolbox" in the warning colour). No action when there
+  is no build for this computer. A spinner replaces it while that app is being checked. Update to
+  a version that is kept switches to it at once, without a download.
+- **"Update all (N)"** sits on the Installed heading's line when more than one update waits; an
+  app it can't update (running, on macOS) is named in the status bar.
+- **Installing or updating**: the row's action becomes Cancel and its status line the phase
+  ("Verifying the release", "Downloading 45%", "Verifying", "Installing", "Checking the
+  signature") in the accent colour, with a thin bar under it (a sliding segment while there is no
+  fraction). Cancel keeps the partial download, so the next attempt resumes it. Several apps can
+  install at once.
+- **The details page's actions**: the row's action, then Open (when the action is Update) and
+  Uninstall, which asks first: "Uninstall PhotoCraft 0.5.0?" (saying how many kept versions go
+  with it), its Uninstall in the danger colour; Cancel, Escape or a click outside keeps the app.
+  Under the status line, the signature: "Signed by Learning Machines LLC (DJ6XS33FX8) ·
+  notarized", or "No platform signature".
+- **Versions**: each release is marked "in use" or "kept"; opening one offers "Switch to this
+  version" (kept: instant, no download) or "Install this version" (any other release with a build
+  here: a download, older ones included).
+- **Automatic updates** (Settings, or per app): after a check, the apps set to update
+  automatically are updated in the background and announced when done ("Updated: PhotoCraft
+  0.5.0"); they get no "Update available" notification.
 - Names and status lines are truncated with an ellipsis before they reach the action column
   (the tooltip has the full text). Check at 360 points wide.
 - "Check for updates" is disabled with its reason as the tooltip: no network, a check running,
@@ -58,10 +71,9 @@ never copy their code, icons or assets).
 - Closing the window hides it while there is a tray icon (Settings: "Keep running in the menu
   bar / system tray"); Quit quits.
 
-### Planned behaviour (M3)
+### Planned behaviour
 
-- "Update all" at the top of Installed when more than one update is waiting.
-- On the details page: install another version (roll back), show in Finder/Explorer.
+- On the details page: show in Finder/Explorer.
 - A badge on the tray icon when updates are waiting.
 
 ## Tokens

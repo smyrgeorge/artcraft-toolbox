@@ -26,7 +26,7 @@ crates/
   feed         L2             GitHub release JSON -> Release; each app's update Status (pure)
   net          L3             HTTPS (ureq + rustls): GitHub-only host policy per redirect hop, token scoping, caps
   store        L3             the toolbox's files: data dir, atomic writes, settings, inventory, feed cache
-  install      L3             per-OS install / uninstall / launch: DMG -> .app, portable zip, AppImage; Layout
+  install      L3             per-OS place / activate / remove versions, launch, platform signatures (trust): DMG -> .app, portable zip, AppImage; Layout
   jobs         L4  planned    background work outside the engine (self-update)
   engine       L5             Session + command registry (every action is a command) + background jobs (checks, icons, installs)
   ui-egui      L6             egui shell (thin: all actions go through the engine)
@@ -34,7 +34,7 @@ crates/
   testkit          planned    shared test helpers (fake feeds, temp install roots); dev-dependency only
 apps/
   artcraft-toolbox            desktop app (eframe/wgpu): window, menu-bar/tray icon, OS notifications, logger
-  artcraft-toolbox-cli        headless CLI: list / status / check / install / uninstall / open / commands / run
+  artcraft-toolbox-cli        headless CLI: list / status / check / install / update / rollback / versions / adopt / uninstall / open / commands / run
 xtask/                        cargo xtask layers | ci | contract | version
 ```
 
@@ -60,7 +60,7 @@ The toolbox downloads executables and runs them; a mistake here is a supply-chai
 
 - **Downloads come only from GitHub release URLs** (`feed::github::DOWNLOAD_PREFIX`, `https://github.com/`, plus GitHub's own redirect to its asset CDN). A feed can never point the toolbox at another host. HTTPS only, no downgrade.
 - **Verify before use.** Every downloaded file is checked against its release's `SHA256SUMS.txt` before it is opened, mounted, extracted or run. No checksum entry means no install; a mismatch deletes the file, reports it, and keeps the current version.
-- **A checksum is integrity, not authorship.** It comes from the same release as the file. Also verify the platform signature where one exists (macOS `codesign`/Gatekeeper, Windows Authenticode) — milestone M3.
+- **A checksum is integrity, not authorship.** It comes from the same release as the file. The platform signature is checked too, before a version is activated (`install::trust`: macOS `codesign --verify --deep` and Gatekeeper, Windows Authenticode): broken is refused, and an update must be signed by the same developer as the version it replaces.
 - **Archives and disk images are hostile.** Reject zip-slip (`..`, absolute paths, drive letters), symlinks leaving the target, and decompression bombs (cap total size and entry count).
 - **Install atomically.** Stage next to the target, then rename into place. Never delete or overwrite the working version before the new one is verified and in place; keep the previous version per `Settings::keep_previous` for rollback.
 - **Never elevate silently.** Default installs are per-user and need no admin rights. Anything that would (a per-machine MSI) is an explicit user choice.

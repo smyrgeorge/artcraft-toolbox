@@ -1,19 +1,24 @@
-//! Installs, uninstalls and launches Crafting Apps (L3), one package kind per OS:
+//! Installs, updates, rolls back, uninstalls and launches Crafting Apps (L3), one package kind per
+//! OS. A version is first **placed** (put on disk, nothing else changes), then **activated** (made
+//! the one the user opens); several versions can be kept, and rollback is activating another.
 //!
 //! - **macOS:** the DMG is mounted read-only (`hdiutil`), its one `.app` checked (bundle id) and
-//!   copied with `ditto` into the apps folder (`~/Applications`) through a staging name, and the
-//!   DMG detached, whatever happens.
+//!   copied with `ditto` into `<kept>/<id>/<version>/`, and the DMG detached, whatever happens.
+//!   Activating moves it to the apps folder (`~/Applications`), moving the active one out to its
+//!   own version folder first (`dmg`).
 //! - **Windows:** the portable zip is extracted into `<apps>\<Name>\<version>` (unsafe paths,
 //!   symbolic links, duplicates and oversized archives refused), its `portable.txt` deleted so the
-//!   app keeps its data in `%APPDATA%` across versions, and a Start Menu shortcut made.
-//! - **Linux:** the AppImage (checked to be one) is placed at `<apps>/<id>/<version>/<id>.AppImage`,
-//!   made executable, with a desktop entry and icon under `~/.local/share`.
+//!   app keeps its data in `%APPDATA%` across versions. Activating points the Start Menu shortcut
+//!   at it.
+//! - **Linux:** the AppImage (checked to be one) is placed at `<apps>/<id>/<version>/<id>.AppImage`
+//!   and made executable. Activating writes the desktop entry and icon under `~/.local/share`.
 //!
 //! Everything goes in under a staging name and is renamed into place, so an interrupted install
-//! leaves nothing half-done. Nothing that already exists is ever replaced: an app installed by
-//! hand stays untouched ([`Error::Exists`]). Uninstall removes exactly what install made, after
-//! checking the path still looks like it. Packages must be verified (SHA-256, [`sha256_file`])
-//! before they get here; this crate doesn't download.
+//! leaves nothing half-done. Nothing the toolbox didn't put there is ever replaced: an app
+//! installed by hand stays untouched ([`Error::Exists`]) until it is adopted ([`find_unmanaged`]).
+//! Removal checks the path still looks like what install made, and refuses a running app.
+//! Packages must be verified (SHA-256, [`sha256_file`]) before they get here; this crate doesn't
+//! download. [`verify_signature`] reports the platform signature of a placed version.
 #![forbid(unsafe_code)]
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
@@ -22,6 +27,7 @@ mod dmg;
 pub mod layout;
 mod portable;
 mod process;
+pub mod trust;
 
 use std::io::Read;
 use std::path::{Path, PathBuf};
@@ -29,9 +35,11 @@ use std::path::{Path, PathBuf};
 use artcraft_toolbox_release::{PackageKind, Sha256};
 use sha2::Digest;
 
+pub use dmg::bundle_version;
 pub use layout::Layout;
 pub use portable::{Limits, extract as extract_zip};
-pub use process::{is_running, launch};
+pub use process::{MANAGED_ENV, is_running, launch};
+pub use trust::verify as verify_signature;
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum Error {
@@ -103,19 +111,84 @@ impl AppInfo<'_> {
     }
 }
 
-/// Install the verified `package` of `kind`. Returns the path to launch and to record: the
-/// `.app` bundle, the `.exe`, or the AppImage.
-pub fn install(layout: &Layout, app: &AppInfo, kind: PackageKind, package: &Path) -> Result<PathBuf> {
+/// The active version before an activation: where it is and which version it is (`app.version`
+/// is the one being activated).
+#[derive(Debug, Clone, Copy)]
+pub struct Current<'a> {
+    pub path: &'a Path,
+    pub version: &'a str,
+}
+
+/// Where things are after an activation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Activated {
+    /// The path to launch and record for the activated version.
+    pub active: PathBuf,
+    /// Where the previously active version went, when it had to move (macOS).
+    pub previous: Option<PathBuf>,
+}
+
+/// A version found on disk ([`find_unmanaged`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Found {
+    pub path: PathBuf,
+    /// As the app says (macOS `CFBundleShortVersionString`) or as its folder is named.
+    pub version: String,
+}
+
+/// Put the verified `package` of `kind` on disk as version `app.version`, without activating it.
+/// Returns its path: the `.app` bundle, the `.exe`, or the AppImage.
+pub fn place(layout: &Layout, app: &AppInfo, kind: PackageKind, package: &Path) -> Result<PathBuf> {
     app.validate()?;
     match kind {
-        PackageKind::Dmg if cfg!(target_os = "macos") => dmg::install(layout, app, package),
-        PackageKind::PortableZip => portable::install(layout, app, package, Limits::default()),
-        PackageKind::AppImage => appimage::install(layout, app, package),
+        PackageKind::Dmg if cfg!(target_os = "macos") => dmg::place(layout, app, package),
+        PackageKind::PortableZip => portable::place(layout, app, package, Limits::default()),
+        PackageKind::AppImage => appimage::place(layout, app, package),
         other => Err(Error::Unsupported(other)),
     }
 }
 
-/// Remove what [`install`] put at `path` (and its shortcut, desktop entry, icon). Refuses paths
+/// Make the placed or kept version at `path` (version `app.version`) the active one. `current` is
+/// the active version until now. Refuses when that has to move and is running (macOS).
+pub fn activate(layout: &Layout, app: &AppInfo, kind: PackageKind, path: &Path, current: Option<Current>) -> Result<Activated> {
+    app.validate()?;
+    if let Some(cur) = current {
+        AppInfo { version: cur.version, ..*app }.validate()?;
+    }
+    match kind {
+        PackageKind::Dmg if cfg!(target_os = "macos") => dmg::activate(layout, app, path, current),
+        PackageKind::PortableZip => Ok(portable::activate(layout, app, path)),
+        PackageKind::AppImage => Ok(appimage::activate(layout, app, path)),
+        other => Err(Error::Unsupported(other)),
+    }
+}
+
+/// Place and activate: the first install of an app. A placed version that can't be activated
+/// (its target exists) is removed again.
+pub fn install(layout: &Layout, app: &AppInfo, kind: PackageKind, package: &Path) -> Result<PathBuf> {
+    let placed = place(layout, app, kind, package)?;
+    match activate(layout, app, kind, &placed, None) {
+        Ok(a) => Ok(a.active),
+        Err(e) => {
+            let _ = remove_version(layout, app, kind, &placed);
+            Err(e)
+        }
+    }
+}
+
+/// Remove an inactive version (version `app.version`) at `path`: a kept bundle on macOS, a version
+/// folder elsewhere. Shortcuts and desktop entries stay (they point at the active version).
+pub fn remove_version(layout: &Layout, app: &AppInfo, kind: PackageKind, path: &Path) -> Result<()> {
+    app.validate()?;
+    match kind {
+        PackageKind::Dmg => dmg::remove_version(layout, app, path),
+        PackageKind::PortableZip => portable::remove_version(app, path),
+        PackageKind::AppImage => appimage::remove_version(app, path),
+        other => Err(Error::Unsupported(other)),
+    }
+}
+
+/// Remove the active version at `path` (and its shortcut, desktop entry, icon). Refuses paths
 /// that don't look like an installation of `app`, and apps that are running.
 pub fn uninstall(layout: &Layout, app: &AppInfo, kind: PackageKind, path: &Path) -> Result<()> {
     app.validate()?;
@@ -128,6 +201,39 @@ pub fn uninstall(layout: &Layout, app: &AppInfo, kind: PackageKind, path: &Path)
         PackageKind::AppImage => appimage::uninstall(layout, app, path),
         other => Err(Error::Unsupported(other)),
     }
+}
+
+/// Versions of `app` on disk where the toolbox would install them (`app.version` is ignored):
+/// what was installed by hand, or by a toolbox whose inventory was lost. The caller leaves out
+/// the ones it already knows.
+pub fn find_unmanaged(layout: &Layout, app: &AppInfo, kind: PackageKind) -> Vec<Found> {
+    if (AppInfo { version: "0", ..*app }).validate().is_err() {
+        return Vec::new();
+    }
+    match kind {
+        PackageKind::Dmg if cfg!(target_os = "macos") => dmg::find(layout, app),
+        PackageKind::PortableZip => portable::find(layout, app),
+        PackageKind::AppImage => appimage::find(layout, app),
+        _ => Vec::new(),
+    }
+}
+
+/// The sub-folders of `dir` named like a version (`<dir>/<version>`), at most 64 of them.
+pub(crate) fn version_dirs(dir: &Path) -> Vec<(PathBuf, String)> {
+    let Ok(entries) = std::fs::read_dir(dir) else { return Vec::new() };
+    entries
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_type().is_ok_and(|t| t.is_dir()))
+        .filter_map(|e| {
+            let name = e.file_name().to_str()?.to_string();
+            let ok = !name.is_empty()
+                && name.len() <= 64
+                && name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'.' || b == b'-')
+                && !name.starts_with(['.', '-']);
+            ok.then(|| (e.path(), name))
+        })
+        .take(64)
+        .collect()
 }
 
 /// The SHA-256 of a file, read in chunks.

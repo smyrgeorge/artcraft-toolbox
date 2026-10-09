@@ -1,6 +1,6 @@
 # ArtCraft Toolbox architecture
 
-Status: v1.3 (2026-10-09, M1, M2 and M4). The crates marked *planned* are designed here and registered in
+Status: v1.4 (2026-10-09, M1–M4). The crates marked *planned* are designed here and registered in
 `xtask/src/layers.rs`, but not written yet; `docs/roadmap.md` says when each one lands.
 
 ## 1. Goals and principles
@@ -57,11 +57,11 @@ artcraft-toolbox/
 └─ xtask/                        layers, ci, contract (live release check), version
 ```
 
-**What exists today** (M1, M2, M4): `release`, `catalog`, `model`, `feed`, `net`, `store`,
+**What exists today** (M1–M4): `release`, `catalog`, `model`, `feed`, `net`, `store`,
 `install`, `engine`, `ui-egui`, both apps and xtask. The toolbox checks GitHub for every app's
 releases in the background, caches them, persists its settings and inventory, shows what is
-available and what needs updating, and installs, uninstalls and opens any craft (one version per
-app; updating an installed app is M3).
+available and what needs updating, and installs, updates (by hand or automatically), rolls back,
+adopts, uninstalls and opens any craft, checking platform signatures on the way.
 
 ## 3. Layers (enforced)
 
@@ -89,12 +89,14 @@ GitHub /repos/<repo>/releases?per_page=20 ─(net, If-None-Match)─►   │
 inventory.json ───────────► Inventory (installed, active version) ──┼─► feed::status ─► AppStatus
 settings.json ────────────► Settings (channel, keep_previous, …) ───┘     (UI rows, `apps.status`)
 
-app.install (M2) / app.update (M3), one background job:
+app.install / app.update, one background job:
   feed::latest(releases, channel, pin, host) ─► Asset + its release's SHA256SUMS.txt
     ─(net)─► SHA256SUMS.txt first: no entry for the asset, no download
     ─(net, Range resume)─► downloads/<file>.part ─► exact listed size? SHA-256 == entry?
-    ─► platform signature ok? (M3)
-    ─(install)─► stage next to the target ─► rename into place ─► Inventory::record ─► inventory.json
+    ─(install)─► placed beside the active version ─► platform signature intact? same developer
+    as the version it replaces?
+    ─(install)─► activate (macOS: swap bundles) ─► prune beyond keepPrevious ─► Inventory::record
+    ─► inventory.json
 ```
 
 Asset choice is `release::asset::select`: the most native architecture first (Apple silicon takes
@@ -119,13 +121,13 @@ icons/<app>.png        the app's icon, and icons/<app>.json (ETag, fetch time)
 logs/                  artcraft-toolbox.log, .1.log, .2.log (desktop app)
 ```
 
-Installed apps (decided in M2; `install::Layout::platform`):
+Installed apps (`install::Layout::platform`):
 
 | OS | Installed as | Also | How |
 |---|---|---|---|
-| macOS | `~/Applications/<Name>.app` | | DMG attached read-only (`hdiutil attach -nobrowse -readonly -noautoopen`, private mount point), its one `.app` checked against the catalog's bundle id (`plutil`), copied with `ditto` under a staging name, renamed into place; detached whatever happens. Spotlight, Launchpad and the Dock see a real bundle |
-| Windows | `%LOCALAPPDATA%\Programs\ArtCraft\<Name>\<version>\<id>.exe` | Start Menu `ArtCraft\<Name>.lnk` | Portable zip, extracted as hostile input (below); **`portable.txt` deleted**, so app data stays in `%APPDATA%\<Name>` across versions (release contract › Gotchas). The shortcut is made by PowerShell's `WScript.Shell`, paths passed in environment variables |
-| Linux | `~/.local/share/artcraft-toolbox/apps/<id>/<version>/<id>.AppImage` (mode 755) | `~/.local/share/applications/<bundle id>.desktop`, `~/.local/share/icons/hicolor/128x128/apps/<bundle id>.png` | Checked to be a type 2 AppImage. The entry is marked `X-ArtCraft-Toolbox=true` (someone else's entry under that name is left alone) and named after the app's `APP_ID`, so Wayland docks find its icon. AppImages need FUSE 2 (or `APPIMAGE_EXTRACT_AND_RUN=1`) |
+| macOS | `~/Applications/<Name>.app` (the version in use) | other versions in `<data>/versions.noindex/<id>/<version>/<Name>.app` | DMG attached read-only (`hdiutil attach -nobrowse -readonly -noautoopen`, private mount point), its one `.app` checked against the catalog's bundle id (`plutil`), copied with `ditto` into the kept folder; detached whatever happens. Activating moves the bundle in use out to its version folder and the new one in (back again if that fails). Spotlight, Launchpad and the Dock see one real bundle; `.noindex` keeps Spotlight away from the others |
+| Windows | `%LOCALAPPDATA%\Programs\ArtCraft\<Name>\<version>\<id>.exe`, versions side by side | Start Menu `ArtCraft\<Name>.lnk` to the version in use | Portable zip, extracted as hostile input (below); **`portable.txt` deleted**, so app data stays in `%APPDATA%\<Name>` across versions (release contract › Gotchas). The shortcut is made by PowerShell's `WScript.Shell`, paths passed in environment variables |
+| Linux | `~/.local/share/artcraft-toolbox/apps/<id>/<version>/<id>.AppImage` (mode 755), versions side by side | `~/.local/share/applications/<bundle id>.desktop` running the version in use, `~/.local/share/icons/hicolor/128x128/apps/<bundle id>.png` | Checked to be a type 2 AppImage. The entry is marked `X-ArtCraft-Toolbox=true` (someone else's entry under that name is left alone) and named after the app's `APP_ID`, so Wayland docks find its icon. AppImages need FUSE 2 (or `APPIMAGE_EXTRACT_AND_RUN=1`) |
 
 Windows takes the portable zip, not the MSI: versions side by side, no installer UI, no
 elevation (roadmap › Open questions keeps the MSI question).
@@ -134,11 +136,21 @@ The rules, on every OS:
 
 - **Staged, then renamed.** Everything goes in under a hidden staging name beside its target and
   is renamed into place, so an interrupted install leaves nothing half-done.
+- **Placed, checked, then activated.** A new version goes in beside the one in use; only after
+  its checksum and platform signature pass is it made the one the user opens. A failure removes
+  it again and leaves the version in use as it was.
+- **Platform signatures** (`install::trust`): on macOS `codesign --verify --deep` (a changed
+  file or executable fails) and Gatekeeper (`spctl --assess`, "notarized"); on Windows
+  Authenticode (`Get-AuthenticodeSignature`); AppImages carry none. A broken signature is refused;
+  a missing one is shown. The developer that signed the version in use (macOS team id, else the
+  certificate subject) is recorded, and **an update signed by anyone else is refused**.
 - **Nothing is replaced.** If the target exists (an app installed by hand, or by an earlier
-  toolbox), the install fails with "already exists"; adopting such apps is M3.
-- **Uninstall removes exactly what install made**, after checking that the recorded path still has
-  the shape install gave it, and refuses a running app (`pgrep` on macOS and Linux; on Windows the
-  locked `.exe` makes the removal fail). Documents and the app's own settings stay.
+  toolbox), installing fails with "already exists"; `apps.rescan` finds such copies and
+  `app.adopt` takes them over (signature checked first).
+- **Removal removes exactly what install made**, after checking that the recorded path still has
+  the shape install gave it, and refuses a running app (`pgrep` on macOS and Linux, the processes'
+  image paths on Windows). Uninstall removes the kept versions too. Documents and the app's own
+  settings stay.
 - **Archives are hostile input.** Zip entries with absolute, drive or `..` paths, symbolic links
   and duplicate names are refused; entry count (10,000) and unpacked size (4 GiB) are capped, and
   an entry can't write more than it declares.
@@ -146,9 +158,25 @@ The rules, on every OS:
   cancel or a crash, and deleted once installed.
 
 `Settings::install_dir` replaces the apps folder (the Start Menu shortcut and desktop entry stay in
-their standard places). Opening an app (`app.launch`) is `open` on macOS and a detached process
-elsewhere. Keeping previous versions and rolling back (`Settings::keep_previous`) are M3: on
-macOS the previous bundles will be kept outside `~/Applications`.
+their standard places). Opening an app (`app.launch`) is `open --env` on macOS and a detached
+process elsewhere; the app finds `ARTCRAFT_TOOLBOX_MANAGED=1` and none of the toolbox's own
+`ARTCRAFT_TOOLBOX_*` variables (release contract › Managed apps).
+
+**Updates, rollback, versions.** `app.update` installs the newest version the app's channel and
+pin offer (or any release asked for) beside the one in use, and keeps the replaced one: after an
+update, `keepPrevious` versions stay (the one just replaced first, then the most recently
+installed), older ones are removed. `app.rollback` switches to a kept version without a download
+(on macOS the bundles swap places in under a second). An update to a version that is kept is a
+switch, not a download (`apps.updateAll` does that by itself). On macOS an update refuses while
+the app runs (its bundle would move); on Windows and Linux the new version goes in beside the
+running one, and only pruning waits. Apps set to `autoUpdate` are updated after each check
+(`apps.updateAll {"onlyAutomatic":true}`) and announced when done, not when found.
+
+**The disk is the truth** (`Session::rescan`, at start, after uninstall and adopt, and on
+`apps.rescan`): copies installed outside the toolbox are found (for apps it hasn't installed),
+records whose files are gone are forgotten (when the folder around them is still there: an
+unplugged drive is not a deletion), and on macOS an app that updated itself is recorded at the
+version its bundle now says (release contract › Gotchas 4).
 
 ## 6. The engine
 
@@ -172,7 +200,12 @@ accessors (`statuses()`, `app_status()`) serve the UI; commands serve everyone e
 | `updates.check` (background) | `{"app"?:"<id>","force"?:bool}` | M1 |
 | `app.install` (background) | `{"app":"<id>","version"?:"x.y.z"}` (default: the newest the channel and pin offer) | M2 |
 | `app.uninstall`, `app.launch` | `{"app":"<id>"}` | M2 |
-| `app.update`, `apps.updateAll`, `app.rollback` | `{"app":"<id>"}` / `{}` | M3 |
+| `app.update` (background) | `{"app":"<id>","version"?:"x.y.z"}` | M3 |
+| `app.rollback` | `{"app":"<id>","version"?:"x.y.z"}` (default: the newest kept version older than the one in use) | M3 |
+| `app.versions` | `{"app":"<id>"}` | M3 |
+| `app.adopt` | `{"app":"<id>"}` | M3 |
+| `apps.updateAll` | `{"onlyAutomatic"?:bool}` | M3 |
+| `apps.rescan` | `{}` | M3 |
 
 Long work runs as background jobs (`engine/src/jobs.rs`, PhotoCraft's pattern): a command with
 a `start` hook runs on worker threads when called through `Session::start` (the UI), and to
@@ -182,11 +215,12 @@ app's result arrives. `updates.check` runs up to 4 fetches at once, parses and c
 on the worker, stops when GitHub's rate limit is reached (and keeps checking disabled until its
 reset), and skips apps checked in the last minute. `icons.refresh` uses the same worker pool
 (`jobs::spawn_pool`): it fetches missing or week-old icons, decodes them to RGBA on the worker
-(`icons::decode_png`, size-capped) and caches the PNG. `app.install` is one job per app, on its
-own worker: it reports a phase (Verifying the release, Downloading with a fraction, Verifying,
-Installing) that the row and the CLI show, and checks its cancel flag between chunks; a cancelled
-download keeps its `.part` file, so installing again resumes it. The session records the
-installation when the job's result arrives.
+(`icons::decode_png`, size-capped) and caches the PNG. `app.install` and `app.update` are one job
+per app, on its own worker: it reports a phase (Verifying the release, Downloading with a
+fraction, Verifying, Installing, Checking the signature) that the row and the CLI show, and
+checks its cancel flag between chunks; a cancelled download keeps its `.part` file, so the next
+attempt resumes it. The worker also activates the version and removes the ones beyond
+`keepPrevious`; the session records it all when the job's result arrives.
 
 ## 7. Self-update
 

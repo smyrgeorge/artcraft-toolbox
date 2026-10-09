@@ -10,6 +10,7 @@ workspace = true
 
 [dependencies]
 artcraft-toolbox-release = { workspace = true }
+artcraft-toolbox-model = { workspace = true }
 thiserror = { workspace = true }
 log = { workspace = true }
 # SHA-256 of downloads, checked against the release's SHA256SUMS.txt (RustCrypto, pure Rust).

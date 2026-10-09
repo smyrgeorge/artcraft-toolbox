@@ -1,21 +1,20 @@
-//! The Apps tab: every Crafting App with its status and its one action (Install, Update, Open).
+//! The Apps tab: every Crafting App with its status and its one action (Install, Update, Open,
+//! Adopt), and "Update all" when more than one update is waiting.
 
 use artcraft_toolbox_engine::update_cmds::CHECK;
+use artcraft_toolbox_engine::versions_cmds::UPDATE_ALL;
 use artcraft_toolbox_engine::{AppStatus, Status};
 
 use crate::ToolboxApp;
 use crate::actions;
 use crate::theme::Tokens;
-use crate::widgets::{TILE, app_tile, card, section};
-
-/// Why the action buttons are disabled: installing lands with milestone M2 (docs/roadmap.md).
-pub(crate) const NOT_YET: &str = "Updating installed apps comes with milestone M3.";
+use crate::widgets::{TILE, app_tile, card, section, section_with};
 
 pub fn show(app: &mut ToolboxApp, ui: &mut egui::Ui, t: &Tokens) {
     toolbar(app, ui, t);
     let query = app.ui.search.trim().to_lowercase();
     let (installed, available): (Vec<AppStatus>, Vec<AppStatus>) =
-        app.session.statuses().into_iter().filter(|r| matches(r, &query)).partition(|r| installed_version(&r.status).is_some());
+        app.session.statuses().into_iter().filter(|r| matches(r, &query)).partition(|r| installed_version(&r.status).is_some() || r.found.is_some());
     egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
         if installed.is_empty() && available.is_empty() {
             ui.add_space(24.0);
@@ -23,7 +22,17 @@ pub fn show(app: &mut ToolboxApp, ui: &mut egui::Ui, t: &Tokens) {
             return;
         }
         if !installed.is_empty() {
-            section(ui, "Installed", installed.len(), t);
+            let waiting =
+                installed.iter().filter(|r| matches!(r.status, Status::UpdateAvailable { .. }) && actions::installing(&app.session, r).is_none()).count();
+            if waiting > 1 {
+                section_with(ui, "Installed", installed.len(), t, |ui| {
+                    if actions::command_button(ui, &app.session, UPDATE_ALL, &format!("Update all ({waiting})"), "Update every app that has an update".into()) {
+                        app.update_all(false);
+                    }
+                });
+            } else {
+                section(ui, "Installed", installed.len(), t);
+            }
             for r in &installed {
                 row(app, ui, r, t);
             }
@@ -141,6 +150,9 @@ fn row_card(
 
 /// The status line under an app's name, and its colour.
 fn status_text(r: &AppStatus, t: &Tokens) -> (String, egui::Color32) {
+    if let (Some(v), false) = (&r.found, actions::installed(r)) {
+        return (format!("{v} installed outside the toolbox"), t.warning);
+    }
     let (line, color) = status_base(r, t);
     match &r.pinned {
         Some(v) => (format!("{line} · pinned to {v}"), color),

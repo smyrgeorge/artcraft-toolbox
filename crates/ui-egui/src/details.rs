@@ -8,7 +8,6 @@ use serde_json::{Value, json};
 
 use crate::ToolboxApp;
 use crate::actions::{self, Clicked};
-use crate::app_list::NOT_YET;
 use crate::theme::Tokens;
 use crate::widgets::{app_tile, card, section, subhead};
 
@@ -33,7 +32,9 @@ pub fn show(app: &mut ToolboxApp, ui: &mut egui::Ui, t: &Tokens, id: &str) {
         ui.add_space(8.0);
         change = settings(app, ui, &status, t);
         ui.add_space(4.0);
-        versions(app, ui, &status, t);
+        if let Some(c) = versions(app, ui, &status, t) {
+            clicked = Some(HeaderClick::Action(c));
+        }
     });
     if let Some((key, value)) = change {
         let mut params = json!({ "app": id });
@@ -58,13 +59,19 @@ enum HeaderClick {
 /// "Uninstall PhotoCraft 0.5.0?", over everything else.
 fn confirm_uninstall(app: &mut ToolboxApp, ui: &mut egui::Ui, st: &AppStatus) {
     let version = app.session.inventory().current(&st.id).map(|i| i.version.to_string()).unwrap_or_default();
+    let kept = app.session.inventory().previous(&st.id).len();
+    let removed = match kept {
+        0 => "The app is removed.".to_string(),
+        1 => "The app is removed, with the earlier version kept for rollback.".to_string(),
+        n => format!("The app is removed, with the {n} earlier versions kept for rollback."),
+    };
     let t = Tokens::get(ui.ctx());
     let mut answer = None;
     let modal = egui::Modal::new(egui::Id::new(("confirm-uninstall", &st.id))).show(ui.ctx(), |ui| {
         // 320 wide, or less in a narrow window (the frame adds its margins around it).
         ui.set_max_width((ui.ctx().content_rect().width() - 64.0).clamp(160.0, 320.0));
         ui.label(egui::RichText::new(format!("Uninstall {} {version}?", st.name)).strong());
-        ui.label("The app is removed. Your documents and its settings are kept.");
+        ui.label(format!("{removed} Your documents and its settings are kept."));
         ui.add_space(8.0);
         ui.horizontal(|ui| {
             if ui.button(egui::RichText::new("Uninstall").color(t.danger)).clicked() {
@@ -97,9 +104,10 @@ fn header(app: &ToolboxApp, ui: &mut egui::Ui, st: &AppStatus, icon: Option<&egu
             ui.vertical(|ui| {
                 ui.label(egui::RichText::new(&st.name).heading().color(t.text));
                 ui.add(egui::Label::new(egui::RichText::new(&st.tagline).color(t.text_dim)).wrap());
-                let mut line = match &job {
-                    Some(j) => actions::progress_text(j),
-                    None => st.status.label(),
+                let mut line = match (&job, &st.found) {
+                    (Some(j), _) => actions::progress_text(j),
+                    (None, Some(v)) if !actions::installed(st) => format!("{v} installed outside the toolbox"),
+                    (None, _) => st.status.label(),
                 };
                 if let Some(pin) = &st.pinned {
                     line.push_str(&format!(" · pinned to {pin}"));
@@ -108,6 +116,9 @@ fn header(app: &ToolboxApp, ui: &mut egui::Ui, st: &AppStatus, icon: Option<&egu
                     line.push_str(&format!(" · checked {}", artcraft_toolbox_engine::time::ago(app.session.now(), at)));
                 }
                 ui.label(egui::RichText::new(line).small().color(t.text_dim));
+                if let Some(trust) = app.session.inventory().current(&st.id).and_then(|i| i.trust.as_ref()) {
+                    ui.label(egui::RichText::new(trust.label()).small().color(t.text_dim));
+                }
                 if let Some(j) = &job {
                     actions::bar(ui, j, ui.available_width().min(240.0), t);
                 }
@@ -128,8 +139,9 @@ fn header(app: &ToolboxApp, ui: &mut egui::Ui, st: &AppStatus, icon: Option<&egu
             if let Some(c) = actions::draw(ui, &app.session, st, t) {
                 clicked = Some(HeaderClick::Action(c));
             }
-            if matches!(st.status, Status::UpdateAvailable { .. }) && job.is_none() {
-                ui.add_enabled(false, egui::Button::new("Update")).on_disabled_hover_text(NOT_YET);
+            // The action is Update then; the app can still be opened.
+            if matches!(st.status, Status::UpdateAvailable { .. }) && job.is_none() && ui.button("Open").on_hover_text(format!("Open {}", st.name)).clicked() {
+                clicked = Some(HeaderClick::Action(Clicked::Open));
             }
             if actions::installed(st) && job.is_none() {
                 let reason = app.session.disabled_reason(artcraft_toolbox_engine::install_cmds::UNINSTALL);
@@ -275,14 +287,18 @@ pub fn date(published_at: &str) -> Option<&str> {
     published_at.get(..10).filter(|d| d.bytes().enumerate().all(|(i, b)| if i == 4 || i == 7 { b == b'-' } else { b.is_ascii_digit() }))
 }
 
-fn versions(app: &mut ToolboxApp, ui: &mut egui::Ui, st: &AppStatus, t: &Tokens) {
+/// Every release, newest first, with its notes; a version that isn't in use can be switched to
+/// (kept on this computer) or installed. Returns that click.
+fn versions(app: &mut ToolboxApp, ui: &mut egui::Ui, st: &AppStatus, t: &Tokens) -> Option<Clicked> {
     let ToolboxApp { session, markdown, .. } = app;
     let Some(feed) = session.feed(&st.id) else {
         section(ui, "Versions", 0, t);
         ui.label(egui::RichText::new("Not checked yet: check for updates to see versions and release notes.").color(t.text_dim));
-        return;
+        return None;
     };
-    let installed = session.inventory().current(&st.id).map(|i| i.version.clone());
+    let installed = session.inventory().current(&st.id).filter(|i| i.active).map(|i| i.version.clone());
+    let busy = actions::installing(session, st).is_some();
+    let mut clicked = None;
     let host = session.host();
     let shown = feed.releases.len().min(MAX_VERSIONS);
     section(ui, "Versions", shown, t);
@@ -294,17 +310,32 @@ fn versions(app: &mut ToolboxApp, ui: &mut egui::Ui, st: &AppStatus, t: &Tokens)
         if r.is_prerelease() {
             title.push_str(" · pre-release");
         }
+        let kept = installed.as_ref() != Some(&r.version) && session.inventory().get(&st.id, &r.version).is_some();
         if installed.as_ref() == Some(&r.version) {
-            title.push_str(" · installed");
+            title.push_str(" · in use");
+        } else if kept {
+            title.push_str(" · kept");
         }
         if st.pinned.as_ref() == Some(&r.version) {
             title.push_str(" · pinned");
         }
-        if !host.is_some_and(|h| asset::select(&r.assets, h, |a| &a.name).is_some()) {
+        let buildable = host.is_some_and(|h| asset::select(&r.assets, h, |a| &a.name).is_some());
+        if !buildable {
             title.push_str(" · no build for this computer");
         }
         card(ui, t, |ui| {
             egui::CollapsingHeader::new(egui::RichText::new(title).strong()).id_salt(("release", &st.id, i)).default_open(i == 0).show(ui, |ui| {
+                let label = if kept { "Switch to this version" } else { "Install this version" };
+                if installed.as_ref() != Some(&r.version) && (kept || (buildable && st.found.is_none())) {
+                    let hover = if kept {
+                        format!("Make {} {} the version in use, without downloading it", st.name, r.version)
+                    } else {
+                        format!("Download and install {} {}", st.name, r.version)
+                    };
+                    if ui.add_enabled(!busy, egui::Button::new(label)).on_hover_text(hover).clicked() {
+                        clicked = Some(Clicked::UseVersion(r.version.clone()));
+                    }
+                }
                 if r.notes.trim().is_empty() {
                     ui.label(egui::RichText::new("No release notes.").color(t.text_dim));
                 } else {
@@ -317,6 +348,7 @@ fn versions(app: &mut ToolboxApp, ui: &mut egui::Ui, st: &AppStatus, t: &Tokens)
         });
         ui.add_space(4.0);
     }
+    clicked
 }
 
 #[cfg(test)]

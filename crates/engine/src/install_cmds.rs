@@ -1,16 +1,21 @@
-//! `app.install` (a background job), `app.uninstall` and `app.launch`.
+//! `app.install` and `app.update` (background jobs), `app.uninstall` and `app.launch`.
 //!
-//! An install is download → verify → install → record, on one worker thread:
+//! Installing and updating are one pipeline, download → verify → place → check → activate →
+//! record, on one worker thread:
 //!
 //! 1. the release's `SHA256SUMS.txt` is fetched first: no checksum entry, no install;
 //! 2. the asset is streamed to `<data>/downloads/<file>.part`, resuming a partial file with an
 //!    HTTP range, and must end at exactly the size GitHub listed;
-//! 3. its SHA-256 must match, or it is deleted and the install fails;
-//! 4. the platform installer (`artcraft_toolbox_install`) puts it in place under a staging name;
-//! 5. the session records it in the inventory (and saves it).
+//! 3. its SHA-256 must match, or it is deleted and nothing changes;
+//! 4. the platform installer (`artcraft_toolbox_install`) places the version beside the others;
+//! 5. its platform signature is checked: a broken one is refused, and an update must be signed by
+//!    the same developer as the version it replaces (the identity recorded when that was
+//!    installed);
+//! 6. it is activated (macOS: swapped into the apps folder, the previous bundle kept), versions
+//!    beyond `keepPrevious` are removed, and the session records it all.
 //!
-//! Cancelling keeps the `.part` file, so the next install resumes it. Nothing already installed
-//! is replaced: updating is milestone M3. See docs/architecture.md § 5 for where apps go.
+//! A failure at any step leaves the active version as it was. Cancelling keeps the `.part` file,
+//! so the next attempt resumes it. See docs/architecture.md § 5 for where apps go.
 
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
@@ -18,8 +23,9 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Sender};
 
-use artcraft_toolbox_install::{AppInfo, Layout};
-use artcraft_toolbox_model::Installation;
+use artcraft_toolbox_catalog::App;
+use artcraft_toolbox_install::{AppInfo, Current, Layout};
+use artcraft_toolbox_model::{Installation, Trust};
 use artcraft_toolbox_net::{NetError, Request, Transport};
 use artcraft_toolbox_release::{Checksums, Os, PackageKind, Version, asset};
 use serde_json::{Value, json};
@@ -29,6 +35,7 @@ use crate::jobs::{JobMsg, JobState, Running};
 use crate::{EngineError, JobId, Result, Session, echo, params};
 
 pub const INSTALL: &str = "app.install";
+pub const UPDATE: &str = "app.update";
 pub const UNINSTALL: &str = "app.uninstall";
 pub const LAUNCH: &str = "app.launch";
 /// Largest checksum file read (a real one is about 2 KB).
@@ -39,12 +46,20 @@ const PROGRESS_STEP: u64 = 512 * 1024;
 pub(crate) fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec { id: INSTALL, label: "Install", params: r#"{"app":"<id>","version"?:"x.y.z"}"#, enabled: can_install, run, start: Some(start) },
+        CommandSpec {
+            id: UPDATE,
+            label: "Update",
+            params: r#"{"app":"<id>","version"?:"x.y.z"}"#,
+            enabled: can_install,
+            run: run_update,
+            start: Some(start_update),
+        },
         CommandSpec { id: UNINSTALL, label: "Uninstall", params: r#"{"app":"<id>"}"#, enabled: can_change_installs, run: uninstall, start: None },
         CommandSpec { id: LAUNCH, label: "Open", params: r#"{"app":"<id>"}"#, enabled: always, run: launch, start: None },
     ]
 }
 
-fn can_change_installs(s: &Session) -> std::result::Result<(), String> {
+pub(crate) fn can_change_installs(s: &Session) -> std::result::Result<(), String> {
     if s.layout.is_none() {
         return Err("this session has no install location".into());
     }
@@ -62,8 +77,26 @@ fn can_install(s: &Session) -> std::result::Result<(), String> {
 }
 
 /// The package kind this computer installs (docs/architecture.md § 5).
-fn installs_here(kind: PackageKind, os: Os) -> bool {
-    matches!((kind, os), (PackageKind::Dmg, Os::Macos) | (PackageKind::PortableZip, Os::Windows) | (PackageKind::AppImage, Os::Linux))
+pub(crate) fn kind_for(os: Os) -> Option<PackageKind> {
+    match os {
+        Os::Macos => Some(PackageKind::Dmg),
+        Os::Windows => Some(PackageKind::PortableZip),
+        Os::Linux => Some(PackageKind::AppImage),
+        _ => None,
+    }
+}
+
+/// What the installer needs to know about `app` at `version`.
+pub(crate) fn info<'a>(app: &'a App, bundle_id: &'a str, version: &'a str, icon_png: Option<&'a [u8]>) -> AppInfo<'a> {
+    AppInfo { id: &app.id, name: &app.name, bundle_id, tagline: &app.tagline, version, icon_png }
+}
+
+/// The version an update replaces.
+struct Replaced {
+    version: Version,
+    path: PathBuf,
+    /// Who signed it: the new version must be signed by the same developer.
+    identity: Option<String>,
 }
 
 /// Everything the worker needs, owned.
@@ -79,6 +112,10 @@ struct Plan {
     size: u64,
     sums_url: String,
     icon_png: Option<Vec<u8>>,
+    /// The active version, for an update.
+    replaces: Option<Replaced>,
+    /// Inactive versions to remove once the new one is active (beyond `keepPrevious`).
+    prune: Vec<(Version, PathBuf, PackageKind)>,
 }
 
 impl Plan {
@@ -88,10 +125,21 @@ impl Plan {
     }
 }
 
+/// What a finished install or update leaves to record.
+pub(crate) struct Done {
+    inst: Installation,
+    /// Where the replaced version went, when it moved (macOS keeps it outside the apps folder).
+    moved: Option<(Version, String)>,
+    /// Versions removed for `keepPrevious`.
+    pruned: Vec<Version>,
+    /// What didn't work but doesn't undo the result (a version that couldn't be removed).
+    warnings: Vec<String>,
+}
+
 /// What the install job reports.
 pub(crate) enum InstallMsg {
     Progress { phase: &'static str, done: u64, total: Option<u64> },
-    Installed(Installation),
+    Installed(Box<Done>),
     Failed(String),
 }
 
@@ -115,28 +163,83 @@ fn run(s: &mut Session, p: &Value) -> Result<Value> {
     s.wait_job(id)
 }
 
-fn refused(m: impl Into<String>) -> EngineError {
+fn run_update(s: &mut Session, p: &Value) -> Result<Value> {
+    let id = start_update(s, p)?;
+    s.wait_job(id)
+}
+
+pub(crate) fn refused(m: impl Into<String>) -> EngineError {
     EngineError::Refused(m.into())
+}
+
+/// The install or update job running for `app`, if any.
+pub(crate) fn busy(s: &Session, app: &App) -> Result<()> {
+    if s.job_for(INSTALL, &app.id).is_some() || s.job_for(UPDATE, &app.id).is_some() {
+        return Err(refused(format!("{} is being installed or updated", app.name)));
+    }
+    Ok(())
 }
 
 fn start(s: &mut Session, p: &Value) -> Result<JobId> {
     params::only(p, &["app", "version"])?;
     let app = params::app(s, p)?.clone();
-    let wanted = match params::object(p)?.get("version") {
-        None => None,
-        Some(Value::String(v)) => Some(Version::parse(v).map_err(|e| EngineError::BadParams(e.to_string()))?),
-        Some(other) => return Err(EngineError::BadParams(format!("`version` must be a string, got {}", params::kind(other)))),
-    };
-    if s.job_for(INSTALL, &app.id).is_some() {
-        return Err(refused(format!("{} is already being installed", app.name)));
-    }
+    let wanted = params::version(p)?;
+    busy(s, &app)?;
     if let Some(inst) = s.inventory().current(&app.id) {
-        return Err(refused(format!("{} {} is already installed (updating comes with milestone M3)", app.name, inst.version)));
+        return Err(refused(format!("{} {} is already installed; update it instead", app.name, inst.version)));
     }
-    let layout = s.layout.clone().ok_or_else(|| refused("this session has no install location"))?;
+    let plan = plan(s, &app, wanted.as_ref(), None, Vec::new())?;
+    spawn(s, plan, INSTALL)
+}
+
+/// `app.update`: the newest version the app's channel and pin offer, or `version` (any release,
+/// older ones too). A version that is kept is switched to without a download.
+fn start_update(s: &mut Session, p: &Value) -> Result<JobId> {
+    params::only(p, &["app", "version"])?;
+    let app = params::app(s, p)?.clone();
+    let wanted = params::version(p)?;
+    start_update_of(s, &app, wanted)
+}
+
+pub(crate) fn start_update_of(s: &mut Session, app: &App, wanted: Option<Version>) -> Result<JobId> {
+    busy(s, app)?;
+    let current = s.inventory().current(&app.id).cloned().ok_or_else(|| refused(format!("{} isn't installed; install it first", app.name)))?;
+    if let Some(v) = &wanted
+        && *v == current.version
+    {
+        return Err(refused(format!("{} {v} is the version in use", app.name)));
+    }
+    if current.kind == PackageKind::Dmg && artcraft_toolbox_install::is_running(Path::new(&current.path)) {
+        return Err(refused(format!("{} is running; quit it to update", app.name)));
+    }
+    // Versions kept afterwards: the one in use now first, then the most recently installed.
+    let keep = usize::try_from(s.settings().keep_previous).unwrap_or(usize::MAX);
+    let mut previous: Vec<&Installation> = vec![&current];
+    previous.extend(s.inventory().previous(&app.id).into_iter().filter(|i| Some(&i.version) != wanted.as_ref()));
+    let prune = previous.iter().skip(keep).map(|i| (i.version.clone(), PathBuf::from(&i.path), i.kind)).collect();
+    let replaces = Replaced {
+        version: current.version.clone(),
+        path: PathBuf::from(&current.path),
+        identity: current.trust.as_ref().and_then(Trust::identity).map(str::to_string),
+    };
+    let plan = plan(s, app, wanted.as_ref(), Some(replaces), prune)?;
+    if wanted.is_none() && plan.version <= current.version {
+        return Err(refused(format!("{} {} is up to date", app.name, current.version)));
+    }
+    if s.inventory().get(&app.id, &plan.version).is_some() {
+        return Err(refused(format!("{} {} is kept on this computer: switch to it instead (app.rollback)", app.name, plan.version)));
+    }
+    spawn(s, plan, UPDATE)
+}
+
+/// Choose the release and its build for this computer.
+fn plan(s: &Session, app: &App, wanted: Option<&Version>, replaces: Option<Replaced>, prune: Vec<(Version, PathBuf, PackageKind)>) -> Result<Plan> {
+    if s.layout.is_none() {
+        return Err(refused("this session has no install location"));
+    }
     let host = s.host().ok_or_else(|| refused("no Crafting App is built for this computer"))?;
     let feed = s.feed(&app.id).ok_or_else(|| refused(format!("no release information for {} yet: check for updates first", app.name)))?;
-    let (release, chosen) = match &wanted {
+    let (release, chosen) = match wanted {
         Some(v) => {
             let r = feed.releases.iter().find(|r| &r.version == v).ok_or_else(|| refused(format!("{} has no release {v}", app.name)))?;
             let a = asset::select(&r.assets, host, |a| &a.name).ok_or_else(|| refused(format!("{} {v} has no build for this computer", app.name)))?;
@@ -145,7 +248,7 @@ fn start(s: &mut Session, p: &Value) -> Result<JobId> {
         None => artcraft_toolbox_feed::latest(&feed.releases, s.settings().channel_for(&app.id), host, s.settings().pinned(&app.id))
             .ok_or_else(|| refused(format!("{} has no release for this computer", app.name)))?,
     };
-    if !installs_here(chosen.name.kind, host.os) {
+    if kind_for(host.os) != Some(chosen.name.kind) {
         return Err(refused(format!("installing {:?} packages isn't supported on {}", chosen.name.kind, host.os.label())));
     }
     let sums_url = release
@@ -153,7 +256,7 @@ fn start(s: &mut Session, p: &Value) -> Result<JobId> {
         .clone()
         .ok_or_else(|| refused(format!("{} {} has no SHA256SUMS.txt; the toolbox only installs what it can verify", app.name, release.version)))?;
     let icon_png = s.store.as_ref().and_then(|st| st.load_icon(&app.id).ok().flatten()).map(|(png, _)| png);
-    let plan = Plan {
+    Ok(Plan {
         id: app.id.clone(),
         name: app.name.clone(),
         bundle_id: app.bundle_id(),
@@ -165,8 +268,15 @@ fn start(s: &mut Session, p: &Value) -> Result<JobId> {
         size: chosen.size,
         sums_url,
         icon_png,
-    };
-    let label = format!("Installing {}", plan.what());
+        replaces,
+        prune,
+    })
+}
+
+fn spawn(s: &mut Session, plan: Plan, command: &'static str) -> Result<JobId> {
+    let layout = s.layout.clone().ok_or_else(|| refused("this session has no install location"))?;
+    let label = format!("{} {}", if command == UPDATE { "Updating to" } else { "Installing" }, plan.what());
+    let app_id = plan.id.clone();
     let (tx, rx) = mpsc::channel();
     let cancel = Arc::new(AtomicBool::new(false));
     let transport = s.transport.clone().ok_or_else(|| refused("this session has no network access"))?;
@@ -176,7 +286,7 @@ fn start(s: &mut Session, p: &Value) -> Result<JobId> {
         let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| install_worker(&plan, transport.as_ref(), &layout, clock, &worker_cancel, &tx)))
             .unwrap_or_else(|_| Err("internal error (logged)".into()));
         let msg = match outcome {
-            Ok(inst) => InstallMsg::Installed(inst),
+            Ok(done) => InstallMsg::Installed(Box::new(done)),
             Err(e) => InstallMsg::Failed(e),
         };
         let _ = tx.send(JobMsg::Install(msg));
@@ -186,7 +296,7 @@ fn start(s: &mut Session, p: &Value) -> Result<JobId> {
     }
     let id = s.jobs.next_id();
     let state = InstallState { phase: "Starting".into(), done: 0, total, outcome: None };
-    s.jobs.push(Running { id, command: INSTALL, label, rx, cancel, items: vec![app.id], in_flight: Default::default(), state: JobState::Install(state) });
+    s.jobs.push(Running { id, command, label, rx, cancel, items: vec![app_id], in_flight: Default::default(), state: JobState::Install(state) });
     Ok(id)
 }
 
@@ -194,7 +304,7 @@ fn send(tx: &Sender<JobMsg>, phase: &'static str, done: u64, total: Option<u64>)
     let _ = tx.send(JobMsg::Install(InstallMsg::Progress { phase, done, total }));
 }
 
-/// Download, verify, install (on the worker). Never touches the session.
+/// Download, verify, place, check, activate, prune (on the worker). Never touches the session.
 fn install_worker(
     plan: &Plan,
     transport: &dyn Transport,
@@ -202,7 +312,7 @@ fn install_worker(
     clock: fn() -> u64,
     cancel: &AtomicBool,
     tx: &Sender<JobMsg>,
-) -> std::result::Result<Installation, String> {
+) -> std::result::Result<Done, String> {
     let what = plan.what();
     send(tx, "Verifying the release", 0, Some(plan.size));
     let sums = transport
@@ -229,12 +339,53 @@ fn install_worker(
     let version = plan.version.to_string();
     let info =
         AppInfo { id: &plan.id, name: &plan.name, bundle_id: &plan.bundle_id, tagline: &plan.tagline, version: &version, icon_png: plan.icon_png.as_deref() };
-    let installed = artcraft_toolbox_install::install(layout, &info, plan.kind, &package);
+    let placed = artcraft_toolbox_install::place(layout, &info, plan.kind, &package);
     // The verified package has served its purpose either way.
     let _ = std::fs::remove_file(&package);
-    let path = installed.map_err(|e| e.to_string())?;
-    let path = path.to_str().ok_or("the install location is not a UTF-8 path")?.to_string();
-    Ok(Installation { app: plan.id.clone(), version: plan.version.clone(), kind: plan.kind, path, installed_at: clock(), active: true })
+    let placed = placed.map_err(|e| e.to_string())?;
+    // From here a failure removes the placed version again; the active one is untouched.
+    let undo = |e: String| {
+        let _ = artcraft_toolbox_install::remove_version(layout, &info, plan.kind, &placed);
+        e
+    };
+    send(tx, "Checking the signature", plan.size, Some(plan.size));
+    let trust = artcraft_toolbox_install::verify_signature(plan.kind, &placed).map_err(|e| undo(format!("{what}: {e}")))?;
+    if let Some(r) = &plan.replaces
+        && let Some(was) = &r.identity
+        && trust.identity() != Some(was.as_str())
+    {
+        let now = trust.identity().map_or("nobody".to_string(), str::to_string);
+        return Err(undo(format!("{what} is signed by {now}, not by {was} like {} {}; not updating", plan.name, r.version)));
+    }
+    if cancel.load(Ordering::Relaxed) {
+        return Err(undo("cancelled".into()));
+    }
+    let replaced_version = plan.replaces.as_ref().map(|r| r.version.to_string());
+    let current = plan.replaces.as_ref().zip(replaced_version.as_deref()).map(|(r, v)| Current { path: &r.path, version: v });
+    let activated = artcraft_toolbox_install::activate(layout, &info, plan.kind, &placed, current).map_err(|e| undo(e.to_string()))?;
+
+    // Versions beyond `keepPrevious`: best effort, the update stands either way.
+    let (mut pruned, mut warnings) = (Vec::new(), Vec::new());
+    for (v, path, kind) in &plan.prune {
+        let path = match (&plan.replaces, &activated.previous) {
+            (Some(r), Some(moved)) if &r.version == v => moved.clone(),
+            _ => path.clone(),
+        };
+        let vs = v.to_string();
+        match artcraft_toolbox_install::remove_version(layout, &AppInfo { version: &vs, ..info }, *kind, &path) {
+            Ok(()) => pruned.push(v.clone()),
+            Err(e) => warnings.push(format!("{} {v} was kept: {e}", plan.name)),
+        }
+    }
+    let utf8 = |p: &Path| p.to_str().map(str::to_string).ok_or("the install location is not a UTF-8 path");
+    let path = utf8(&activated.active)?;
+    let moved = match (&plan.replaces, &activated.previous) {
+        (Some(r), Some(p)) if !pruned.contains(&r.version) => Some((r.version.clone(), utf8(p)?)),
+        _ => None,
+    };
+    let inst =
+        Installation { app: plan.id.clone(), version: plan.version.clone(), kind: plan.kind, path, installed_at: clock(), active: true, trust: Some(trust) };
+    Ok(Done { inst, moved, pruned, warnings })
 }
 
 /// Stream the asset into `<dir>/<file>.part`, resuming what an earlier attempt left, and rename
@@ -312,9 +463,29 @@ pub(crate) fn apply(s: &mut Session, job: &mut Running, msg: InstallMsg) {
             state.done = done;
             state.total = total;
         }
-        InstallMsg::Installed(inst) => {
-            let summary = json!({"app": inst.app, "version": inst.version, "path": inst.path});
-            let recorded = s.inventory.record(inst).map_err(EngineError::from).and_then(|()| s.save_inventory());
+        InstallMsg::Installed(done) => {
+            let Done { inst, moved, pruned, warnings } = *done;
+            for w in &warnings {
+                log::warn!("{w}");
+            }
+            let summary = json!({
+                "app": inst.app, "version": inst.version, "path": inst.path, "trust": inst.trust,
+                "removed": pruned, "warnings": warnings,
+            });
+            let app = inst.app.clone();
+            let recorded = (|| {
+                s.inventory.record(inst)?;
+                if let Some((v, path)) = moved {
+                    s.inventory.set_path(&app, &v, path)?;
+                }
+                for v in &pruned {
+                    s.inventory.remove(&app, v);
+                }
+                Ok::<(), artcraft_toolbox_model::Error>(())
+            })()
+            .map_err(EngineError::from)
+            .and_then(|()| s.save_inventory());
+            s.found.remove(&app);
             state.outcome = Some(match recorded {
                 Ok(()) => Ok(summary),
                 Err(e) => Err(format!("installed, but the inventory couldn't be saved: {e}")),
@@ -331,26 +502,40 @@ pub(crate) fn finish(job: Running) -> std::result::Result<Value, String> {
     }
 }
 
+/// Remove the active version, then every kept one.
 fn uninstall(s: &mut Session, p: &Value) -> Result<Value> {
     params::only(p, &["app"])?;
     let app = params::app(s, p)?.clone();
-    if s.job_for(INSTALL, &app.id).is_some() {
-        return Err(refused(format!("{} is being installed", app.name)));
-    }
+    busy(s, &app)?;
     let inst = s.inventory().current(&app.id).cloned().ok_or_else(|| refused(format!("{} isn't installed", app.name)))?;
     let layout = s.layout.clone().ok_or_else(|| refused("this session has no install location"))?;
     let (version, bundle_id) = (inst.version.to_string(), app.bundle_id());
-    let info = AppInfo { id: &app.id, name: &app.name, bundle_id: &bundle_id, tagline: &app.tagline, version: &version, icon_png: None };
-    artcraft_toolbox_install::uninstall(&layout, &info, inst.kind, Path::new(&inst.path))?;
+    artcraft_toolbox_install::uninstall(&layout, &info(&app, &bundle_id, &version, None), inst.kind, Path::new(&inst.path))?;
     s.inventory.remove(&app.id, &inst.version);
+    let mut kept_too = Vec::new();
+    let mut warnings = Vec::new();
+    for old in s.inventory().previous(&app.id).into_iter().cloned().collect::<Vec<_>>() {
+        let v = old.version.to_string();
+        match artcraft_toolbox_install::remove_version(&layout, &info(&app, &bundle_id, &v, None), old.kind, Path::new(&old.path)) {
+            Ok(()) => {
+                s.inventory.remove(&app.id, &old.version);
+                kept_too.push(old.version);
+            }
+            Err(e) => warnings.push(format!("{} {v} was kept: {e}", app.name)),
+        }
+    }
     s.save_inventory()?;
-    Ok(json!({"app": app.id, "version": inst.version, "removed": inst.path}))
+    s.rescan();
+    Ok(json!({"app": app.id, "version": inst.version, "removed": inst.path, "removedVersions": kept_too, "warnings": warnings}))
 }
 
 fn launch(s: &mut Session, p: &Value) -> Result<Value> {
     params::only(p, &["app"])?;
     let app = params::app(s, p)?;
     let inst = s.inventory().current(&app.id).ok_or_else(|| refused(format!("{} isn't installed", echo(&app.name))))?;
+    if !inst.active {
+        return Err(refused(format!("no version of {} is active", echo(&app.name))));
+    }
     artcraft_toolbox_install::launch(inst.kind, Path::new(&inst.path))?;
     Ok(json!({"app": app.id, "version": inst.version, "path": inst.path}))
 }
@@ -428,6 +613,7 @@ mod tests {
             icons: Some(root.join("share/icons")),
             start_menu: None,
             downloads: root.join("data/downloads"),
+            kept: root.join("data/versions.noindex"),
         }));
         s.ingest_releases("photocraft", &feed(listed_size), 1).unwrap();
         Setup { root, session: s, fake }
@@ -553,6 +739,213 @@ mod tests {
         assert_eq!(events[0].id, id);
         assert!(events[0].result.is_ok(), "{:?}", events[0].result);
         assert!(session.inventory().current("photocraft").is_some());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    // Updates, rollback, pruning, adoption: a GitHub with PhotoCraft 0.4.0 and 0.5.0.
+
+    fn release_url(v: &str, file: &str) -> String {
+        format!("https://github.com/storytold/photocraft/releases/download/v{v}/{file}")
+    }
+
+    fn appimage_of(v: &str) -> Vec<u8> {
+        let mut b = appimage();
+        b.extend(v.as_bytes());
+        b
+    }
+
+    /// PhotoCraft 0.4.0 and 0.5.0 for Linux, each with its checksums.
+    struct Two;
+
+    impl Transport for Two {
+        fn get(&self, req: &Request<'_>) -> std::result::Result<Response, NetError> {
+            let v = if req.url.contains("/v0.4.0/") { "0.4.0" } else { "0.5.0" };
+            let body = format!("{}  photocraft-{v}-linux-x86_64.AppImage\n", sha(&appimage_of(v)));
+            Ok(Response::Ok { body: body.into_bytes(), etag: None, rate: RateLimit::default() })
+        }
+        fn download(&self, url: &str, from: u64) -> std::result::Result<Download, NetError> {
+            let v = if url.contains("/v0.4.0/") { "0.4.0" } else { "0.5.0" };
+            let body = appimage_of(v);
+            let rest = body.get(from as usize..).unwrap_or_default().to_vec();
+            Ok(Download { reader: Box::new(std::io::Cursor::new(rest)), offset: from, total: Some(body.len() as u64) })
+        }
+    }
+
+    fn two() -> (PathBuf, Session) {
+        let root = temp("update");
+        let store = Store::open(root.join("data")).unwrap();
+        let (mut s, _) = Session::open(Catalog::builtin().unwrap(), Some(store), Some(Arc::new(Two)));
+        s.set_host(Target::from_consts("linux", "x86_64"));
+        s.set_layout(Some(Layout {
+            apps: root.join("apps"),
+            desktop_entries: Some(root.join("share/applications")),
+            icons: Some(root.join("share/icons")),
+            start_menu: None,
+            downloads: root.join("data/downloads"),
+            kept: root.join("data/versions.noindex"),
+        }));
+        let rel = |v: &str| {
+            let file = format!("photocraft-{v}-linux-x86_64.AppImage");
+            json!({"tag_name": format!("v{v}"), "assets": [
+                {"name": file, "size": appimage_of(v).len(), "browser_download_url": release_url(v, &file)},
+                {"name": "SHA256SUMS.txt", "size": 100, "browser_download_url": release_url(v, "SHA256SUMS.txt")},
+            ]})
+        };
+        s.ingest_releases("photocraft", &json!([rel("0.5.0"), rel("0.4.0")]).to_string(), 1).unwrap();
+        (root, s)
+    }
+
+    fn path_of(root: &Path, v: &str) -> PathBuf {
+        root.join("apps").join("photocraft").join(v).join("photocraft.AppImage")
+    }
+
+    fn entry(root: &Path) -> String {
+        std::fs::read_to_string(root.join("share/applications/ai.storyteller.photocraft.desktop")).unwrap_or_default()
+    }
+
+    fn versions_of(s: &Session) -> Vec<(String, bool)> {
+        s.inventory().versions("photocraft").iter().map(|i| (i.version.to_string(), i.active)).collect()
+    }
+
+    #[test]
+    fn update_keeps_the_previous_version_and_rollback_switches_back() {
+        use crate::versions_cmds::{ROLLBACK, VERSIONS};
+        let (root, mut s) = two();
+        s.execute(INSTALL, json!({"app": "photocraft", "version": "0.4.0"})).unwrap();
+        assert!(matches!(s.app_status("photocraft").unwrap().status, crate::Status::UpdateAvailable { .. }));
+        let out = s.execute(UPDATE, json!({"app": "photocraft"})).unwrap();
+        assert_eq!(out["version"], "0.5.0");
+        assert_eq!(out["trust"]["state"], "unsigned", "AppImages carry no platform signature");
+        assert_eq!(versions_of(&s), [("0.5.0".to_string(), true), ("0.4.0".to_string(), false)]);
+        assert!(path_of(&root, "0.4.0").is_file() && path_of(&root, "0.5.0").is_file());
+        assert!(entry(&root).contains("X-ArtCraft-Toolbox-Version=0.5.0"));
+        assert!(s.execute(UPDATE, json!({"app": "photocraft"})).unwrap_err().to_string().contains("up to date"));
+
+        // Back to the kept version, no download; then nothing older is kept.
+        let out = s.execute(ROLLBACK, json!({"app": "photocraft"})).unwrap();
+        assert_eq!((out["version"].as_str(), out["previous"].as_str()), (Some("0.4.0"), Some("0.5.0")));
+        assert_eq!(versions_of(&s), [("0.5.0".to_string(), false), ("0.4.0".to_string(), true)]);
+        assert!(entry(&root).contains("X-ArtCraft-Toolbox-Version=0.4.0"));
+        assert!(s.execute(ROLLBACK, json!({"app": "photocraft"})).unwrap_err().to_string().contains("no earlier version"));
+        // The newer one is kept: updating switches to it rather than downloading it again.
+        assert!(s.execute(UPDATE, json!({"app": "photocraft"})).unwrap_err().to_string().contains("switch to it"));
+        s.execute(ROLLBACK, json!({"app": "photocraft", "version": "0.5.0"})).unwrap();
+        assert_eq!(s.inventory().current("photocraft").unwrap().version.to_string(), "0.5.0");
+        for (p, want) in [
+            (json!({"app": "photocraft", "version": "0.5.0"}), "already the version in use"),
+            (json!({"app": "photocraft", "version": "9.0.0"}), "isn't kept"),
+            (json!({"app": "photocraft", "version": 4}), "must be a string"),
+        ] {
+            let e = s.execute(ROLLBACK, p.clone()).unwrap_err().to_string();
+            assert!(e.contains(want), "{p}: {e}");
+        }
+        let listed = s.execute(VERSIONS, json!({"app": "photocraft"})).unwrap();
+        assert_eq!(listed["installed"].as_array().map(Vec::len), Some(2));
+        // Saved: a new session sees the same.
+        let saved = Store::open(root.join("data")).unwrap().load_inventory().unwrap().unwrap();
+        assert_eq!(saved.current("photocraft").unwrap().version.to_string(), "0.5.0");
+
+        // Uninstall removes every version.
+        let out = s.execute(UNINSTALL, json!({"app": "photocraft"})).unwrap();
+        assert_eq!(out["removedVersions"], json!(["0.4.0"]));
+        assert!(!root.join("apps/photocraft").exists() && s.inventory().versions("photocraft").is_empty());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn keep_previous_zero_removes_the_replaced_version() {
+        let (root, mut s) = two();
+        s.execute("settings.set", json!({"keepPrevious": 0})).unwrap();
+        s.execute(INSTALL, json!({"app": "photocraft", "version": "0.4.0"})).unwrap();
+        let out = s.execute(UPDATE, json!({"app": "photocraft"})).unwrap();
+        assert_eq!(out["removed"], json!(["0.4.0"]));
+        assert_eq!(versions_of(&s), [("0.5.0".to_string(), true)]);
+        assert!(!path_of(&root, "0.4.0").exists());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn an_update_from_another_developer_is_refused_and_changes_nothing() {
+        let (root, mut s) = two();
+        s.execute(INSTALL, json!({"app": "photocraft", "version": "0.4.0"})).unwrap();
+        // As if 0.4.0 had been signed: 0.5.0 (unsigned here) is from somebody else.
+        let mut inv = s.inventory().clone();
+        let mut inst = inv.current("photocraft").unwrap().clone();
+        inst.trust = Some(Trust::Signed {
+            signer: "Developer ID Application: Learning Machines LLC (DJ6XS33FX8)".into(),
+            team: Some("DJ6XS33FX8".into()),
+            notarized: true,
+        });
+        inv.record(inst).unwrap();
+        s.set_inventory(inv);
+        let e = s.execute(UPDATE, json!({"app": "photocraft"})).unwrap_err().to_string();
+        assert!(e.contains("signed by nobody, not by DJ6XS33FX8"), "{e}");
+        assert_eq!(versions_of(&s), [("0.4.0".to_string(), true)]);
+        assert!(!path_of(&root, "0.5.0").exists(), "the placed version is removed again");
+        assert!(entry(&root).contains("X-ArtCraft-Toolbox-Version=0.4.0"));
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn an_app_installed_by_hand_is_found_and_adopted() {
+        use crate::versions_cmds::{ADOPT, RESCAN};
+        let (root, mut s) = two();
+        assert!(s.execute(ADOPT, json!({"app": "photocraft"})).unwrap_err().to_string().contains("no copy"));
+        let by_hand = path_of(&root, "0.3.0");
+        std::fs::create_dir_all(by_hand.parent().unwrap()).unwrap();
+        std::fs::write(&by_hand, appimage()).unwrap();
+        let out = s.execute(RESCAN, json!({})).unwrap();
+        assert_eq!(out["foundOutsideToolbox"]["photocraft"], json!(["0.3.0"]));
+        assert_eq!(s.app_status("photocraft").unwrap().found, Some(Version::new(0, 3, 0)));
+        let out = s.execute(ADOPT, json!({"app": "photocraft"})).unwrap();
+        assert_eq!(out["adopted"], json!(["0.3.0"]));
+        assert_eq!(versions_of(&s), [("0.3.0".to_string(), true)]);
+        assert_eq!(s.app_status("photocraft").unwrap().found, None);
+        assert!(s.execute(ADOPT, json!({"app": "photocraft"})).unwrap_err().to_string().contains("already managed"));
+        // From now on it updates like any other.
+        s.execute(UPDATE, json!({"app": "photocraft"})).unwrap();
+        assert_eq!(s.inventory().current("photocraft").unwrap().version.to_string(), "0.5.0");
+
+        // A record whose files were deleted is forgotten on the next rescan.
+        std::fs::remove_file(path_of(&root, "0.3.0")).unwrap();
+        let out = s.execute(RESCAN, json!({})).unwrap();
+        assert!(out["changes"][0].as_str().unwrap().contains("0.3.0 is no longer"), "{out}");
+        assert_eq!(versions_of(&s), [("0.5.0".to_string(), true)]);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn update_all_starts_what_is_due_and_switches_to_kept_versions() {
+        use crate::versions_cmds::{ROLLBACK, UPDATE_ALL};
+        let (root, mut s) = two();
+        assert_eq!(s.execute(UPDATE_ALL, json!({})).unwrap()["started"], json!([]));
+        s.execute(INSTALL, json!({"app": "photocraft", "version": "0.4.0"})).unwrap();
+        // Only the apps set to update automatically, when asked for those.
+        assert_eq!(s.execute(UPDATE_ALL, json!({"onlyAutomatic": true})).unwrap()["started"], json!([]));
+        let out = s.execute(UPDATE_ALL, json!({})).unwrap();
+        let job = out["started"][0]["job"].as_u64().map(crate::JobId).unwrap();
+        s.wait_job(job).unwrap();
+        assert_eq!(s.inventory().current("photocraft").unwrap().version.to_string(), "0.5.0");
+        // After a rollback, the newer version is kept: switched to without a download.
+        s.execute(ROLLBACK, json!({"app": "photocraft"})).unwrap();
+        let out = s.execute(UPDATE_ALL, json!({})).unwrap();
+        assert_eq!(out["switched"], json!([{"app": "photocraft", "version": "0.5.0"}]));
+        assert_eq!(s.inventory().current("photocraft").unwrap().version.to_string(), "0.5.0");
+        assert!(s.execute(UPDATE_ALL, json!({"onlyAutomatic": "yes"})).unwrap_err().to_string().contains("true or false"));
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn update_needs_an_installed_app() {
+        let (root, mut s) = two();
+        assert!(s.execute(UPDATE, json!({"app": "photocraft"})).unwrap_err().to_string().contains("isn't installed"));
+        s.execute(INSTALL, json!({"app": "photocraft"})).unwrap();
+        let e = s.execute(INSTALL, json!({"app": "photocraft"})).unwrap_err().to_string();
+        assert!(e.contains("update it instead"), "{e}");
+        assert!(s.execute(UPDATE, json!({"app": "photocraft", "version": "0.5.0"})).unwrap_err().to_string().contains("version in use"));
+        // An explicit older version is a downgrade the user asked for.
+        s.execute(UPDATE, json!({"app": "photocraft", "version": "0.4.0"})).unwrap();
+        assert_eq!(versions_of(&s), [("0.5.0".to_string(), false), ("0.4.0".to_string(), true)]);
         let _ = std::fs::remove_dir_all(&root);
     }
 }

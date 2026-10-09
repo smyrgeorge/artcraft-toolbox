@@ -43,7 +43,14 @@ fn temp() -> PathBuf {
 fn session(root: &Path) -> Session {
     let (mut s, _) = Session::open(Catalog::builtin().unwrap(), None, Some(Arc::new(Fake)));
     s.set_host(Target::from_consts("linux", "x86_64"));
-    s.set_layout(Some(Layout { apps: root.join("apps"), desktop_entries: None, icons: None, start_menu: None, downloads: root.join("downloads") }));
+    s.set_layout(Some(Layout {
+        apps: root.join("apps"),
+        desktop_entries: None,
+        icons: None,
+        start_menu: None,
+        downloads: root.join("downloads"),
+        kept: root.join("kept"),
+    }));
     let feed = serde_json::json!([{
         "tag_name": "v0.5.0",
         "assets": [

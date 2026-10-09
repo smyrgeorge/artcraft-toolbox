@@ -54,6 +54,7 @@ mod tests {
             path: "/x".into(),
             installed_at: 0,
             active: true,
+            trust: None,
         })
         .unwrap();
         s.set_inventory(inv);

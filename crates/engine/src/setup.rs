@@ -18,6 +18,9 @@ pub struct Opened {
     pub session: Session,
     /// Problems worth telling the user about (unreadable files, no data directory).
     pub warnings: Vec<String>,
+    /// What the first look at the installed apps changed ([`Session::rescan`]): an app that
+    /// updated itself, an install that is gone.
+    pub changes: Vec<String>,
 }
 
 /// The session for this user on this machine: the data directory from
@@ -50,8 +53,9 @@ pub fn open_in(dir: std::result::Result<PathBuf, String>, transport: Option<Arc<
     }
     let (mut session, mut more) = Session::open(catalog, store, transport);
     session.use_platform_layout();
+    let changes = session.rescan();
     warnings.append(&mut more);
-    Ok(Opened { session, warnings })
+    Ok(Opened { session, warnings, changes })
 }
 
 /// The GitHub client: [`Policy::github`], the toolbox's User-Agent, and `token` if given (sent to

@@ -42,6 +42,15 @@ pub(crate) fn str<'a>(p: &'a Value, key: &str) -> Result<&'a str> {
     }
 }
 
+/// The optional `version` param.
+pub(crate) fn version(p: &Value) -> Result<Option<artcraft_toolbox_release::Version>> {
+    match object(p)?.get("version") {
+        None => Ok(None),
+        Some(Value::String(v)) => artcraft_toolbox_release::Version::parse(v).map(Some).map_err(|e| EngineError::BadParams(e.to_string())),
+        Some(other) => Err(EngineError::BadParams(format!("`version` must be a string, got {}", kind(other)))),
+    }
+}
+
 /// The catalog app named by the `app` param.
 pub(crate) fn app<'a>(s: &'a Session, p: &Value) -> Result<&'a App> {
     let id = str(p, "app")?;

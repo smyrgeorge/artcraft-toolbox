@@ -4,7 +4,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use artcraft_toolbox_install::{AppInfo, Error, Layout, Limits, install, uninstall};
+use artcraft_toolbox_install::{AppInfo, Current, Error, Layout, Limits, activate, find_unmanaged, install, place, remove_version, uninstall};
 use artcraft_toolbox_release::PackageKind;
 use zip::write::SimpleFileOptions;
 
@@ -23,7 +23,12 @@ fn layout(root: &Path) -> Layout {
         icons: Some(root.join("share/icons")),
         start_menu: None,
         downloads: root.join("downloads"),
+        kept: root.join("kept"),
     }
+}
+
+fn at(version: &'static str) -> AppInfo<'static> {
+    AppInfo { version, ..app() }
 }
 
 const ICON: &[u8] = b"\x89PNG fake icon";
@@ -212,25 +217,82 @@ fn unsupported_kinds() {
     let _ = std::fs::remove_dir_all(&root);
 }
 
-/// A real disk image with a real (empty) app bundle, through hdiutil.
+#[test]
+fn appimage_versions_side_by_side_update_roll_back_and_prune() {
+    let root = temp("appimage-versions");
+    let l = layout(&root);
+    let pkg = write(&root, "pkg.AppImage", &fake_appimage());
+    let entry = root.join("share/applications/ai.storyteller.fakecraft.desktop");
+    let v1 = install(&l, &at("1.2.0"), PackageKind::AppImage, &pkg).unwrap();
+    // The update goes in beside it; nothing changes until it is activated.
+    let v2 = place(&l, &at("1.3.0"), PackageKind::AppImage, &pkg).unwrap();
+    assert!(std::fs::read_to_string(&entry).unwrap().contains("X-ArtCraft-Toolbox-Version=1.2.0\n"));
+    let a = activate(&l, &at("1.3.0"), PackageKind::AppImage, &v2, Some(Current { path: &v1, version: "1.2.0" })).unwrap();
+    assert_eq!((a.active.as_path(), a.previous), (v2.as_path(), None));
+    assert!(std::fs::read_to_string(&entry).unwrap().contains("X-ArtCraft-Toolbox-Version=1.3.0\n"));
+    assert!(v1.is_file(), "the previous version is kept");
+    // Both are found on disk; rolling back is activating the old one again.
+    let mut found: Vec<String> = find_unmanaged(&l, &app(), PackageKind::AppImage).into_iter().map(|f| f.version).collect();
+    found.sort();
+    assert_eq!(found, ["1.2.0", "1.3.0"]);
+    activate(&l, &at("1.2.0"), PackageKind::AppImage, &v1, Some(Current { path: &v2, version: "1.3.0" })).unwrap();
+    assert!(std::fs::read_to_string(&entry).unwrap().contains("X-ArtCraft-Toolbox-Version=1.2.0\n"));
+    // Pruning removes a version's folder, never the entry of the active one.
+    remove_version(&l, &at("1.3.0"), PackageKind::AppImage, &v2).unwrap();
+    assert!(!v2.exists() && v1.is_file() && entry.is_file());
+    assert!(matches!(remove_version(&l, &at("1.3.0"), PackageKind::AppImage, &v1), Err(Error::Refused(_))), "the path must match the version");
+    uninstall(&l, &at("1.2.0"), PackageKind::AppImage, &v1).unwrap();
+    assert!(!entry.exists() && !root.join("apps/fakecraft").exists());
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn portable_versions_side_by_side() {
+    let root = temp("zip-versions");
+    let l = layout(&root);
+    let pkg = write(&root, "pkg.zip", &portable_zip());
+    let v1 = install(&l, &at("1.2.0"), PackageKind::PortableZip, &pkg).unwrap();
+    let v2 = place(&l, &at("1.3.0"), PackageKind::PortableZip, &pkg).unwrap();
+    assert_eq!(v2, root.join("apps/FakeCraft/1.3.0/fakecraft.exe"));
+    activate(&l, &at("1.3.0"), PackageKind::PortableZip, &v2, Some(Current { path: &v1, version: "1.2.0" })).unwrap();
+    assert_eq!(find_unmanaged(&l, &app(), PackageKind::PortableZip).len(), 2);
+    remove_version(&l, &at("1.2.0"), PackageKind::PortableZip, &v1).unwrap();
+    assert!(!v1.exists() && v2.is_file());
+    uninstall(&l, &at("1.3.0"), PackageKind::PortableZip, &v2).unwrap();
+    assert!(!root.join("apps/FakeCraft").exists());
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn nothing_is_found_where_nothing_was_installed() {
+    let root = temp("none");
+    for kind in [PackageKind::AppImage, PackageKind::PortableZip, PackageKind::Dmg, PackageKind::Msi] {
+        assert!(find_unmanaged(&layout(&root), &app(), kind).is_empty());
+    }
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+/// Real disk images with real (empty, unsigned) app bundles, through hdiutil: install, update,
+/// roll back, find, prune, uninstall.
 #[cfg(target_os = "macos")]
 #[test]
-fn a_dmg_installs_its_app_and_is_detached() {
+fn dmg_versions_swap_through_the_kept_folder() {
+    use artcraft_toolbox_install::{bundle_version, verify_signature};
+    use artcraft_toolbox_model::Trust;
     use std::process::Command;
     let root = temp("dmg");
     let src = root.join("src");
-    let make_bundle = |id: &str| {
+    let make_dmg = |name: &str, id: &str, version: &str| {
+        let _ = std::fs::remove_dir_all(&src);
         let contents = src.join("FakeCraft.app/Contents");
         std::fs::create_dir_all(contents.join("MacOS")).unwrap();
         std::fs::write(contents.join("MacOS/fakecraft"), b"#!/bin/sh\n").unwrap();
         std::fs::write(
             contents.join("Info.plist"),
-            format!("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\"><dict><key>CFBundleIdentifier</key><string>{id}</string></dict></plist>\n"),
+            format!("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\"><dict><key>CFBundleIdentifier</key><string>{id}</string><key>CFBundleShortVersionString</key><string>{version}</string></dict></plist>\n"),
         )
         .unwrap();
         std::os::unix::fs::symlink("/Applications", src.join("Applications")).ok();
-    };
-    let make_dmg = |name: &str| {
         let dmg = root.join(name);
         let ok = Command::new("hdiutil")
             .args(["create", "-quiet", "-volname", "FakeCraft", "-fs", "HFS+", "-format", "UDZO", "-srcfolder"])
@@ -241,24 +303,56 @@ fn a_dmg_installs_its_app_and_is_detached() {
         assert!(ok.success());
         dmg
     };
-    make_bundle("ai.storyteller.fakecraft");
-    let dmg = make_dmg("good.dmg");
     let l = layout(&root);
-    let app_path = install(&l, &app(), PackageKind::Dmg, &dmg).unwrap();
-    assert_eq!(app_path, root.join("apps/FakeCraft.app"));
-    assert!(app_path.join("Contents/MacOS/fakecraft").is_file());
-    // The image was detached and its mount point removed.
+    let active = root.join("apps/FakeCraft.app");
+    let v1 = make_dmg("v1.dmg", "ai.storyteller.fakecraft", "1.2.0");
+    let v2 = make_dmg("v2.dmg", "ai.storyteller.fakecraft", "1.3.0");
+
+    assert_eq!(install(&l, &at("1.2.0"), PackageKind::Dmg, &v1).unwrap(), active);
+    assert_eq!(bundle_version(&active).as_deref(), Some("1.2.0"));
+    // The images were detached and their mount points removed.
     assert_eq!(std::fs::read_dir(&l.downloads).unwrap().count(), 0);
-    assert!(matches!(install(&l, &app(), PackageKind::Dmg, &dmg), Err(Error::Exists(_))));
-    uninstall(&l, &app(), PackageKind::Dmg, &app_path).unwrap();
-    assert!(!app_path.exists());
+    assert_eq!(verify_signature(PackageKind::Dmg, &active).unwrap(), Trust::Unsigned);
+    assert!(matches!(install(&l, &at("1.2.0"), PackageKind::Dmg, &v1), Err(Error::Exists(_))));
+    assert!(!root.join("kept/fakecraft/1.2.0").exists(), "a version that can't be activated isn't left behind");
+
+    // Update: placed in the kept folder, then swapped in; the old one moves out to its own folder.
+    let placed = place(&l, &at("1.3.0"), PackageKind::Dmg, &v2).unwrap();
+    assert_eq!(placed, root.join("kept/fakecraft/1.3.0/FakeCraft.app"));
+    let a = activate(&l, &at("1.3.0"), PackageKind::Dmg, &placed, Some(Current { path: &active, version: "1.2.0" })).unwrap();
+    let old = root.join("kept/fakecraft/1.2.0/FakeCraft.app");
+    assert_eq!((a.active.as_path(), a.previous.as_deref()), (active.as_path(), Some(old.as_path())));
+    assert_eq!((bundle_version(&active).as_deref(), bundle_version(&old).as_deref()), (Some("1.3.0"), Some("1.2.0")));
+    assert!(!root.join("kept/fakecraft/1.3.0").exists());
+    assert_eq!(find_unmanaged(&l, &app(), PackageKind::Dmg).into_iter().map(|f| f.version).collect::<Vec<_>>(), ["1.3.0"]);
+
+    // Roll back, and forward again.
+    let back = activate(&l, &at("1.2.0"), PackageKind::Dmg, &old, Some(Current { path: &active, version: "1.3.0" })).unwrap();
+    assert_eq!(bundle_version(&active).as_deref(), Some("1.2.0"));
+    let newer = back.previous.unwrap();
+    assert_eq!(bundle_version(&newer).as_deref(), Some("1.3.0"));
+    activate(&l, &at("1.3.0"), PackageKind::Dmg, &newer, Some(Current { path: &active, version: "1.2.0" })).unwrap();
+    assert_eq!(bundle_version(&active).as_deref(), Some("1.3.0"));
+
+    // Pruning removes kept versions only; uninstall removes the active one.
+    assert!(matches!(remove_version(&l, &at("1.3.0"), PackageKind::Dmg, &active), Err(Error::Refused(_))));
+    remove_version(&l, &at("1.2.0"), PackageKind::Dmg, &old).unwrap();
+    assert!(!root.join("kept/fakecraft").exists());
+    uninstall(&l, &at("1.3.0"), PackageKind::Dmg, &active).unwrap();
+    assert!(!active.exists());
+
+    // An app installed by hand is never replaced: activation leaves it and the kept one alone.
+    let mine = make_dmg("mine.dmg", "ai.storyteller.fakecraft", "1.0.0");
+    install(&l, &at("1.0.0"), PackageKind::Dmg, &mine).unwrap();
+    let placed = place(&l, &at("1.3.0"), PackageKind::Dmg, &v2).unwrap();
+    assert!(matches!(activate(&l, &at("1.3.0"), PackageKind::Dmg, &placed, None), Err(Error::Exists(_))));
+    assert_eq!(bundle_version(&active).as_deref(), Some("1.0.0"));
+    assert!(placed.exists());
 
     // A disk image holding another app is refused.
-    std::fs::remove_dir_all(&src).unwrap();
-    make_bundle("com.example.other");
-    let wrong = make_dmg("wrong.dmg");
-    let r = install(&l, &app(), PackageKind::Dmg, &wrong);
+    let wrong = make_dmg("wrong.dmg", "com.example.other", "1.3.0");
+    let r = place(&l, &at("1.4.0"), PackageKind::Dmg, &wrong);
     assert!(matches!(r, Err(Error::BadPackage(ref m)) if m.contains("com.example.other")), "{r:?}");
-    assert!(!root.join("apps/FakeCraft.app").exists());
+    assert!(!root.join("kept/fakecraft/1.4.0/FakeCraft.app").exists());
     let _ = std::fs::remove_dir_all(&root);
 }
