@@ -30,10 +30,8 @@
 	Installed	Установленные
 	Update all ({n})	Обновить все ({n})
 	Update every app that has an update	Обновить все приложения, для которых есть обновления
-	Available	Доступные
 	Checking {done} of {total}	Проверка: {done} из {total}
 	Check for updates	Проверить обновления
-	Look for new versions of every app now	Найти новые версии всех приложений сейчас
 	Search apps	Поиск приложений
 	Couldn't check: {error}	Не удалось проверить: {error}
 	{version} installed outside the toolbox	{version} установлена вне Toolbox
@@ -81,7 +79,6 @@
 	Updates available	Доступны обновления
 	Settings	Настройки
 	Apps	Приложения
-	Channel:	Канал:
 	Install updates automatically	Устанавливать обновления автоматически
 	Notify me when updates are found	Уведомлять о найденных обновлениях
 	Notifications aren't available here	Уведомления здесь недоступны
@@ -91,7 +88,6 @@
 	Check every	Проверять каждые
 	h	ч
 	0: only when asked	0: только по запросу
-	Keep previous versions:	Хранить предыдущие версии:
 	Appearance	Внешний вид
 	Language	Язык
 	Automatic ({language})	Автоматически ({language})
@@ -126,6 +122,13 @@
 	notarized	нотаризовано
 	No platform signature	Нет подписи платформы
 	Signature not checked: {reason}	Подпись не проверена: {reason}
+	Available apps	Доступные приложения
+	Close search	Закрыть поиск
+	Details	Подробности
+	Dismiss	Скрыть
+	Keep previous versions	Хранить предыдущие версии
+	More actions for {app}	Другие действия с {app}
+	Uninstall…	Удалить…
 
 # == Messages from the engine (shown by exact match)
 	this session has no network access	у этого сеанса нет доступа к сети

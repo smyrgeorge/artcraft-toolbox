@@ -1,6 +1,6 @@
 # App icon
 
-`artcraft-toolbox.svg` is a **placeholder** (a toolbox in the accent blue on the dark tile), original
+`artcraft-toolbox.svg` is a **placeholder** (a toolbox in the accent violet on the dark tile), original
 work under MIT OR Apache-2.0 like the code.
 
 | File | Use | Made with |

@@ -1,12 +1,13 @@
 //! Lazy Japanese, Chinese and Korean fallback fonts for the UI (PhotoCraft's `cjk_fonts.rs`,
 //! ported without its bundled fonts).
 //!
-//! egui's built-in fonts cover Latin, Greek and Cyrillic but no CJK, and the system fonts that do
-//! are large (Hiragino ~10 MB, Apple SD Gothic Neo 28 MB, PingFang 78 MB, Noto Sans CJK ~20 MB).
-//! Instead of reading them at startup, an egui plugin scans each frame's text for CJK characters
-//! no registered font covers, and registers the next system font for that character's script
-//! (`ctx.add_font`, active from the next frame, which it requests). Fonts are appended at the
-//! lowest priority to every family, so Latin text keeps the built-in font.
+//! The UI fonts (Inter, then egui's built-in fonts: `theme::font_definitions`) cover Latin, Greek
+//! and Cyrillic but no CJK, and the system fonts that do are large (Hiragino ~10 MB, Apple SD
+//! Gothic Neo 28 MB, PingFang 78 MB, Noto Sans CJK ~20 MB). Instead of reading them at startup,
+//! an egui plugin scans each frame's text for CJK characters no registered font covers, and
+//! registers the next system font for that character's script (`ctx.add_font`, active from the
+//! next frame, which it requests). Fonts are appended at the lowest priority to every family, so
+//! Latin text keeps Inter.
 //!
 //! The script order follows the UI language ([`cjk::script_order`]): Kana prefers a Japanese
 //! font, Hangul a Korean one, Bopomofo a Traditional Chinese one, and Han the language's script.
@@ -251,7 +252,7 @@ pub fn install(ctx: &egui::Context) {
 }
 
 pub fn install_with(ctx: &egui::Context, sources: Sources) {
-    ctx.set_fonts(egui::FontDefinitions::default());
+    ctx.set_fonts(crate::theme::font_definitions());
     // egui keeps the first plugin of a type: reset it rather than adding another.
     let fresh = || {
         let mut f = CjkFallback::new(sources.clone());

@@ -30,10 +30,8 @@
 	Installed	已安装
 	Update all ({n})	全部更新（{n}）
 	Update every app that has an update	更新所有有可用更新的应用
-	Available	可安装
 	Checking {done} of {total}	正在检查 {done}/{total}
 	Check for updates	检查更新
-	Look for new versions of every app now	立即查找所有应用的新版本
 	Search apps	搜索应用
 	Couldn't check: {error}	无法检查：{error}
 	{version} installed outside the toolbox	已在工具箱外安装 {version}
@@ -81,7 +79,6 @@
 	Updates available	有可用更新
 	Settings	设置
 	Apps	应用
-	Channel:	渠道：
 	Install updates automatically	自动安装更新
 	Notify me when updates are found	发现更新时通知我
 	Notifications aren't available here	此处无法使用通知
@@ -91,7 +88,6 @@
 	Check every	检查间隔
 	h	小时
 	0: only when asked	0：仅在手动要求时
-	Keep previous versions:	保留旧版本：
 	Appearance	外观
 	Language	语言
 	Automatic ({language})	自动（{language}）
@@ -126,6 +122,13 @@
 	notarized	已公证
 	No platform signature	没有平台签名
 	Signature not checked: {reason}	未检查签名：{reason}
+	Available apps	可安装的应用
+	Close search	关闭搜索
+	Details	详细信息
+	Dismiss	关闭
+	Keep previous versions	保留旧版本
+	More actions for {app}	{app} 的更多操作
+	Uninstall…	卸载…
 
 # == Messages from the engine (shown by exact match)
 	this session has no network access	此会话无法访问网络

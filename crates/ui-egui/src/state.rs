@@ -25,6 +25,10 @@ pub struct UiState {
     pub tab: Tab,
     /// The app list's filter (matches name, id and tagline, case-insensitively).
     pub search: String,
+    /// The search field is open: the tab strip shows it instead of the tabs.
+    pub search_open: bool,
+    /// The list's "Available apps" panel is folded.
+    pub available_folded: bool,
     /// The app whose details page is open (Apps tab), by catalog id.
     pub selected: Option<String>,
     /// The app whose uninstall is waiting for confirmation.

@@ -9,7 +9,7 @@ use serde_json::{Value, json};
 use crate::actions::{self, Clicked};
 use crate::i18n::{fmt, tn};
 use crate::theme::Tokens;
-use crate::widgets::{app_tile, card, section, subhead};
+use crate::widgets::{self, app_tile, card, panel, panel_title, subhead};
 use crate::{ToolboxApp, wording};
 
 /// Versions listed on the page (the feed asks GitHub for 20).
@@ -20,11 +20,12 @@ pub fn show(app: &mut ToolboxApp, ui: &mut egui::Ui, t: &Tokens, id: &str) {
         app.ui.selected = None;
         return;
     };
-    if ui.button(tl!("Back")).on_hover_text(tl!("All apps")).clicked() {
+    let back = widgets::icon_button(ui, "arrow-left", tl!("Back"), false, t).on_hover_text(tl!("All apps"));
+    if back.clicked() {
         app.ui.selected = None;
         return;
     }
-    ui.add_space(4.0);
+    ui.add_space(2.0);
     let icon = app.icon_texture(ui.ctx(), id);
     let mut change: Option<(&'static str, Value)> = None;
     let mut clicked = None;
@@ -32,7 +33,7 @@ pub fn show(app: &mut ToolboxApp, ui: &mut egui::Ui, t: &Tokens, id: &str) {
         clicked = header(app, ui, &status, icon.as_ref(), t);
         ui.add_space(8.0);
         change = settings(app, ui, &status, t);
-        ui.add_space(4.0);
+        ui.add_space(8.0);
         if let Some(c) = versions(app, ui, &status, t) {
             clicked = Some(HeaderClick::Action(c));
         }
@@ -47,9 +48,6 @@ pub fn show(app: &mut ToolboxApp, ui: &mut egui::Ui, t: &Tokens, id: &str) {
         Some(HeaderClick::Uninstall) => app.ui.confirm_uninstall = Some(id.to_string()),
         None => {}
     }
-    if app.ui.confirm_uninstall.as_deref() == Some(id) {
-        confirm_uninstall(app, ui, &status);
-    }
 }
 
 enum HeaderClick {
@@ -57,8 +55,14 @@ enum HeaderClick {
     Uninstall,
 }
 
-/// "Uninstall PhotoCraft 0.5.0?", over everything else.
-fn confirm_uninstall(app: &mut ToolboxApp, ui: &mut egui::Ui, st: &AppStatus) {
+/// "Uninstall PhotoCraft 0.5.0?", over everything else (asked from an app's page or its menu
+/// in the list).
+pub(crate) fn confirm_uninstall(app: &mut ToolboxApp, ui: &mut egui::Ui, id: &str) {
+    let Ok(st) = app.session.app_status(id) else {
+        app.ui.confirm_uninstall = None;
+        return;
+    };
+    let st = &st;
     let version = app.session.inventory().current(&st.id).map(|i| i.version.to_string()).unwrap_or_default();
     let kept = app.session.inventory().previous(&st.id).len();
     let removed = match kept {
@@ -102,7 +106,8 @@ fn header(app: &ToolboxApp, ui: &mut egui::Ui, st: &AppStatus, icon: Option<&egu
     let mut clicked = None;
     card(ui, t, |ui| {
         ui.horizontal(|ui| {
-            app_tile(ui, &st.id, &st.name, icon, 56.0, t);
+            app_tile(ui, &st.id, &st.name, icon, 56.0, None);
+            ui.add_space(4.0);
             ui.vertical(|ui| {
                 ui.label(egui::RichText::new(&st.name).heading().color(t.text));
                 ui.add(egui::Label::new(egui::RichText::new(wording::tagline(&st.tagline)).color(t.text_dim)).wrap());
@@ -170,8 +175,9 @@ fn settings(app: &ToolboxApp, ui: &mut egui::Ui, st: &AppStatus, t: &Tokens) -> 
     let versions: Vec<String> =
         app.session.feed(&st.id).map(|f| f.releases.iter().take(MAX_VERSIONS).map(|r| r.version.to_string()).collect()).unwrap_or_default();
     let mut change = None;
-    subhead(ui, &fmt(tl!("Settings for {app}"), &[("app", &st.name)]), t);
     card(ui, t, |ui| {
+        panel_title(ui, &fmt(tl!("Settings for {app}"), &[("app", &st.name)]), t);
+        ui.add_space(4.0);
         egui::Grid::new(("app-settings", &st.id)).num_columns(2).spacing([12.0, 8.0]).show(ui, |ui| {
             ui.label(tl!("Channel"));
             let default = fmt(tl!("Default ({value})"), &[("value", channel_name(global.channel))]);
@@ -297,62 +303,75 @@ pub fn date(published_at: &str) -> Option<&str> {
 fn versions(app: &mut ToolboxApp, ui: &mut egui::Ui, st: &AppStatus, t: &Tokens) -> Option<Clicked> {
     let ToolboxApp { session, markdown, .. } = app;
     let Some(feed) = session.feed(&st.id) else {
-        section(ui, tl!("Versions"), 0, t);
-        ui.label(egui::RichText::new(tl!("Not checked yet: check for updates to see versions and release notes.")).color(t.text_dim));
+        card(ui, t, |ui| {
+            panel_title(ui, tl!("Versions"), t);
+            ui.label(egui::RichText::new(tl!("Not checked yet: check for updates to see versions and release notes.")).color(t.text_dim));
+        });
         return None;
     };
     let installed = session.inventory().current(&st.id).filter(|i| i.active).map(|i| i.version.clone());
     let busy = actions::installing(session, st).is_some();
     let mut clicked = None;
     let host = session.host();
-    let shown = feed.releases.len().min(MAX_VERSIONS);
-    section(ui, tl!("Versions"), shown, t);
-    for (i, r) in feed.releases.iter().take(MAX_VERSIONS).enumerate() {
-        let mut title = r.version.to_string();
-        if let Some(d) = r.published_at.as_deref().and_then(date) {
-            title.push_str(&format!(" · {d}"));
-        }
-        if r.is_prerelease() {
-            title.push_str(&format!(" · {}", tl!("pre-release")));
-        }
-        let kept = installed.as_ref() != Some(&r.version) && session.inventory().get(&st.id, &r.version).is_some();
-        if installed.as_ref() == Some(&r.version) {
-            title.push_str(&format!(" · {}", tl!("in use")));
-        } else if kept {
-            title.push_str(&format!(" · {}", tl!("kept")));
-        }
-        if st.pinned.as_ref() == Some(&r.version) {
-            title.push_str(&format!(" · {}", tl!("pinned")));
-        }
-        let buildable = host.is_some_and(|h| asset::select(&r.assets, h, |a| &a.name).is_some());
-        if !buildable {
-            title.push_str(&format!(" · {}", tl!("no build for this computer")));
-        }
-        card(ui, t, |ui| {
-            egui::CollapsingHeader::new(egui::RichText::new(title).strong()).id_salt(("release", &st.id, i)).default_open(i == 0).show(ui, |ui| {
-                let label = if kept { tl!("Switch to this version") } else { tl!("Install this version") };
-                if installed.as_ref() != Some(&r.version) && (kept || (buildable && st.found.is_none())) {
-                    let hover = if kept {
-                        fmt(tl!("Make {app} {version} the version in use, without downloading it"), &[("app", &st.name), ("version", &r.version.to_string())])
-                    } else {
-                        fmt(tl!("Download and install {app} {version}"), &[("app", &st.name), ("version", &r.version.to_string())])
-                    };
-                    if ui.add_enabled(!busy, egui::Button::new(label)).on_hover_text(hover).clicked() {
-                        clicked = Some(Clicked::UseVersion(r.version.clone()));
-                    }
-                }
-                if r.notes.trim().is_empty() {
-                    ui.label(egui::RichText::new(tl!("No release notes.")).color(t.text_dim));
-                } else {
-                    egui_commonmark::CommonMarkViewer::new().show(ui, markdown, &autolink(&r.notes));
-                }
-                if let Some(url) = &r.page_url {
-                    ui.hyperlink_to(tl!("Open on GitHub"), url);
-                }
+    subhead(ui, tl!("Versions"), t);
+    ui.add_space(2.0);
+    panel(ui, t, |ui| {
+        for (i, r) in feed.releases.iter().take(MAX_VERSIONS).enumerate() {
+            let mut title = r.version.to_string();
+            if let Some(d) = r.published_at.as_deref().and_then(date) {
+                title.push_str(&format!(" · {d}"));
+            }
+            if r.is_prerelease() {
+                title.push_str(&format!(" · {}", tl!("pre-release")));
+            }
+            let kept = installed.as_ref() != Some(&r.version) && session.inventory().get(&st.id, &r.version).is_some();
+            if installed.as_ref() == Some(&r.version) {
+                title.push_str(&format!(" · {}", tl!("in use")));
+            } else if kept {
+                title.push_str(&format!(" · {}", tl!("kept")));
+            }
+            if st.pinned.as_ref() == Some(&r.version) {
+                title.push_str(&format!(" · {}", tl!("pinned")));
+            }
+            let buildable = host.is_some_and(|h| asset::select(&r.assets, h, |a| &a.name).is_some());
+            if !buildable {
+                title.push_str(&format!(" · {}", tl!("no build for this computer")));
+            }
+            if i > 0 {
+                ui.separator();
+            }
+            egui::Frame::NONE.inner_margin(egui::Margin::symmetric(6, 2)).show(ui, |ui| {
+                ui.set_width(ui.available_width());
+                egui::CollapsingHeader::new(egui::RichText::new(title).font(crate::theme::medium(13.0)))
+                    .id_salt(("release", &st.id, i))
+                    .default_open(i == 0)
+                    .show(ui, |ui| {
+                        let label = if kept { tl!("Switch to this version") } else { tl!("Install this version") };
+                        if installed.as_ref() != Some(&r.version) && (kept || (buildable && st.found.is_none())) {
+                            let hover = if kept {
+                                fmt(
+                                    tl!("Make {app} {version} the version in use, without downloading it"),
+                                    &[("app", &st.name), ("version", &r.version.to_string())],
+                                )
+                            } else {
+                                fmt(tl!("Download and install {app} {version}"), &[("app", &st.name), ("version", &r.version.to_string())])
+                            };
+                            if ui.add_enabled(!busy, egui::Button::new(label)).on_hover_text(hover).clicked() {
+                                clicked = Some(Clicked::UseVersion(r.version.clone()));
+                            }
+                        }
+                        if r.notes.trim().is_empty() {
+                            ui.label(egui::RichText::new(tl!("No release notes.")).color(t.text_dim));
+                        } else {
+                            egui_commonmark::CommonMarkViewer::new().show(ui, markdown, &autolink(&r.notes));
+                        }
+                        if let Some(url) = &r.page_url {
+                            ui.hyperlink_to(tl!("Open on GitHub"), url);
+                        }
+                    });
             });
-        });
-        ui.add_space(4.0);
-    }
+        }
+    });
     clicked
 }
 

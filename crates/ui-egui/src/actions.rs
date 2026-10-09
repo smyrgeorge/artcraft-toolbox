@@ -10,6 +10,7 @@ use serde_json::json;
 
 use crate::i18n::fmt;
 use crate::theme::Tokens;
+use crate::widgets::primary_button;
 use crate::{ToolboxApp, wording};
 
 /// What the user clicked.
@@ -36,9 +37,6 @@ pub fn installed(r: &AppStatus) -> bool {
         Status::UpToDate { .. } | Status::UpdateAvailable { .. } | Status::Unknown { installed: Some(_) } | Status::Unsupported { installed: Some(_) }
     )
 }
-
-/// Room the action needs on the right of a row.
-pub const WIDTH: f32 = 84.0;
 
 /// `Downloading 45%`, while an install runs.
 pub fn progress_text(job: &JobInfo) -> String {
@@ -75,8 +73,13 @@ pub fn bar(ui: &mut egui::Ui, job: &JobInfo, width: f32, t: &Tokens) {
 
 /// A button that is disabled, with the reason as its tooltip, while `command` can't run.
 pub fn command_button(ui: &mut egui::Ui, session: &Session, command: &str, label: &str, hover: String) -> bool {
+    command_button_with(ui, session, command, egui::Button::new(label), hover)
+}
+
+/// [`command_button`] for a styled button ([`primary_button`]).
+pub fn command_button_with(ui: &mut egui::Ui, session: &Session, command: &str, button: egui::Button<'_>, hover: String) -> bool {
     let reason = session.disabled_reason(command);
-    let b = ui.add_enabled(reason.is_none(), egui::Button::new(label));
+    let b = ui.add_enabled(reason.is_none(), button);
     let b = match &reason {
         Some(why) => b.on_disabled_hover_text(wording::engine(why)),
         None => b.on_hover_text(hover),
@@ -85,7 +88,7 @@ pub fn command_button(ui: &mut egui::Ui, session: &Session, command: &str, label
 }
 
 /// Draw the action and return what was clicked.
-pub fn draw(ui: &mut egui::Ui, session: &Session, r: &AppStatus, _t: &Tokens) -> Option<Clicked> {
+pub fn draw(ui: &mut egui::Ui, session: &Session, r: &AppStatus, t: &Tokens) -> Option<Clicked> {
     if let Some(job) = installing(session, r) {
         let cancel = ui.button(tl!("Cancel")).on_hover_text(tl!("Stop; installing again resumes the download"));
         return cancel.clicked().then_some(Clicked::Cancel(job.id));
@@ -96,7 +99,7 @@ pub fn draw(ui: &mut egui::Ui, session: &Session, r: &AppStatus, _t: &Tokens) ->
                 tl!("Update {app} from {installed} to {latest}"),
                 &[("app", &r.name), ("installed", &installed.to_string()), ("latest", &latest.to_string())],
             );
-            command_button(ui, session, UPDATE, tl!("Update"), hover).then_some(Clicked::Update)
+            command_button_with(ui, session, UPDATE, primary_button(tl!("Update"), t), hover).then_some(Clicked::Update)
         }
         _ if installed(r) => ui.button(tl!("Open")).on_hover_text(fmt(tl!("Open {app}"), &[("app", &r.name)])).clicked().then_some(Clicked::Open),
         _ if r.found.is_some() => {
@@ -115,7 +118,7 @@ pub fn draw(ui: &mut egui::Ui, session: &Session, r: &AppStatus, _t: &Tokens) ->
     }
 }
 
-/// Run what was clicked. Errors land in the status bar.
+/// Run what was clicked. Errors land in the banner.
 pub fn perform(app: &mut ToolboxApp, id: &str, clicked: Clicked) {
     let start = |app: &mut ToolboxApp, command: &str, params: serde_json::Value| match app.session.start(command, params) {
         Ok(_) => app.notice = None,

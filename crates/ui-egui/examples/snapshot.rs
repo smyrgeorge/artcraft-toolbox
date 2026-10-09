@@ -20,6 +20,8 @@
 //! `--online` draws the buttons that need the network enabled (requests fail at once; no
 //! automatic check runs). `--lang <code>` (`de`, `ja`, `auto` …), `--theme light|dark` and
 //! `--text-size <percent>` set the appearance settings; without `--lang` it draws in English.
+//! `--popover` draws the popover's rounded edge (the desktop app's window under the menu-bar or
+//! tray icon); `--fold` folds the "Available apps" panel.
 
 use std::sync::Arc;
 
@@ -157,7 +159,8 @@ fn main() -> Result<(), String> {
     }
 
     // Draw what the desktop app shows: notifications and a tray icon available.
-    let services = artcraft_toolbox_ui_egui::Services { notify: Some(Box::new(|_: &str, _: &str| {})), tray: true };
+    let popover = args.iter().any(|a| a == "--popover");
+    let services = artcraft_toolbox_ui_egui::Services { notify: Some(Box::new(|_: &str, _: &str| {})), tray: true, popover, transparent: popover };
     let mut app = ToolboxApp::with_services(session, services);
     if checking {
         app.start_check();
@@ -199,6 +202,8 @@ fn main() -> Result<(), String> {
     }
     app.ui.tab = if arg(&args, "--tab").as_deref() == Some("settings") { Tab::Settings } else { Tab::Apps };
     app.ui.search = arg(&args, "--search").unwrap_or_default();
+    app.ui.search_open = !app.ui.search.is_empty();
+    app.ui.available_folded = args.iter().any(|a| a == "--fold");
     app.ui.selected = arg(&args, "--details");
     if args.iter().any(|a| a == "--confirm-uninstall") {
         app.ui.confirm_uninstall = app.ui.selected.clone();

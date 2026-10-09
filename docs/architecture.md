@@ -49,7 +49,8 @@ artcraft-toolbox/
 │  │                             engine jobs today
 │  ├─ engine/     L5             Session (catalog, inventory, settings, feeds, host) + commands
 │  ├─ ui-egui/    L6             ToolboxApp: app list, details, settings; theme tokens (dark,
-│  │                             light), widgets; i18n (catalogs, `tl!`), wording, CJK fonts
+│  │                             light), Inter, Lucide icons, widgets; i18n (catalogs, `tl!`),
+│  │                             wording, CJK fonts
 │  ├─ automation/ L6 planned     JSON control channel + MCP server over the command registry
 │  └─ testkit/       planned     fake feeds, temp install roots, a local HTTPS fixture server
 ├─ apps/
@@ -259,6 +260,16 @@ whether a tray icon exists), so tests and the snapshot example run without them.
   host): the toolbox then runs without one and closing the window quits.
 - **Close to tray.** A window close request is cancelled and the window hidden, while there is a
   tray, the `closeToTray` setting is on and the user didn't choose Quit.
+- **Popover.** On macOS and Windows the window is a popover (`popover.rs`): undecorated, above
+  other windows, out of the taskbar, started hidden and shown under (or above) the tray icon at
+  the position `TrayIconEvent::Click` reports (or `TrayIcon::rect` at start), converted from
+  physical pixels to points; placement is a pure, tested function. A left click toggles it, the
+  menu moves to the right button. It hides on losing the focus; a tray click within 0.5 s of that
+  is the same click and leaves it hidden. On macOS the window is transparent so the UI can round
+  its corners (`Services::transparent`), and the app is an accessory (no Dock icon, no app menu,
+  so Cmd+Q is handled by the app) through eframe's `event_loop_builder` hook and winit's safe
+  `with_activation_policy`. If the tray icon can't be made, the window turns back into a normal
+  one. Linux keeps a normal window (Wayland lets no app place its window).
 - **Notifications.** `notify-rust`, on a short-lived thread. `Session::take_new_updates` returns
   each installed app's new version once, remembered in `state.json` across restarts.
 

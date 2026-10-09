@@ -54,7 +54,7 @@ fn a_row_opens_the_details_page_with_release_notes() {
     h.get_by_label("PhotoCraft").click();
     h.run();
     assert_eq!(h.state().ui.selected.as_deref(), Some("photocraft"));
-    h.get_by_label("SETTINGS FOR PHOTOCRAFT");
+    h.get_by_label("Settings for PhotoCraft");
     h.get_by_label("0.5.0 · 2026-10-08");
     // The newest version is open; its notes are rendered.
     h.get_by_label("Release notes trimmed for this test fixture.");
@@ -81,7 +81,8 @@ fn pinning_a_version_changes_what_is_offered() {
     // Back on the list, the row says so.
     h.get_by_label("Back").click();
     h.run();
-    h.get_by_label("0.3.0 available · pinned to 0.3.0");
+    h.get_by_label("PhotoCraft, 0.3.0 available · pinned to 0.3.0");
+    h.get_by_label("0.3.0 · pinned");
 }
 
 /// PhotoCraft's real feed for every request.
@@ -127,7 +128,12 @@ fn a_background_check_notifies_once_per_new_version() {
     s.set_inventory(inv);
     let sent: Arc<Mutex<Vec<(String, String)>>> = Arc::default();
     let log = Arc::clone(&sent);
-    let services = Services { notify: Some(Box::new(move |title, body| log.lock().unwrap().push((title.into(), body.into())))), tray: false };
+    let services = Services {
+        notify: Some(Box::new(move |title, body| log.lock().unwrap().push((title.into(), body.into())))),
+        tray: false,
+        popover: false,
+        transparent: false,
+    };
     // The first tick starts the due check by itself (never checked), as the app does at start.
     let mut h = unsettled(ToolboxApp::with_services(s, services));
     wait_for_jobs(&mut h);
@@ -147,7 +153,7 @@ fn request_close(h: &mut Harness<'static, ToolboxApp>) -> Vec<egui::ViewportComm
 
 #[test]
 fn closing_the_window_hides_it_while_there_is_a_tray() {
-    let with_tray = || ToolboxApp::with_services(Session::new().unwrap(), Services { notify: None, tray: true });
+    let with_tray = || ToolboxApp::with_services(Session::new().unwrap(), Services { notify: None, tray: true, popover: false, transparent: false });
     let mut h = harness(with_tray());
     let cmds = request_close(&mut h);
     assert!(cmds.contains(&egui::ViewportCommand::CancelClose) && cmds.contains(&egui::ViewportCommand::Visible(false)), "{cmds:?}");

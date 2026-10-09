@@ -30,10 +30,8 @@
 	Installed	Nainstalované
 	Update all ({n})	Aktualizovat vše ({n})
 	Update every app that has an update	Aktualizovat všechny aplikace, pro které je k dispozici aktualizace
-	Available	Dostupné
 	Checking {done} of {total}	Kontrola {done} z {total}
 	Check for updates	Zkontrolovat aktualizace
-	Look for new versions of every app now	Vyhledat nové verze všech aplikací hned teď
 	Search apps	Hledat aplikace
 	Couldn't check: {error}	Nelze zkontrolovat: {error}
 	{version} installed outside the toolbox	{version} nainstalovaná mimo Toolbox
@@ -81,7 +79,6 @@
 	Updates available	Jsou k dispozici aktualizace
 	Settings	Nastavení
 	Apps	Aplikace
-	Channel:	Kanál:
 	Install updates automatically	Instalovat aktualizace automaticky
 	Notify me when updates are found	Upozornit mě, když se najdou aktualizace
 	Notifications aren't available here	Oznámení zde nejsou k dispozici
@@ -91,7 +88,6 @@
 	Check every	Kontrolovat každých
 	h	h
 	0: only when asked	0: jen na požádání
-	Keep previous versions:	Uchovávat předchozí verze:
 	Appearance	Vzhled
 	Language	Jazyk
 	Automatic ({language})	Automaticky ({language})
@@ -126,6 +122,13 @@
 	notarized	notarizováno
 	No platform signature	Bez podpisu platformy
 	Signature not checked: {reason}	Podpis nezkontrolován: {reason}
+	Available apps	Dostupné aplikace
+	Close search	Zavřít hledání
+	Details	Podrobnosti
+	Dismiss	Skrýt
+	Keep previous versions	Uchovávat předchozí verze
+	More actions for {app}	Další akce pro {app}
+	Uninstall…	Odinstalovat…
 
 # == Messages from the engine (shown by exact match)
 	this session has no network access	tato relace nemá přístup k síti

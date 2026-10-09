@@ -192,7 +192,7 @@ fn an_app_installed_by_hand_is_offered_for_adoption() {
     s.rescan();
     let mut h = harness(ToolboxApp::new(s));
     h.run();
-    h.get_by_label("INSTALLED · 1");
+    h.get_by_label("Installed");
     h.get_by_label("0.3.0 installed outside the toolbox");
     h.get_by_label("Adopt").click();
     h.run();
@@ -214,7 +214,12 @@ fn automatic_updates_follow_a_check_and_are_announced() {
     s2.execute("settings.set", json!({"autoUpdate": true})).unwrap();
     let sent: Arc<Mutex<Vec<(String, String)>>> = Arc::default();
     let log = Arc::clone(&sent);
-    let services = Services { notify: Some(Box::new(move |title, body| log.lock().unwrap().push((title.into(), body.into())))), tray: false };
+    let services = Services {
+        notify: Some(Box::new(move |title, body| log.lock().unwrap().push((title.into(), body.into())))),
+        tray: false,
+        popover: false,
+        transparent: false,
+    };
     let mut h = ticking(ToolboxApp::with_services(s2, services));
     // The check, then the update it starts.
     settle(&mut h);

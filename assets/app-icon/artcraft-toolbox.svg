@@ -2,13 +2,13 @@
   <!-- Placeholder ArtCraft Toolbox icon (original work, MIT OR Apache-2.0). Replace in M5. -->
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#2b2d31"/>
-      <stop offset="1" stop-color="#1b1c1f"/>
+      <stop offset="0" stop-color="#26262b"/>
+      <stop offset="1" stop-color="#151518"/>
     </linearGradient>
   </defs>
   <rect width="512" height="512" rx="112" fill="url(#bg)"/>
-  <rect x="196" y="118" width="120" height="58" rx="20" fill="none" stroke="#378ef0" stroke-width="22"/>
-  <rect x="104" y="168" width="304" height="216" rx="36" fill="#378ef0"/>
-  <rect x="104" y="252" width="304" height="20" fill="#1b1c1f" opacity="0.35"/>
+  <rect x="196" y="118" width="120" height="58" rx="20" fill="none" stroke="#8b7cf6" stroke-width="22"/>
+  <rect x="104" y="168" width="304" height="216" rx="36" fill="#8b7cf6"/>
+  <rect x="104" y="252" width="304" height="20" fill="#151518" opacity="0.35"/>
   <rect x="226" y="236" width="60" height="52" rx="12" fill="#e3e5e8"/>
 </svg>

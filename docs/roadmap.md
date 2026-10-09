@@ -92,9 +92,8 @@ Authenticode and the Windows running-app check (CI runs their tests), Linux desk
 - [x] App icons from each craft's repository (`raw.githubusercontent.com`, not the API quota), cached with ETags, refreshed weekly (`icons.refresh`); monogram tiles until they arrive
 - [x] `app.releases` for agents: versions, notes, installable here, offered by the channel and pin
 
-Still open from M4: macOS keeps its Dock icon while the window is hidden (an accessory activation
-policy needs AppKit calls; PhotoCraft's `mac_window.rs` shows the safe way), and a notification
-click doesn't open the toolbox yet. Install / Open went live in M2; Update stays disabled until M3.
+Still open from M4: a notification click doesn't open the toolbox yet. (The Dock icon went away
+with the popover: the toolbox is a macOS accessory app since the 2026-10-09 polish.) Install / Open went live in M2; Update stays disabled until M3.
 
 ### M8 Polish ✅ (2026-10-09, ahead of M5–M7)
 
@@ -104,6 +103,7 @@ click doesn't open the toolbox yet. Install / Open went live in M2; Update stays
 - [x] Text size (setting `textSize`, 90–150 %; Cmd/Ctrl +, −, 0)
 - [x] Accessibility: rows are buttons named "PhotoCraft, 0.5.0 available" for screen readers, reachable with Tab and opened with Enter, with a visible focus ring; the progress bar reports its value
 - [x] Settings › Appearance: Language (native names), Theme, Text size
+- [x] The Studio look (Inter, Lucide icons, PhotoCraft's Studio colours, panels, a menu per installed app, search behind a button, an error banner) and the window as a popover under the menu-bar or tray icon on macOS and Windows (docs/ui-design.md)
 
 Every catalog covers every UI string, plural message, tagline and fixed engine message the UI
 shows (tests list what's missing). The CLI, command ids and logs stay English.

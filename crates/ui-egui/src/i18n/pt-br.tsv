@@ -30,10 +30,8 @@
 	Installed	Instalados
 	Update all ({n})	Atualizar todos ({n})
 	Update every app that has an update	Atualizar todos os apps que têm atualização
-	Available	Disponíveis
 	Checking {done} of {total}	Verificando {done} de {total}
 	Check for updates	Verificar atualizações
-	Look for new versions of every app now	Procurar agora novas versões de todos os apps
 	Search apps	Pesquisar apps
 	Couldn't check: {error}	Não foi possível verificar: {error}
 	{version} installed outside the toolbox	{version} instalada fora do Toolbox
@@ -81,7 +79,6 @@
 	Updates available	Atualizações disponíveis
 	Settings	Configurações
 	Apps	Apps
-	Channel:	Canal:
 	Install updates automatically	Instalar atualizações automaticamente
 	Notify me when updates are found	Avisar quando houver atualizações
 	Notifications aren't available here	As notificações não estão disponíveis aqui
@@ -91,7 +88,6 @@
 	Check every	Verificar a cada
 	h	h
 	0: only when asked	0: só quando pedido
-	Keep previous versions:	Manter versões anteriores:
 	Appearance	Aparência
 	Language	Idioma
 	Automatic ({language})	Automático ({language})
@@ -126,6 +122,13 @@
 	notarized	notarizado
 	No platform signature	Sem assinatura da plataforma
 	Signature not checked: {reason}	Assinatura não verificada: {reason}
+	Available apps	Apps disponíveis
+	Close search	Fechar a pesquisa
+	Details	Detalhes
+	Dismiss	Dispensar
+	Keep previous versions	Manter versões anteriores
+	More actions for {app}	Mais ações para {app}
+	Uninstall…	Desinstalar…
 
 # == Messages from the engine (shown by exact match)
 	this session has no network access	esta sessão não tem acesso à rede

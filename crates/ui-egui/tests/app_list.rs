@@ -56,6 +56,9 @@ fn settings_changes_go_through_the_engine() {
     let mut h = harness();
     h.get_by_label("Settings").click();
     h.run();
+    // A combo box shows its choice as its value, not its label.
+    h.get(egui_kittest::kittest::by().value("Stable")).click();
+    h.run();
     h.get_by_label("Pre-release").click();
     h.run();
     assert_eq!(h.state().session.settings().channel, Channel::Prerelease);
@@ -100,7 +103,8 @@ fn check_for_updates_fills_in_the_rows() {
     }
     h.run();
     assert!(!h.state().session.has_jobs());
-    h.get_by_label("0.5.0 available");
+    // Not installed: the row shows the tagline, and says the version to screen readers.
+    h.get_by_label("PhotoCraft, 0.5.0 available");
     h.get_by_label("Couldn't check: the server took too long to answer");
     h.get_by_label("Couldn't check VectorCraft: the server took too long to answer");
     assert_eq!(h.state().notice.as_deref(), Some("Couldn't check VectorCraft: the server took too long to answer"));

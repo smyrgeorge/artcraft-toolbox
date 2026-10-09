@@ -1,6 +1,6 @@
 [package]
 name = "artcraft-toolbox-ui-egui"
-description = "ArtCraft Toolbox's egui shell: the app list, settings and theme (thin: every action is an engine command)"
+description = "ArtCraft Toolbox's egui shell: the app list, settings, theme, fonts and icons (thin: every action is an engine command)"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -18,6 +18,8 @@ eframe = { workspace = true, features = ["default_fonts", "wgpu", "accesskit"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 log = { workspace = true }
+# Lucide SVG icons, rasterized at their on-screen size (PhotoCraft's loader; resvg, no image formats).
+egui_extras = { version = "0.36", default-features = false, features = ["svg"] }
 # Release notes (GitHub Markdown). Built on pulldown-cmark; no image loading or fetching.
 egui_commonmark = { version = "0.25", default-features = false, features = ["pulldown_cmark"] }
 # The system's preferred UI languages (PhotoCraft's pin): safe wrappers over the OS APIs.

@@ -44,10 +44,10 @@ fn the_language_setting_relabels_the_ui_while_it_runs() {
     let mut h = harness(app("de"));
     h.get_by_label("Nach Updates suchen");
     h.get_by_label("Einstellungen");
-    h.get_by_label("0.5.0 verfügbar");
+    h.get_by_label("PhotoCraft, 0.5.0 verfügbar");
     set(&mut h, "language", json!("ja"));
     h.get_by_label("アップデートを確認");
-    h.get_by_label("0.5.0 入手可能");
+    h.get_by_label("PhotoCraft, 0.5.0 入手可能");
     set(&mut h, "language", json!("el"));
     h.get_by_label("Έλεγχος για ενημερώσεις");
     set(&mut h, "language", json!("en"));

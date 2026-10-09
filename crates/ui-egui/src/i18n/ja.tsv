@@ -30,10 +30,8 @@
 	Installed	インストール済み
 	Update all ({n})	すべてアップデート ({n})
 	Update every app that has an update	アップデートのあるアプリをすべてアップデート
-	Available	入手可能
 	Checking {done} of {total}	確認中 {done} / {total}
 	Check for updates	アップデートを確認
-	Look for new versions of every app now	すべてのアプリの新しいバージョンを今すぐ確認
 	Search apps	アプリを検索
 	Couldn't check: {error}	確認できませんでした: {error}
 	{version} installed outside the toolbox	{version} を Toolbox 以外でインストール済み
@@ -81,7 +79,6 @@
 	Updates available	アップデートがあります
 	Settings	設定
 	Apps	アプリ
-	Channel:	チャンネル:
 	Install updates automatically	アップデートを自動でインストール
 	Notify me when updates are found	アップデートが見つかったら通知
 	Notifications aren't available here	ここでは通知を使用できません
@@ -91,7 +88,6 @@
 	Check every	確認の間隔
 	h	時間
 	0: only when asked	0: 指示したときだけ
-	Keep previous versions:	以前のバージョンを保持:
 	Appearance	外観
 	Language	言語
 	Automatic ({language})	自動 ({language})
@@ -126,6 +122,13 @@
 	notarized	公証済み
 	No platform signature	プラットフォームの署名なし
 	Signature not checked: {reason}	署名は未確認: {reason}
+	Available apps	入手可能なアプリ
+	Close search	検索を閉じる
+	Details	詳細
+	Dismiss	閉じる
+	Keep previous versions	以前のバージョンを保持
+	More actions for {app}	{app} のその他の操作
+	Uninstall…	アンインストール…
 
 # == Messages from the engine (shown by exact match)
 	this session has no network access	このセッションはネットワークにアクセスできません

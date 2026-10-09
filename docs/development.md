@@ -93,13 +93,15 @@ several versions of an app (the last one is in use, the others kept) and `--sign
 signed and notarized; `--found <app>=<version>` draws a copy installed outside the toolbox (use
 `--host linux-x86_64`); `--online` draws the network-dependent buttons enabled (requests fail at
 once, no automatic check). `--lang <code>` draws it in another language (default `en`, whatever the
-machine's), `--theme light|dark` in a theme and `--text-size 90..150` at a text size. The example draws
+machine's), `--theme light|dark` in a theme and `--text-size 90..150` at a text size. `--popover` draws the popover's edge (rounded, as on
+macOS) and `--fold` folds the available apps. The example draws
 what the desktop app shows, with notifications and a tray icon available. Fill a scratch data
 folder for it with `ARTCRAFT_TOOLBOX_CONFIG_DIR=<dir> artcraft-toolbox-cli check` and
 `… run icons.refresh`.
 
-The tray, notifications and the hidden-window behaviour can only be seen in the real app (the
-tray needs a running event loop). Run it against a scratch data folder and read its log:
+The tray, notifications, the popover's placement and hiding, and the hidden-window behaviour
+can only be seen in the real app (the tray needs a running event loop). Run it against a scratch
+data folder and read its log:
 
 ```sh
 ARTCRAFT_TOOLBOX_CONFIG_DIR=/tmp/tb RUST_LOG=info cargo run -p artcraft-toolbox
@@ -124,8 +126,8 @@ machine's language and the English labels wouldn't be found.
 | `store` | Temp folders: round trips, corrupt and oversized files, hostile app ids, atomic writes |
 | `install` | Temp folders: hostile zips (zip-slip, drive paths, symlinks, duplicates, bombs), AppImage and desktop entry checks, versions side by side, removal refusing foreign paths; on macOS real DMGs made with `hdiutil` (install, update by swap, roll back, prune, refuse to replace a copy installed by hand); signature-output parsers on every OS, real `codesign` and Authenticode checks where they exist |
 | `engine` | Command tests per module (checks, installs and updates run against fake transports: rate limits, 304s, failures, cancel, resume, bad checksums, rollback, pruning, a signer change, adoption); `tests/panic_hunt.rs` runs every command with adversarial params, offline, online and with a scratch install layout |
-| `ui-egui` | kittest (accessibility tree): rows, details page, pinning, check button, notifications, close-to-tray, install and uninstall, update all, switching versions, adopting, automatic updates, live language switching, themes, text size, keyboard focus; catalog coverage, placeholders, plurals and glyphs (`i18n/tests.rs`), WCAG contrast; the glyph test; offscreen snapshots you look at. Tests that wait for background work wait by a deadline, not a frame count, and don't tick unless they need to; check them with a slowed fake network before pushing (CI machines are slower) |
-| apps | CLI integration tests (output, exit codes, install / uninstall / open against a fake GitHub, the real binary); desktop arg parsing |
+| `ui-egui` | kittest (accessibility tree): rows, details page, pinning, check button, notifications, close-to-tray, install and uninstall, update all, switching versions, adopting, automatic updates, live language switching, themes, text size, keyboard focus, search, folding, the row menu, the banner, settings switches; catalog coverage, placeholders, plurals and glyphs (`i18n/tests.rs`), WCAG contrast; the glyph test; offscreen snapshots you look at. Tests that wait for background work wait by a deadline, not a frame count, and don't tick unless they need to; check them with a slowed fake network before pushing (CI machines are slower) |
+| apps | CLI integration tests (output, exit codes, install / uninstall / open against a fake GitHub, the real binary); desktop arg parsing, the popover's placement (pure) |
 | contract | `cargo xtask contract` against live GitHub, daily in CI (`contract.yml`) |
 
 Never call the network from `cargo test`. Code that needs it takes a `net::Transport`; tests pass

@@ -30,10 +30,8 @@
 	Installed	설치됨
 	Update all ({n})	모두 업데이트 ({n})
 	Update every app that has an update	업데이트가 있는 모든 앱 업데이트
-	Available	설치 가능
 	Checking {done} of {total}	확인 중 {done}/{total}
 	Check for updates	업데이트 확인
-	Look for new versions of every app now	지금 모든 앱의 새 버전 찾기
 	Search apps	앱 검색
 	Couldn't check: {error}	확인할 수 없음: {error}
 	{version} installed outside the toolbox	툴박스 밖에서 설치된 {version}
@@ -81,7 +79,6 @@
 	Updates available	업데이트 있음
 	Settings	설정
 	Apps	앱
-	Channel:	채널:
 	Install updates automatically	업데이트 자동 설치
 	Notify me when updates are found	업데이트가 있으면 알림
 	Notifications aren't available here	여기서는 알림을 사용할 수 없습니다
@@ -91,7 +88,6 @@
 	Check every	확인 간격
 	h	시간
 	0: only when asked	0: 요청할 때만
-	Keep previous versions:	이전 버전 보관:
 	Appearance	모양새
 	Language	언어
 	Automatic ({language})	자동 ({language})
@@ -126,6 +122,13 @@
 	notarized	공증됨
 	No platform signature	플랫폼 서명 없음
 	Signature not checked: {reason}	서명 확인 안 됨: {reason}
+	Available apps	설치 가능한 앱
+	Close search	검색 닫기
+	Details	세부 정보
+	Dismiss	닫기
+	Keep previous versions	이전 버전 보관
+	More actions for {app}	{app} 추가 작업
+	Uninstall…	제거…
 
 # == Messages from the engine (shown by exact match)
 	this session has no network access	이 세션은 네트워크에 접근할 수 없습니다

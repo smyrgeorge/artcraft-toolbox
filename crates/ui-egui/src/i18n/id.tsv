@@ -30,10 +30,8 @@
 	Installed	Terpasang
 	Update all ({n})	Perbarui semua ({n})
 	Update every app that has an update	Perbarui setiap aplikasi yang punya pembaruan
-	Available	Tersedia
 	Checking {done} of {total}	Memeriksa {done} dari {total}
 	Check for updates	Periksa pembaruan
-	Look for new versions of every app now	Cari versi baru semua aplikasi sekarang
 	Search apps	Cari aplikasi
 	Couldn't check: {error}	Tidak dapat memeriksa: {error}
 	{version} installed outside the toolbox	{version} terpasang di luar Toolbox
@@ -81,7 +79,6 @@
 	Updates available	Pembaruan tersedia
 	Settings	Pengaturan
 	Apps	Aplikasi
-	Channel:	Kanal:
 	Install updates automatically	Pasang pembaruan secara otomatis
 	Notify me when updates are found	Beri tahu saya saat ada pembaruan
 	Notifications aren't available here	Notifikasi tidak tersedia di sini
@@ -91,7 +88,6 @@
 	Check every	Periksa setiap
 	h	jam
 	0: only when asked	0: hanya saat diminta
-	Keep previous versions:	Simpan versi sebelumnya:
 	Appearance	Tampilan
 	Language	Bahasa
 	Automatic ({language})	Otomatis ({language})
@@ -126,6 +122,13 @@
 	notarized	dinotarisasi
 	No platform signature	Tidak ada tanda tangan platform
 	Signature not checked: {reason}	Tanda tangan tidak diperiksa: {reason}
+	Available apps	Aplikasi tersedia
+	Close search	Tutup pencarian
+	Details	Detail
+	Dismiss	Abaikan
+	Keep previous versions	Simpan versi sebelumnya
+	More actions for {app}	Tindakan lain untuk {app}
+	Uninstall…	Copot…
 
 # == Messages from the engine (shown by exact match)
 	this session has no network access	sesi ini tidak punya akses jaringan

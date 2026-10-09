@@ -1,4 +1,7 @@
 //! The menu-bar (macOS) or system-tray (Windows, Linux) icon: Open, Check for Updates, Quit.
+//! Where the window is a popover (`crate::popover`), a left click shows or hides it and the menu
+//! is on the right button; elsewhere a left click opens the window (macOS without a popover:
+//! the menu, the platform's convention).
 //!
 //! tray-icon delivers clicks through global handlers, on whatever thread the platform uses. They
 //! only queue an action and wake the app (`wake`, which requests a repaint); the app applies the
@@ -17,16 +20,18 @@ const TEMPLATE_PNG: &[u8] = include_bytes!("../../../assets/app-icon/tray-templa
 /// The colour icon for Windows and Linux trays.
 const COLOR_PNG: &[u8] = include_bytes!("../../../assets/app-icon/tray-64.png");
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum TrayAction {
     Open,
+    /// A left click on the icon of a popover: show or hide it, there (the icon's rectangle).
+    Toggle(tray_icon::Rect),
     Check,
     Quit,
 }
 
 pub struct Tray {
     /// Removed from the menu bar when dropped.
-    _icon: TrayIcon,
+    icon: TrayIcon,
     actions: Receiver<TrayAction>,
     /// Open, Check for Updates, Quit: relabelled when the UI language changes.
     items: [MenuItem; 3],
@@ -35,8 +40,8 @@ pub struct Tray {
 
 impl Tray {
     /// Put the icon in the menu bar or tray. Call on the main thread once the event loop runs
-    /// (eframe's app-creation callback).
-    pub fn new(wake: impl Fn() + Send + Sync + 'static) -> Result<Tray, String> {
+    /// (eframe's app-creation callback). `popover`: the window is a popover the icon toggles.
+    pub fn new(popover: bool, wake: impl Fn() + Send + Sync + 'static) -> Result<Tray, String> {
         let (tx, actions) = channel();
         let [open_label, check_label, quit_label] = wording::tray_labels();
         let open = MenuItem::new(open_label, true, None);
@@ -54,27 +59,34 @@ impl Tray {
                 menu_wake();
             }
         }));
-        // On macOS a click opens the menu (the platform convention); elsewhere a left click opens
-        // the window and the right button opens the menu.
-        if !cfg!(target_os = "macos") {
+        // A popover's icon toggles it with a left click, the menu is on the right button. Without
+        // a popover: on macOS a click opens the menu (the platform convention); elsewhere a left
+        // click opens the window and the right button the menu.
+        let macos = cfg!(target_os = "macos");
+        let menu_on_left_click = macos && !popover;
+        if !menu_on_left_click {
             TrayIconEvent::set_event_handler(Some(move |e: TrayIconEvent| {
-                if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = e {
-                    let _ = tx.send(TrayAction::Open);
+                if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, rect, .. } = e {
+                    let _ = tx.send(if popover { TrayAction::Toggle(rect) } else { TrayAction::Open });
                     wake();
                 }
             }));
         }
 
-        let macos = cfg!(target_os = "macos");
         let (w, h, rgba) = artcraft_toolbox_engine::icons::decode_png(if macos { TEMPLATE_PNG } else { COLOR_PNG })?;
         let image = tray_icon::Icon::from_rgba(rgba, w, h).map_err(|e| e.to_string())?;
-        let builder = TrayIconBuilder::new().with_menu(Box::new(menu)).with_tooltip("ArtCraft Toolbox").with_menu_on_left_click(macos);
+        let builder = TrayIconBuilder::new().with_menu(Box::new(menu)).with_tooltip("ArtCraft Toolbox").with_menu_on_left_click(menu_on_left_click);
         #[cfg(target_os = "macos")]
         let builder = builder.with_icon_templated(image);
         #[cfg(not(target_os = "macos"))]
         let builder = builder.with_icon(image);
         let icon = builder.build().map_err(|e| e.to_string())?;
-        Ok(Tray { _icon: icon, actions, items: [open, check, quit], labelled_in: Some(i18n::current().code()) })
+        Ok(Tray { icon, actions, items: [open, check, quit], labelled_in: Some(i18n::current().code()) })
+    }
+
+    /// Where the icon is, in physical pixels (where the platform says; none on Linux).
+    pub fn rect(&self) -> Option<tray_icon::Rect> {
+        self.icon.rect()
     }
 
     /// Follow the UI language (cheap when it hasn't changed).

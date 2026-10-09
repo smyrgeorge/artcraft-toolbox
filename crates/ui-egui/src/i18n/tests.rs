@@ -115,21 +115,24 @@ fn bundled_catalogs_are_consistent() {
     }
 }
 
-/// egui's built-in fonts draw every character of every catalog except Chinese, Japanese and
-/// Korean (those come from the system's fonts, `cjk_fonts`): no missing-glyph boxes.
+/// The bundled UI fonts (Inter, then egui's) draw every character of every catalog except
+/// Chinese, Japanese and Korean (those come from the system's fonts, `cjk_fonts`), at every
+/// weight the UI uses: no missing-glyph boxes.
 #[test]
 fn translations_use_glyphs_the_built_in_fonts_have() {
     let ctx = egui::Context::default();
+    ctx.set_fonts(crate::theme::font_definitions());
     ctx.run_ui(Default::default(), |_| {}).textures_delta.clear();
-    let font = egui::FontId::proportional(12.0);
-    for l in Lang::all().filter(|l| *l != Lang::EN) {
-        for (_, _, tr) in parse_entries(l.0.source).0 {
-            let missing: String = tr
-                .chars()
-                .filter(|c| !c.is_whitespace() && crate::cjk::classify(*c).is_none())
-                .filter(|c| !ctx.fonts_mut(|f| f.has_glyph(&font, *c)))
-                .collect();
-            assert!(missing.is_empty(), "{}: no glyph for {missing:?} in {tr:?}", l.code());
+    for font in [egui::FontId::proportional(12.0), crate::theme::medium(12.0), crate::theme::semibold(12.0)] {
+        for l in Lang::all().filter(|l| *l != Lang::EN) {
+            for (_, _, tr) in parse_entries(l.0.source).0 {
+                let missing: String = tr
+                    .chars()
+                    .filter(|c| !c.is_whitespace() && crate::cjk::classify(*c).is_none())
+                    .filter(|c| !ctx.fonts_mut(|f| f.has_glyph(&font, *c)))
+                    .collect();
+                assert!(missing.is_empty(), "{} ({:?}): no glyph for {missing:?} in {tr:?}", l.code(), font.family);
+            }
         }
     }
 }

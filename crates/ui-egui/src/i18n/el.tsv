@@ -30,10 +30,8 @@
 	Installed	Εγκατεστημένες
 	Update all ({n})	Ενημέρωση όλων ({n})
 	Update every app that has an update	Ενημέρωση όλων των εφαρμογών που έχουν ενημέρωση
-	Available	Διαθέσιμες
 	Checking {done} of {total}	Έλεγχος {done} από {total}
 	Check for updates	Έλεγχος για ενημερώσεις
-	Look for new versions of every app now	Αναζήτηση νέων εκδόσεων όλων των εφαρμογών τώρα
 	Search apps	Αναζήτηση εφαρμογών
 	Couldn't check: {error}	Δεν ήταν δυνατός ο έλεγχος: {error}
 	{version} installed outside the toolbox	{version} εγκατεστημένη εκτός Toolbox
@@ -81,7 +79,6 @@
 	Updates available	Υπάρχουν ενημερώσεις
 	Settings	Ρυθμίσεις
 	Apps	Εφαρμογές
-	Channel:	Κανάλι:
 	Install updates automatically	Αυτόματη εγκατάσταση ενημερώσεων
 	Notify me when updates are found	Ειδοποίηση όταν βρεθούν ενημερώσεις
 	Notifications aren't available here	Οι ειδοποιήσεις δεν είναι διαθέσιμες εδώ
@@ -91,7 +88,6 @@
 	Check every	Έλεγχος κάθε
 	h	ώρ.
 	0: only when asked	0: μόνο όταν ζητηθεί
-	Keep previous versions:	Διατήρηση προηγούμενων εκδόσεων:
 	Appearance	Εμφάνιση
 	Language	Γλώσσα
 	Automatic ({language})	Αυτόματα ({language})
@@ -126,6 +122,13 @@
 	notarized	πιστοποιημένο
 	No platform signature	Χωρίς υπογραφή πλατφόρμας
 	Signature not checked: {reason}	Η υπογραφή δεν ελέγχθηκε: {reason}
+	Available apps	Διαθέσιμες εφαρμογές
+	Close search	Κλείσιμο αναζήτησης
+	Details	Λεπτομέρειες
+	Dismiss	Απόκρυψη
+	Keep previous versions	Διατήρηση προηγούμενων εκδόσεων
+	More actions for {app}	Περισσότερες ενέργειες για το {app}
+	Uninstall…	Απεγκατάσταση…
 
 # == Messages from the engine (shown by exact match)
 	this session has no network access	αυτή η συνεδρία δεν έχει πρόσβαση στο δίκτυο

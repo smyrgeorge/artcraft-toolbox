@@ -55,14 +55,12 @@ tn(count, "{n} app", "{n} apps");                                       // plura
 - App names, version numbers and paths are never translated. Taglines come from `catalog.toml`
   in English and are translated at display (`wording::tagline`); a new craft's tagline needs its
   translations too.
-- Headings use `widgets::caps`, which drops Greek accents in capitals (`ΡΥΘΜΙΣΕΙΣ`, not
-  `ΡΥΘΜΊΣΕΙΣ`), as Greek typesetting does.
 - UI tests pin `language` to `en` (this repo's tests must pass on any machine's language).
 
 ## Fonts
 
-egui's built-in fonts cover the Latin, Greek and Cyrillic catalogs
-(`translations_use_glyphs_the_built_in_fonts_have`). Chinese, Japanese and Korean come from the
+The bundled UI font, Inter, with egui's built-in fonts behind it, covers the Latin, Greek and
+Cyrillic catalogs at every weight the UI uses (`translations_use_glyphs_the_built_in_fonts_have`). Chinese, Japanese and Korean come from the
 system's fonts, loaded on demand (`cjk_fonts`, PhotoCraft's loader): a CJK UI language puts its
 script's fonts first. No font is bundled.
 
