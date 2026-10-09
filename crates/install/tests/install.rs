@@ -147,6 +147,9 @@ fn an_appimage_installs_with_its_desktop_entry_and_icon() {
     }
     let entry = std::fs::read_to_string(root.join("share/applications/ai.storyteller.fakecraft.desktop")).unwrap();
     assert!(entry.contains("Name=FakeCraft\n") && entry.contains("Icon=ai.storyteller.fakecraft\n"), "{entry}");
+    // The exact quoting is unit-tested (`exec_quote`); a Windows path's backslashes get escaped.
+    assert!(entry.contains("Exec=\"") && entry.contains("fakecraft.AppImage\" %F\n"), "{entry}");
+    #[cfg(unix)]
     assert!(entry.contains(&format!("Exec=\"{}\" %F\n", path.display())), "{entry}");
     assert_eq!(std::fs::read(root.join("share/icons/hicolor/128x128/apps/ai.storyteller.fakecraft.png")).unwrap(), ICON);
     assert!(matches!(install(&l, &app(), PackageKind::AppImage, &pkg), Err(Error::Exists(_))));

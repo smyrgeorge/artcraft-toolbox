@@ -13,13 +13,20 @@ use artcraft_toolbox_net::{Client, NetError, Policy, RateLimit, Request, Respons
 /// A server that answers each connection with the next canned response and records the request
 /// heads it received.
 struct Server {
+    host: &'static str,
     port: u16,
     seen: Arc<Mutex<Vec<String>>>,
 }
 
 impl Server {
     fn start(responses: Vec<String>) -> Server {
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        Server::start_on("127.0.0.1", responses)
+    }
+
+    /// Listening on the first address `host` resolves to, which is also the first a client
+    /// connecting to `host` tries (`localhost` is `::1` before 127.0.0.1 on Windows).
+    fn start_on(host: &'static str, responses: Vec<String>) -> Server {
+        let listener = TcpListener::bind((host, 0)).unwrap();
         let port = listener.local_addr().unwrap().port();
         let seen = Arc::new(Mutex::new(Vec::new()));
         let log = Arc::clone(&seen);
@@ -30,11 +37,11 @@ impl Server {
                 let _ = stream.write_all(response.as_bytes());
             }
         });
-        Server { port, seen }
+        Server { host, port, seen }
     }
 
     fn url(&self, path: &str) -> String {
-        format!("http://127.0.0.1:{}{path}", self.port)
+        format!("http://{}:{}{path}", self.host, self.port)
     }
 
     fn requests(&self) -> Vec<String> {
@@ -152,8 +159,8 @@ fn redirects_are_followed_only_to_allowed_hosts() {
 fn the_token_goes_only_to_token_hosts_and_never_follows_a_redirect_elsewhere() {
     // `localhost` reaches the same machine as 127.0.0.1 but is another host: it may receive
     // requests (it is in `hosts`) but not the token (it is not in `token_hosts`).
-    let b = Server::start(vec![reply("200 OK", &[], "[]")]);
-    let a = Server::start(vec![reply("302 Found", &[&format!("location: http://localhost:{}/next", b.port)], "")]);
+    let b = Server::start_on("localhost", vec![reply("200 OK", &[], "[]")]);
+    let a = Server::start(vec![reply("302 Found", &[&format!("location: {}", b.url("/next"))], "")]);
     let c = client(&["127.0.0.1", "localhost"], &["127.0.0.1"], Some("ghp_secret"));
     assert!(matches!(c.get(&get(&a.url("/first"), None)), Ok(Response::Ok { .. })));
     assert!(a.requests()[0].contains("authorization: bearer ghp_secret"), "{:?}", a.requests());
@@ -175,9 +182,10 @@ fn forbidden_and_unreachable_hosts() {
     assert!(matches!(c.get(&get("http://example.com/", None)), Err(NetError::Forbidden(_))));
     let strict = Client::new(Policy { allow_http: false, ..policy(&["127.0.0.1"], &[]) }, "t", None);
     assert!(matches!(strict.get(&get("http://127.0.0.1:1/", None)), Err(NetError::Forbidden(_))), "plain http is refused by default");
-    // A closed port: a connection error, not a panic.
+    // A closed port: a connection error, not a panic. Windows retries a refused connection for
+    // about as long as the connect timeout, so it may end as a timeout there.
     let closed = TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
-    assert!(matches!(c.get(&get(&format!("http://127.0.0.1:{closed}/"), None)), Err(NetError::Connect(_))));
+    assert!(matches!(c.get(&get(&format!("http://127.0.0.1:{closed}/"), None)), Err(NetError::Connect(_) | NetError::Timeout)));
 }
 
 fn body(mut d: Download) -> Vec<u8> {
@@ -218,8 +226,8 @@ fn downloads_resume_with_a_range() {
 
 #[test]
 fn downloads_follow_checked_redirects_and_respect_the_size_cap() {
-    let b = Server::start(vec![reply("200 OK", &[], "payload")]);
-    let a = Server::start(vec![reply("302 Found", &[&format!("location: http://localhost:{}/asset", b.port)], "")]);
+    let b = Server::start_on("localhost", vec![reply("200 OK", &[], "payload")]);
+    let a = Server::start(vec![reply("302 Found", &[&format!("location: {}", b.url("/asset"))], "")]);
     let d = client(&["127.0.0.1", "localhost"], &[], None).download(&a.url("/releases/download/v1/x"), 0).unwrap();
     assert_eq!(body(d), b"payload");
 
