@@ -13,9 +13,11 @@
 #![forbid(unsafe_code)]
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
+mod app_settings_cmds;
 pub mod build_info;
 mod catalog_cmds;
 mod commands;
+pub mod icons;
 pub mod jobs;
 mod params;
 mod settings_cmds;
@@ -29,7 +31,7 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
 
 use artcraft_toolbox_feed::Release;
-use artcraft_toolbox_model::{Inventory, Settings};
+use artcraft_toolbox_model::{Channel, Inventory, Settings, ToolboxState};
 use artcraft_toolbox_net::Transport;
 use artcraft_toolbox_store::Store;
 use serde::Serialize;
@@ -41,6 +43,7 @@ pub use artcraft_toolbox_feed::Status;
 pub use artcraft_toolbox_net as net;
 pub use artcraft_toolbox_release::{Target, Version};
 pub use commands::{CommandSpec, command_specs, find};
+pub use icons::IconImage;
 pub use jobs::{JobEvent, JobId, JobInfo, Started};
 
 #[derive(Debug, thiserror::Error)]
@@ -95,6 +98,10 @@ pub struct AppStatus {
     pub name: String,
     pub tagline: String,
     pub status: Status,
+    /// The channel this app follows (its own, or the global one).
+    pub channel: Channel,
+    /// The version this app is pinned to: nothing newer is offered.
+    pub pinned: Option<Version>,
     /// Unix seconds of the last successful check of this app.
     pub checked_at: Option<u64>,
     /// A check of this app is in flight.
@@ -119,7 +126,18 @@ pub struct Session {
     check_errors: BTreeMap<String, String>,
     /// Set when the inventory file couldn't be read: it must not be overwritten.
     inventory_locked: Option<String>,
+    /// When the last update check started (any outcome): automatic checks back off from it.
+    last_check_started: Option<u64>,
+    icons: BTreeMap<String, icons::Icon>,
+    icon_revision: u64,
+    icons_attempted_at: Option<u64>,
+    /// What is remembered between runs (`state.json`).
+    state: ToolboxState,
 }
+
+/// After a check, an automatic one waits at least this long, whatever the outcome (an offline
+/// machine doesn't retry every minute).
+pub const AUTO_RETRY_SECS: u64 = 15 * 60;
 
 impl Session {
     /// A session over the built-in catalog, on this machine, with nothing installed, nothing
@@ -142,6 +160,11 @@ impl Session {
             rate_limited_until: None,
             check_errors: BTreeMap::new(),
             inventory_locked: None,
+            last_check_started: None,
+            icons: BTreeMap::new(),
+            icon_revision: 0,
+            icons_attempted_at: None,
+            state: ToolboxState::default(),
         }
     }
 
@@ -152,7 +175,8 @@ impl Session {
     /// - unreadable settings: kept as `settings.json.corrupt`, defaults used;
     /// - unreadable inventory: left untouched and locked (nothing is written over the only record
     ///   of what is installed where);
-    /// - unreadable cached feed: ignored, fetched again on the next check.
+    /// - unreadable cached feed or icon: ignored, fetched again;
+    /// - unreadable state: forgotten (at worst, one notification is shown again).
     pub fn open(catalog: Catalog, store: Option<Store>, transport: Option<Arc<dyn Transport>>) -> (Session, Vec<String>) {
         let mut s = Session::with_catalog(catalog);
         s.transport = transport;
@@ -176,6 +200,12 @@ impl Session {
                     warnings.push(msg);
                 }
             }
+            match store.load_state() {
+                Ok(Some(state)) => s.state = state,
+                Ok(None) => {}
+                Err(e) => log::warn!("{e}; starting afresh"),
+            }
+            s.load_cached_icons(store);
             let apps: Vec<(String, Vec<String>)> = s.catalog.apps.iter().map(|a| (a.id.clone(), a.slugs().iter().map(|x| x.to_string()).collect())).collect();
             for (id, slugs) in apps {
                 let slugs: Vec<&str> = slugs.iter().map(String::as_str).collect();
@@ -279,14 +309,17 @@ impl Session {
         let entry = self.catalog.get(app).ok_or_else(|| EngineError::UnknownApp(echo(app)))?;
         let installed = self.inventory.current(app).map(|i| &i.version);
         let feed = self.feeds.get(app);
-        let status = artcraft_toolbox_feed::status(installed, feed.map(|f| f.releases.as_slice()), self.settings.channel, self.host);
+        let (channel, pinned) = (self.settings.channel_for(app), self.settings.pinned(app));
+        let status = artcraft_toolbox_feed::status(installed, feed.map(|f| f.releases.as_slice()), channel, self.host, pinned);
         Ok(AppStatus {
             id: entry.id.clone(),
             name: entry.name.clone(),
             tagline: entry.tagline.clone(),
             status,
+            channel,
+            pinned: pinned.cloned(),
             checked_at: feed.map(|f| f.fetched_at),
-            checking: self.jobs.checking(app),
+            checking: self.jobs.working_on(update_cmds::CHECK, app),
             error: self.check_errors.get(app).cloned(),
         })
     }
@@ -308,15 +341,42 @@ impl Session {
     }
 
     /// Is an automatic update check due? When checks are on (`checkIntervalHours` > 0), the
-    /// session is online, nothing runs, GitHub isn't refusing requests, and some app's feed is
-    /// older than the interval (or was never fetched).
+    /// session is online, no check runs, GitHub isn't refusing requests, the last check started
+    /// more than [`AUTO_RETRY_SECS`] ago, and some app's feed is older than the interval (or was
+    /// never fetched).
     pub fn check_due(&self) -> bool {
         let hours = u64::from(self.settings.check_interval_hours);
-        if hours == 0 || !self.online() || self.has_jobs() || self.rate_limited_until().is_some() {
+        let now = self.now();
+        if hours == 0 || !self.online() || self.jobs.runs(update_cmds::CHECK) || self.rate_limited_until().is_some() {
+            return false;
+        }
+        if self.last_check_started.is_some_and(|t| now.saturating_sub(t) < AUTO_RETRY_SECS) {
             return false;
         }
         let oldest = self.catalog.apps.iter().map(|a| self.feeds.get(&a.id).map_or(0, |f| f.fetched_at)).min().unwrap_or(0);
-        self.now().saturating_sub(oldest) >= hours.saturating_mul(3600)
+        now.saturating_sub(oldest) >= hours.saturating_mul(3600)
+    }
+
+    /// Updates the user hasn't been told about: installed apps with an update whose version is
+    /// newer than the last one notified. Returns `(name, version)` pairs and remembers them (in
+    /// `state.json`), so each version is announced once.
+    pub fn take_new_updates(&mut self) -> Vec<(String, Version)> {
+        let mut fresh = Vec::new();
+        for st in self.statuses() {
+            if let Status::UpdateAvailable { latest, .. } = st.status
+                && self.state.notified.get(&st.id).is_none_or(|v| *v < latest)
+            {
+                self.state.notified.insert(st.id, latest.clone());
+                fresh.push((st.name, latest));
+            }
+        }
+        if !fresh.is_empty()
+            && let Some(store) = &self.store
+            && let Err(e) = store.save_state(&self.state)
+        {
+            log::warn!("{e}");
+        }
+        fresh
     }
 
     /// Run a command by id and wait for it, background-capable ones included. `params` must be a
@@ -433,5 +493,44 @@ mod tests {
         s.rate_limited_until = Some(t0() + 60);
         assert!(!s.check_due(), "not while GitHub refuses requests");
         assert!(!Session::new().unwrap().check_due(), "never without network access");
+        // A check that just started (even one that failed) holds automatic ones back.
+        s.rate_limited_until = None;
+        if let Some(f) = s.feeds.get_mut("photocraft") {
+            f.fetched_at = 0;
+        }
+        s.last_check_started = Some(t0() - 60);
+        assert!(!s.check_due(), "within AUTO_RETRY_SECS of the last attempt");
+        s.last_check_started = Some(t0() - AUTO_RETRY_SECS);
+        assert!(s.check_due());
+    }
+
+    #[test]
+    fn each_update_is_announced_once_even_across_restarts() {
+        use artcraft_toolbox_model::{Installation, PackageKind};
+        let root = temp("notify");
+        let open = || {
+            let (mut s, _) = Session::open(Catalog::builtin().unwrap(), Some(Store::open(&root).unwrap()), None);
+            s.set_host(Target::from_consts("linux", "x86_64"));
+            s.ingest_releases("photocraft", FEED, 1).unwrap();
+            let mut inv = Inventory::default();
+            inv.record(Installation {
+                app: "photocraft".into(),
+                version: Version::new(0, 3, 0),
+                kind: PackageKind::AppImage,
+                path: "/x".into(),
+                installed_at: 0,
+                active: true,
+            })
+            .unwrap();
+            s.set_inventory(inv);
+            s
+        };
+        let mut s = open();
+        assert_eq!(s.take_new_updates(), [("PhotoCraft".to_string(), Version::new(0, 5, 0))]);
+        assert!(s.take_new_updates().is_empty(), "announced once");
+        assert!(open().take_new_updates().is_empty(), "and not again after a restart");
+        // Apps that aren't installed have no "update" to announce.
+        assert!(!s.statuses().iter().any(|r| r.id == "vectorcraft" && matches!(r.status, Status::UpdateAvailable { .. })));
+        let _ = std::fs::remove_dir_all(&root);
     }
 }

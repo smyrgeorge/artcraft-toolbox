@@ -53,9 +53,10 @@ pub fn open_in(dir: std::result::Result<PathBuf, String>, transport: Option<Arc<
     Ok(Opened { session, warnings })
 }
 
-/// The GitHub API client: [`Policy::github_api`], the toolbox's User-Agent, and `token` if given.
+/// The GitHub client: [`Policy::github`], the toolbox's User-Agent, and `token` if given (sent to
+/// the API only).
 pub fn github_client(token: Option<String>) -> Client {
-    Client::new(Policy::github_api(), &artcraft_toolbox_net::user_agent(build_info::VERSION), token)
+    Client::new(Policy::github(), &artcraft_toolbox_net::user_agent(build_info::VERSION), token)
 }
 
 #[cfg(test)]
@@ -83,7 +84,8 @@ mod tests {
     #[test]
     fn the_client_is_github_only() {
         let c = github_client(Some(" ghp_x ".into()));
-        assert_eq!(c.policy(), &Policy::github_api());
+        assert_eq!(c.policy(), &Policy::github());
+        assert_eq!(c.policy().token_hosts, ["api.github.com"]);
         assert!(c.has_token());
         assert!(!github_client(Some("   ".into())).has_token());
     }

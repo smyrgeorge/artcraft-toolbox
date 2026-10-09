@@ -6,9 +6,11 @@
 
 pub mod inventory;
 pub mod settings;
+pub mod state;
 
 pub use inventory::{Installation, Inventory};
-pub use settings::{Channel, Settings};
+pub use settings::{AppSettings, Channel, Settings};
+pub use state::ToolboxState;
 // The types the inventory and settings are made of.
 pub use artcraft_toolbox_release::{PackageKind, Version};
 

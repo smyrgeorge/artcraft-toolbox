@@ -13,10 +13,10 @@
 </p>
 
 > [!NOTE]
-> **Pre-alpha.** Milestones M0 and M1 are done: the toolbox checks GitHub for every app's
-> releases in the background, caches them, and shows what's available and what needs updating
-> for your machine. It does not install or update anything yet (M2); see
-> [the roadmap](docs/roadmap.md).
+> **Pre-alpha.** Milestones M0, M1 and M4 are done: the toolbox lives in the menu bar or tray,
+> checks GitHub for every app's releases in the background, notifies you of updates, and shows
+> each app's versions and release notes, with its own channel and pinned version. It does not
+> install or update anything yet (M2); see [the roadmap](docs/roadmap.md).
 
 ## What it manages
 

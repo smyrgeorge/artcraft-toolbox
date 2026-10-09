@@ -1,6 +1,6 @@
 # ArtCraft Toolbox architecture
 
-Status: v1.1 (2026-10-09, M1). The crates marked *planned* are designed here and registered in
+Status: v1.2 (2026-10-09, M1 and M4). The crates marked *planned* are designed here and registered in
 `xtask/src/layers.rs`, but not written yet; `docs/roadmap.md` says when each one lands.
 
 ## 1. Goals and principles
@@ -107,9 +107,11 @@ Windows `%APPDATA%\ArtCraft Toolbox`, Linux `$XDG_CONFIG_HOME/artcraft-toolbox`
 (`~/.config/artcraft-toolbox`).
 
 ```text
-settings.json          Settings (replaced atomically; unreadable → backed up as .corrupt, defaults used)
+settings.json          Settings, with per-app overrides (replaced atomically; unreadable → backed up as .corrupt, defaults used)
 inventory.json         what is installed where (unreadable → reported, locked, never overwritten)
+state.json             what is remembered: the update versions already notified
 feeds/<app>.json       the last release feed: raw GitHub body, ETag, check time
+icons/<app>.png        the app's icon, and icons/<app>.json (ETag, fetch time)
 logs/                  artcraft-toolbox.log, .1.log, .2.log (desktop app)
 ```
 
@@ -138,7 +140,11 @@ accessors (`statuses()`, `app_status()`) serve the UI; commands serve everyone e
 | `app.status` | `{"app":"<id>"}` | M0 |
 | `apps.status` | `{}` | M0 |
 | `settings.get` | `{}` | M0 |
-| `settings.set` | any subset of `channel`, `checkIntervalHours`, `autoUpdate`, `keepPrevious`, `installDir` | M0 |
+| `settings.set` | any subset of `channel`, `checkIntervalHours`, `autoUpdate`, `keepPrevious`, `installDir`, `notifications`, `closeToTray` | M0, M4 |
+| `app.settings.get` | `{"app":"<id>"}` | M4 |
+| `app.settings.set` | `{"app":"<id>","channel"?:…\|null,"autoUpdate"?:bool\|null,"pinned"?:"x.y.z"\|null}` | M4 |
+| `app.releases` | `{"app":"<id>","limit"?:1..100}` | M4 |
+| `icons.refresh` (background) | `{"force"?:bool}` | M4 |
 | `updates.check` (background) | `{"app"?:"<id>","force"?:bool}` | M1 |
 | `app.install`, `app.uninstall`, `app.launch` | `{"app":"<id>","version"?:"x.y.z"}` | M2 |
 | `app.update`, `apps.updateAll`, `app.rollback` | `{"app":"<id>"}` / `{}` | M3 |
@@ -149,7 +155,9 @@ completion through `Session::execute` (the CLI, tests). Workers never touch the 
 send messages that `Session::poll_jobs` applies on the session's thread, so rows update as each
 app's result arrives. `updates.check` runs up to 4 fetches at once, parses and caches each feed
 on the worker, stops when GitHub's rate limit is reached (and keeps checking disabled until its
-reset), and skips apps checked in the last minute. Install jobs (M2) reuse the same machinery.
+reset), and skips apps checked in the last minute. `icons.refresh` uses the same worker pool
+(`jobs::spawn_pool`): it fetches missing or week-old icons, decodes them to RGBA on the worker
+(`icons::decode_png`, size-capped) and caches the PNG. Install jobs (M2) reuse the same machinery.
 
 ## 7. Self-update
 
@@ -168,3 +176,23 @@ benefit here; native-tls would tie TLS behaviour to each OS's stack.
 ureq's own redirect following is off: `net::Client` follows redirects itself so every hop is
 checked against the policy's host list before it is contacted, and the `Authorization` header
 is sent only to the policy's token hosts (never along a redirect to another host).
+
+## 9. The desktop shell: tray, notifications, a hidden window (M4)
+
+The platform features live in the desktop app (`apps/artcraft-toolbox`), as PhotoCraft keeps its
+macOS menu bar there; `ui-egui` only sees them through `Services` (a notification callback, and
+whether a tray icon exists), so tests and the snapshot example run without them.
+
+- **Ticking while hidden.** eframe 0.36 runs `App::logic` before every frame and, while the
+  window is hidden, whenever a repaint is requested: no UI pass, but viewport commands (show,
+  focus, close) are still processed. `ToolboxApp::tick` (poll jobs, start due work, close to tray)
+  runs there and asks for a repaint every minute (`IDLE_TICK`), so checks happen with the window
+  hidden.
+- **Tray.** `tray-icon` 0.26 (the muda authors' crate, on the muda 0.21 PhotoCraft pins); on Linux
+  its `ksni` backend (StatusNotifierItem over D-Bus, `zbus`), so no GTK. Its click handlers only
+  queue an action and request a repaint; `logic` applies it. Creation can fail (no StatusNotifier
+  host): the toolbox then runs without one and closing the window quits.
+- **Close to tray.** A window close request is cancelled and the window hidden, while there is a
+  tray, the `closeToTray` setting is on and the user didn't choose Quit.
+- **Notifications.** `notify-rust`, on a short-lived thread. `Session::take_new_updates` returns
+  each installed app's new version once, remembered in `state.json` across restarts.

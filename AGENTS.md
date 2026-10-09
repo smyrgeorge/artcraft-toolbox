@@ -33,7 +33,7 @@ crates/
   automation   L6  planned    control channel + MCP server over the command registry
   testkit          planned    shared test helpers (fake feeds, temp install roots); dev-dependency only
 apps/
-  artcraft-toolbox            desktop app (eframe/wgpu)
+  artcraft-toolbox            desktop app (eframe/wgpu): window, menu-bar/tray icon, OS notifications, logger
   artcraft-toolbox-cli        headless CLI: list / status / check / commands / run
 xtask/                        cargo xtask layers | ci | contract | version
 ```
@@ -77,6 +77,7 @@ The toolbox downloads executables and runs them; a mistake here is a supply-chai
 8. **Respect the user's machine.** Per-user locations by default; touch nothing outside the install root and the toolbox's data dir; uninstall removes exactly what we installed. **Keep the user's app data across updates**: the crafts' Windows portable zips ship `portable.txt`, which keeps data beside the exe, so a per-version install directory would lose it (`docs/release-contract.md` › Gotchas).
 9. **Be a good API citizen.** A generic User-Agent (`ArtCraft-Toolbox/<version>`; never a person's name, email or other personal details in requests), conditional requests (ETag), cached feeds, no re-request of an app checked in the last minute, and back-off on GitHub's rate limit. Anonymous users get 60 requests per hour and a `304` still costs one (docs/release-contract.md › GitHub API): every new request path must count against that budget.
 10. **Long work is a background job.** Give the command a `start` hook (`engine/src/jobs.rs`): workers send messages, `Session::poll_jobs` applies them on the session's thread. Workers never touch the session, catch their own panics, and stop when cancelled.
+11. **Platform features come through `Services`.** The tray, notifications (and later file managers, launching) live in the desktop app crate; `ui-egui` receives them as optional callbacks (`ui_egui::Services`), so tests and the snapshot example run without them. Work that must happen while the window is hidden goes in `ToolboxApp::tick`, which eframe's `App::logic` runs even then.
 
 ## 4. Picking work
 

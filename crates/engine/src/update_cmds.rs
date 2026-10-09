@@ -11,11 +11,10 @@
 //! the remaining apps are skipped and checks stay disabled until GitHub's reset time. A token in
 //! `ARTCRAFT_TOOLBOX_GITHUB_TOKEN` raises the limit to 5,000 per hour.
 
-use std::collections::{BTreeSet, VecDeque};
-use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::collections::BTreeSet;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{self, Sender};
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::mpsc;
 
 use artcraft_toolbox_feed::{Release, Status};
 use artcraft_toolbox_net::{ACCEPT_GITHUB_JSON, NetError, Request, Response, Transport};
@@ -24,7 +23,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::commands::CommandSpec;
-use crate::jobs::Running;
+use crate::jobs::{JobMsg, JobState, PoolTask, Running, spawn_pool};
 use crate::{EngineError, Feed, JobId, Result, Session, params, setup, time};
 
 pub const CHECK: &str = "updates.check";
@@ -100,9 +99,8 @@ impl CheckSummary {
     }
 }
 
-/// What a worker reports.
+/// What a check worker reports about one app.
 pub(crate) enum CheckMsg {
-    Started(String),
     Fetched { app: String, releases: Vec<Release>, etag: Option<String>, at: u64 },
     Unchanged { app: String, at: u64 },
     Failed { app: String, error: String },
@@ -120,6 +118,15 @@ struct Task {
     url: String,
     slugs: Vec<String>,
     etag: Option<String>,
+}
+
+impl PoolTask for Task {
+    fn app(&self) -> &str {
+        &self.app
+    }
+    fn panicked(&self) -> JobMsg {
+        JobMsg::Check(CheckMsg::Failed { app: self.app.clone(), error: "internal error (logged)".into() })
+    }
 }
 
 fn start(s: &mut Session, p: &Value) -> Result<JobId> {
@@ -151,25 +158,41 @@ fn start(s: &mut Session, p: &Value) -> Result<JobId> {
             etag: feed.and_then(|f| f.etag.clone()),
         });
     }
+    s.last_check_started = Some(now);
     let (tx, rx) = mpsc::channel();
     let cancel = Arc::new(AtomicBool::new(false));
-    spawn_workers(tasks, transport, s.store.clone(), s.clock, Arc::clone(&cancel), tx);
+    let (store, clock) = (s.store.clone(), s.clock);
+    // Set once GitHub refuses: the remaining apps are skipped, not requested.
+    let stop = AtomicBool::new(false);
+    spawn_pool("updates-check", tasks, WORKERS, Arc::clone(&cancel), tx, move |task: &Task| {
+        if stop.load(Ordering::Relaxed) {
+            return vec![JobMsg::Check(CheckMsg::Skipped(task.app.clone()))];
+        }
+        check_one(task, transport.as_ref(), store.as_ref(), clock, &stop).into_iter().map(JobMsg::Check).collect()
+    });
     let id = s.jobs.next_id();
-    s.jobs.push(Running { id, command: CHECK, label: "Checking for updates".into(), rx, cancel, items: ids, in_flight: BTreeSet::new(), summary });
+    s.jobs.push(Running {
+        id,
+        command: CHECK,
+        label: "Checking for updates".into(),
+        rx,
+        cancel,
+        items: ids,
+        in_flight: BTreeSet::new(),
+        state: JobState::Check(summary),
+    });
     Ok(id)
 }
 
 /// Apply one worker message to the session (on the session's thread).
 pub(crate) fn apply(s: &mut Session, job: &mut Running, msg: CheckMsg) {
+    let JobState::Check(summary) = &mut job.state else { return };
     match msg {
-        CheckMsg::Started(app) => {
-            job.in_flight.insert(app);
-        }
         CheckMsg::Fetched { app, releases, etag, at } => {
             job.in_flight.remove(&app);
             s.check_errors.remove(&app);
             s.feeds.insert(app.clone(), Feed { releases, fetched_at: at, etag });
-            job.summary.fetched.push(app);
+            summary.fetched.push(app);
         }
         CheckMsg::Unchanged { app, at } => {
             job.in_flight.remove(&app);
@@ -177,27 +200,27 @@ pub(crate) fn apply(s: &mut Session, job: &mut Running, msg: CheckMsg) {
             if let Some(f) = s.feeds.get_mut(&app) {
                 f.fetched_at = at;
             }
-            job.summary.unchanged.push(app);
+            summary.unchanged.push(app);
         }
         CheckMsg::Failed { app, error } => {
             job.in_flight.remove(&app);
             s.check_errors.insert(app.clone(), error.clone());
-            job.summary.failed.push(Failure { app, error });
+            summary.failed.push(Failure { app, error });
         }
         CheckMsg::Skipped(app) => {
             job.in_flight.remove(&app);
-            job.summary.skipped.push(app);
+            summary.skipped.push(app);
         }
         CheckMsg::RateLimited { until } => {
             s.rate_limited_until = Some(s.rate_limited_until.map_or(until, |t| t.max(until)));
-            job.summary.rate_limited_until = Some(until);
+            summary.rate_limited_until = Some(until);
         }
     }
 }
 
 /// The job's result once its workers are gone.
 pub(crate) fn finish(s: &Session, job: Running) -> Value {
-    let mut summary = job.summary;
+    let JobState::Check(mut summary) = job.state else { return Value::Null };
     // Items no worker reported on (cancelled, or a worker thread couldn't start) were skipped.
     for app in &job.items {
         if !summary.accounted(app) {
@@ -221,60 +244,6 @@ impl Session {
             [] => None,
             [f] => Some(format!("Couldn't check {}: {}", name(&f.app), f.error)),
             [f, rest @ ..] => Some(format!("Couldn't check {} apps: {}", rest.len() + 1, f.error)),
-        }
-    }
-}
-
-fn spawn_workers(tasks: Vec<Task>, transport: Arc<dyn Transport>, store: Option<Store>, clock: fn() -> u64, cancel: Arc<AtomicBool>, tx: Sender<CheckMsg>) {
-    let workers = tasks.len().min(WORKERS);
-    let queue = Arc::new(Mutex::new(VecDeque::from(tasks)));
-    // Set once GitHub refuses: the remaining apps are skipped, not requested.
-    let stop = Arc::new(AtomicBool::new(false));
-    for i in 0..workers {
-        let (queue, transport, store, cancel, stop, tx) =
-            (Arc::clone(&queue), Arc::clone(&transport), store.clone(), Arc::clone(&cancel), Arc::clone(&stop), tx.clone());
-        let spawned = std::thread::Builder::new()
-            .name(format!("updates-check-{i}"))
-            .spawn(move || worker(&queue, transport.as_ref(), store.as_ref(), clock, &cancel, &stop, &tx));
-        if let Err(e) = spawned {
-            log::error!("couldn't start an update-check worker: {e}");
-        }
-    }
-    // `tx` drops here: once every worker is done, the channel disconnects and the job ends.
-}
-
-fn worker(
-    queue: &Mutex<VecDeque<Task>>,
-    transport: &dyn Transport,
-    store: Option<&Store>,
-    clock: fn() -> u64,
-    cancel: &AtomicBool,
-    stop: &AtomicBool,
-    tx: &Sender<CheckMsg>,
-) {
-    loop {
-        if cancel.load(Ordering::Relaxed) {
-            return;
-        }
-        let next = queue.lock().unwrap_or_else(PoisonError::into_inner).pop_front();
-        let Some(task) = next else { return };
-        if stop.load(Ordering::Relaxed) {
-            if tx.send(CheckMsg::Skipped(task.app)).is_err() {
-                return;
-            }
-            continue;
-        }
-        if tx.send(CheckMsg::Started(task.app.clone())).is_err() {
-            return;
-        }
-        let msgs = catch_unwind(AssertUnwindSafe(|| check_one(&task, transport, store, clock, stop))).unwrap_or_else(|_| {
-            log::error!("checking {} panicked", task.app);
-            vec![CheckMsg::Failed { app: task.app.clone(), error: "internal error (logged)".into() }]
-        });
-        for m in msgs {
-            if tx.send(m).is_err() {
-                return;
-            }
         }
     }
 }
@@ -346,6 +315,7 @@ mod tests {
     use artcraft_toolbox_release::{Arch, Os, Target};
     use serde_json::json;
     use std::collections::HashMap;
+    use std::sync::Mutex;
 
     const PHOTOCRAFT: &str = include_str!("../../feed/tests/fixtures/photocraft-releases.json");
 

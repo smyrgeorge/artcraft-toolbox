@@ -8,7 +8,7 @@ Status legend: ✅ done · 🟡 in progress · ⬜ not started. Updated 2026-10-
 | M1 Live feeds | ✅ | Fetch, cache and show every app's releases; persist settings and inventory |
 | M2 Install and launch | ⬜ | Install, uninstall and open any craft on macOS, Windows and Linux |
 | M3 Updates, rollback, trust | ⬜ | Update one or all, keep and switch versions, verify signatures, adopt existing installs |
-| M4 Toolbox UX parity | ⬜ | Menu-bar/tray app, background checks, notifications, release notes, per-app settings |
+| M4 Toolbox UX parity | ✅ | Menu-bar/tray app, background checks, notifications, release notes, per-app settings |
 | M5 Distribution and self-update | ⬜ | Signed installers via PhotoCraft's release pipeline; the toolbox updates itself |
 | M6 Automation | ⬜ | Control channel and MCP over the command registry |
 | M7 Catalog from the network | ⬜ | A signed remote catalog; non-conforming apps (ArtCraft itself) |
@@ -66,13 +66,18 @@ Measured along the way: anonymous `304`s still count against GitHub's 60 request
 - [ ] Detect apps installed by hand and offer to adopt them; re-read installed versions on refresh (release contract › Gotchas 4)
 - [ ] Coordinate with crafts that check for updates themselves
 
-### M4 Toolbox UX parity
+### M4 Toolbox UX parity ✅ (2026-10-09, ahead of M2/M3)
 
-- [ ] Menu-bar (macOS) / tray (Windows, Linux) presence, closing to tray
-- [ ] Periodic background checks while the app stays open (today: on start, and on demand), and OS notifications for new versions
-- [ ] Release notes view (Markdown) per version
-- [ ] Per-app overrides: channel, auto-update, pinned version
-- [ ] App icons from each craft's repository (cached), instead of monogram tiles
+- [x] Menu-bar (macOS, template glyph) / tray (Windows, Linux via StatusNotifier, no GTK) icon with Open, Check for Updates, Quit; closing the window keeps the toolbox running (setting `closeToTray`); without a tray host, closing quits
+- [x] Periodic background checks while the app runs, also hidden (`eframe::App::logic` ticks every minute; automatic checks back off 15 min after any attempt), and OS notifications for new versions of installed apps, once per version (`state.json`), setting `notifications`
+- [x] App details page (click a row): links, status, versions with their release notes rendered from Markdown (bare URLs linked, only web links open)
+- [x] Per-app overrides: channel, auto-update, pinned version (`app.settings.get` / `app.settings.set`; the details page; pins cap what is offered, never downgrade)
+- [x] App icons from each craft's repository (`raw.githubusercontent.com`, not the API quota), cached with ETags, refreshed weekly (`icons.refresh`); monogram tiles until they arrive
+- [x] `app.releases` for agents: versions, notes, installable here, offered by the channel and pin
+
+Still open from M4: macOS keeps its Dock icon while the window is hidden (an accessory activation
+policy needs AppKit calls; PhotoCraft's `mac_window.rs` shows the safe way), and a notification
+click doesn't open the toolbox yet. The Install / Update / Open buttons stay disabled until M2.
 
 ### M5 Distribution and self-update
 

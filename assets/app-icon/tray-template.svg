@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 44 44" width="44" height="44">
+  <!-- Menu-bar glyph: a macOS template image, so only alpha counts (macOS tints it for light and
+       dark menu bars); the latch is a hole, not a colour. Original work, MIT OR Apache-2.0. -->
+  <defs>
+    <mask id="latch">
+      <rect width="44" height="44" fill="#fff"/>
+      <rect x="19" y="20.5" width="6" height="7" rx="1.5" fill="#000"/>
+    </mask>
+  </defs>
+  <rect x="16" y="7" width="12" height="7" rx="2.5" fill="none" stroke="#000" stroke-width="3"/>
+  <rect x="5" y="13" width="34" height="24" rx="5" fill="#000" mask="url(#latch)"/>
+</svg>

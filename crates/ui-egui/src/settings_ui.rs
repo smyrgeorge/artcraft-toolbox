@@ -23,6 +23,23 @@ pub fn show(app: &mut ToolboxApp, ui: &mut egui::Ui, t: &Tokens) {
         if ui.checkbox(&mut auto, "Install updates automatically").changed() {
             app.run("settings.set", json!({"autoUpdate": auto}));
         }
+        let mut notify = s.notifications;
+        let r = ui.add_enabled(app.services.notify.is_some(), egui::Checkbox::new(&mut notify, "Notify me when updates are found"));
+        if r.changed() {
+            app.run("settings.set", json!({"notifications": notify}));
+        }
+        r.on_disabled_hover_text("Notifications aren't available here");
+        let mut tray = s.close_to_tray;
+        let label = if cfg!(target_os = "macos") {
+            "Keep running in the menu bar when the window is closed"
+        } else {
+            "Keep running in the system tray when the window is closed"
+        };
+        let r = ui.add_enabled(app.services.tray, egui::Checkbox::new(&mut tray, label));
+        if r.changed() {
+            app.run("settings.set", json!({"closeToTray": tray}));
+        }
+        r.on_disabled_hover_text("There is no menu bar or tray icon on this desktop");
         ui.horizontal(|ui| {
             ui.label("Check every");
             let mut hours = s.check_interval_hours;

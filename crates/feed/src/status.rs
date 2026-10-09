@@ -45,18 +45,20 @@ impl Status {
 }
 
 /// The newest release `channel` offers that has an installable build for `host`, with that build.
-pub fn latest(releases: &[Release], channel: Channel, host: Target) -> Option<(&Release, &Asset)> {
-    let mut offered: Vec<&Release> = releases.iter().filter(|r| channel.offers(&r.version, r.prerelease)).collect();
+/// With a `pin`, nothing newer than the pinned version is offered.
+pub fn latest<'a>(releases: &'a [Release], channel: Channel, host: Target, pin: Option<&Version>) -> Option<(&'a Release, &'a Asset)> {
+    let mut offered: Vec<&Release> = releases.iter().filter(|r| channel.offers(&r.version, r.prerelease) && pin.is_none_or(|p| r.version <= *p)).collect();
     offered.sort_by(|a, b| b.version.cmp(&a.version));
     offered.into_iter().find_map(|r| asset::select(&r.assets, host, |a| &a.name).map(|a| (r, a)))
 }
 
 /// Status of one app. `releases` is `None` until its feed has been fetched; `host` is `None` on a
-/// platform no craft ships for.
-pub fn status(installed: Option<&Version>, releases: Option<&[Release]>, channel: Channel, host: Option<Target>) -> Status {
+/// platform no craft ships for; `pin` caps the version offered (an installed version above the pin
+/// reads as up to date: pinning never offers a downgrade).
+pub fn status(installed: Option<&Version>, releases: Option<&[Release]>, channel: Channel, host: Option<Target>, pin: Option<&Version>) -> Status {
     let installed = installed.cloned();
     let Some(releases) = releases else { return Status::Unknown { installed } };
-    let Some((latest, _)) = host.and_then(|h| latest(releases, channel, h)) else { return Status::Unsupported { installed } };
+    let Some((latest, _)) = host.and_then(|h| latest(releases, channel, h, pin)) else { return Status::Unsupported { installed } };
     let latest = latest.version.clone();
     match installed {
         None => Status::NotInstalled { latest },
@@ -95,7 +97,7 @@ mod tests {
     #[test]
     fn statuses() {
         let f = feed(&[("v0.5.0", false), ("v0.6.0-rc.1", true), ("v0.4.0", false)]);
-        let st = |inst: Option<&str>, ch| status(inst.map(v).as_ref(), Some(&f), ch, LINUX);
+        let st = |inst: Option<&str>, ch| status(inst.map(v).as_ref(), Some(&f), ch, LINUX, None);
         assert_eq!(st(None, Channel::Stable), Status::NotInstalled { latest: v("0.5.0") });
         assert_eq!(st(Some("0.4.0"), Channel::Stable), Status::UpdateAvailable { installed: v("0.4.0"), latest: v("0.5.0") });
         assert_eq!(st(Some("0.5.0"), Channel::Stable), Status::UpToDate { installed: v("0.5.0") });
@@ -105,21 +107,35 @@ mod tests {
 
     #[test]
     fn unknown_and_unsupported() {
-        assert_eq!(status(None, None, Channel::Stable, LINUX), Status::Unknown { installed: None });
+        assert_eq!(status(None, None, Channel::Stable, LINUX, None), Status::Unknown { installed: None });
         let f = feed(&[("v0.5.0", false)]);
         // Only Linux builds in this feed.
-        assert_eq!(status(None, Some(&f), Channel::Stable, MAC), Status::Unsupported { installed: None });
-        assert_eq!(status(None, Some(&f), Channel::Stable, None), Status::Unsupported { installed: None });
-        assert_eq!(status(None, Some(&[]), Channel::Stable, LINUX), Status::Unsupported { installed: None });
+        assert_eq!(status(None, Some(&f), Channel::Stable, MAC, None), Status::Unsupported { installed: None });
+        assert_eq!(status(None, Some(&f), Channel::Stable, None, None), Status::Unsupported { installed: None });
+        assert_eq!(status(None, Some(&[]), Channel::Stable, LINUX, None), Status::Unsupported { installed: None });
     }
 
     #[test]
     fn latest_skips_releases_without_a_build_for_the_host() {
         let mut f = feed(&[("v0.5.0", false), ("v0.4.0", false)]);
         f[0].assets.clear();
-        let (r, a) = latest(&f, Channel::Stable, Target::new(Os::Linux, Arch::X86_64)).unwrap();
+        let (r, a) = latest(&f, Channel::Stable, Target::new(Os::Linux, Arch::X86_64), None).unwrap();
         assert_eq!(r.version, v("0.4.0"));
         assert_eq!(a.file, "photocraft-0.4.0-linux-x86_64.AppImage");
+    }
+
+    #[test]
+    fn a_pin_caps_what_is_offered() {
+        let f = feed(&[("v0.5.0", false), ("v0.4.0", false), ("v0.3.0", false)]);
+        let pin = v("0.4.0");
+        let st = |inst: Option<&str>| status(inst.map(v).as_ref(), Some(&f), Channel::Stable, LINUX, Some(&pin));
+        assert_eq!(st(None), Status::NotInstalled { latest: v("0.4.0") });
+        assert_eq!(st(Some("0.3.0")), Status::UpdateAvailable { installed: v("0.3.0"), latest: v("0.4.0") });
+        assert_eq!(st(Some("0.4.0")), Status::UpToDate { installed: v("0.4.0") });
+        assert_eq!(st(Some("0.5.0")), Status::UpToDate { installed: v("0.5.0") }, "never a downgrade");
+        // A pin below every release offers nothing.
+        let old = v("0.1.0");
+        assert_eq!(status(None, Some(&f), Channel::Stable, LINUX, Some(&old)), Status::Unsupported { installed: None });
     }
 
     #[test]

@@ -227,8 +227,9 @@ fn print_statuses(s: &Session, json: bool, out: &mut dyn Write) -> Result<(), St
         return print_json(out, &serde_json::to_value(&rows).map_err(|e| e.to_string())?);
     }
     for r in rows {
+        let pinned = r.pinned.map(|v| format!(" · pinned to {v}")).unwrap_or_default();
         let failed = r.error.map(|e| format!("  (last check failed: {e})")).unwrap_or_default();
-        let _ = writeln!(out, "{:<12} {:<12} {}{failed}", r.id, r.name, r.status.label());
+        let _ = writeln!(out, "{:<12} {:<12} {}{pinned}{failed}", r.id, r.name, r.status.label());
     }
     let _ = match s.last_checked() {
         Some(at) => writeln!(out, "\nChecked {}.", time::ago(s.now(), at)),

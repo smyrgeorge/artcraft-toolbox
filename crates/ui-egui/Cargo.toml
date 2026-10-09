@@ -11,14 +11,17 @@ workspace = true
 [dependencies]
 artcraft-toolbox-engine = { workspace = true }
 artcraft-toolbox-model = { workspace = true }
+# Which release this computer can install (the details page's version list).
+artcraft-toolbox-release = { workspace = true }
 egui = { workspace = true }
 eframe = { workspace = true, features = ["default_fonts", "wgpu", "accesskit"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 log = { workspace = true }
+# Release notes (GitHub Markdown). Built on pulldown-cmark; no image loading or fetching.
+egui_commonmark = { version = "0.25", default-features = false, features = ["pulldown_cmark"] }
 
 [dev-dependencies]
 egui_kittest = { workspace = true, features = ["wgpu", "snapshot", "eframe"] }
-# Only examples/snapshot.rs: fake installations for every status, and drawing a data folder's state.
-artcraft-toolbox-release = { workspace = true }
+# Only examples/snapshot.rs: drawing a data folder's state.
 artcraft-toolbox-store = { workspace = true }

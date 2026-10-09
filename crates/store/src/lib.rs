@@ -4,7 +4,9 @@
 //! ```text
 //! <data dir>/settings.json        Settings
 //! <data dir>/inventory.json       Inventory: what is installed where (the only record of it)
+//! <data dir>/state.json           what the toolbox remembers (notifications already shown)
 //! <data dir>/feeds/<app>.json     the last release feed per app, with its ETag
+//! <data dir>/icons/<app>.png      the app's icon, and <app>.json with its ETag and fetch time
 //! <data dir>/logs/                the desktop app's log files
 //! ```
 //!
@@ -19,12 +21,16 @@ pub mod dirs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
-use artcraft_toolbox_model::{Inventory, Settings};
+use artcraft_toolbox_model::{Inventory, Settings, ToolboxState};
 use serde::{Deserialize, Serialize};
 
 pub const SETTINGS_FILE: &str = "settings.json";
 pub const INVENTORY_FILE: &str = "inventory.json";
+pub const STATE_FILE: &str = "state.json";
 pub const FEEDS_DIR: &str = "feeds";
+pub const ICONS_DIR: &str = "icons";
+/// Largest icon accepted (a 128 px PNG is a few KB).
+pub const MAX_ICON_BYTES: usize = 512 * 1024;
 pub const LOGS_DIR: &str = "logs";
 /// Largest cached feed file read back (a feed response is capped at 16 MiB; JSON escaping can
 /// grow it).
@@ -60,6 +66,14 @@ pub struct CachedFeed {
     pub body: String,
 }
 
+/// When an app's cached icon was fetched, and its ETag.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IconMeta {
+    pub etag: Option<String>,
+    pub fetched_at: u64,
+}
+
 /// The toolbox's files under one data directory. Cheap to clone (a path), so jobs can write the
 /// feed cache from their worker threads.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -71,7 +85,7 @@ impl Store {
     /// Use (and create) `root` and its subfolders.
     pub fn open(root: impl Into<PathBuf>) -> Result<Store> {
         let root = root.into();
-        for dir in [root.clone(), root.join(FEEDS_DIR)] {
+        for dir in [root.clone(), root.join(FEEDS_DIR), root.join(ICONS_DIR)] {
             std::fs::create_dir_all(&dir).map_err(|e| io_err(&dir, &e))?;
         }
         Ok(Store { root })
@@ -119,13 +133,64 @@ impl Store {
         Ok(to)
     }
 
-    fn feed_path(&self, app: &str) -> Result<PathBuf> {
-        // Catalog ids are already validated slugs; this keeps a hostile id from ever naming a path.
+    /// `<dir>/<app>.<ext>`. Catalog ids are already validated slugs; this keeps a hostile id
+    /// from ever naming a path.
+    fn app_path(&self, dir: &str, app: &str, ext: &str) -> Result<PathBuf> {
         let ok = (1..=64).contains(&app.len()) && app.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-') && !app.starts_with('-');
         if !ok {
             return Err(Error::BadName(app.chars().take(40).collect()));
         }
-        Ok(self.root.join(FEEDS_DIR).join(format!("{app}.json")))
+        Ok(self.root.join(dir).join(format!("{app}.{ext}")))
+    }
+
+    fn feed_path(&self, app: &str) -> Result<PathBuf> {
+        self.app_path(FEEDS_DIR, app, "json")
+    }
+
+    /// `None` before anything was remembered.
+    pub fn load_state(&self) -> Result<Option<ToolboxState>> {
+        let path = self.root.join(STATE_FILE);
+        let Some(text) = read_capped(&path, artcraft_toolbox_model::MAX_FILE_BYTES)? else { return Ok(None) };
+        ToolboxState::from_json(&text).map(Some).map_err(|e| Error::Corrupt { path, reason: e.to_string() })
+    }
+
+    pub fn save_state(&self, state: &ToolboxState) -> Result<()> {
+        let path = self.root.join(STATE_FILE);
+        let json = state.to_json().map_err(|e| Error::Io { path: path.clone(), message: e.to_string() })?;
+        atomic::atomic_write(&path, json.as_bytes()).map_err(|e| io_err(&path, &e))
+    }
+
+    /// `app`'s cached icon (PNG bytes, unchecked) and its metadata; `None` if there is none or
+    /// half of it is missing.
+    pub fn load_icon(&self, app: &str) -> Result<Option<(Vec<u8>, IconMeta)>> {
+        let meta_path = self.app_path(ICONS_DIR, app, "json")?;
+        let png_path = self.app_path(ICONS_DIR, app, "png")?;
+        let Some(meta) = read_capped(&meta_path, 4096)? else { return Ok(None) };
+        let meta: IconMeta = serde_json::from_str(&meta).map_err(|e| Error::Corrupt { path: meta_path, reason: e.to_string() })?;
+        let Some(png) = read_bytes_capped(&png_path, MAX_ICON_BYTES)? else { return Ok(None) };
+        Ok(Some((png, meta)))
+    }
+
+    /// Store an icon: the image first, the metadata last, so a crash in between leaves no
+    /// metadata and the icon is fetched again.
+    pub fn save_icon(&self, app: &str, png: &[u8], meta: &IconMeta) -> Result<()> {
+        if png.len() > MAX_ICON_BYTES {
+            return Err(Error::TooLarge { path: PathBuf::from(format!("{app}.png")), len: png.len(), limit: MAX_ICON_BYTES });
+        }
+        let png_path = self.app_path(ICONS_DIR, app, "png")?;
+        let meta_path = self.app_path(ICONS_DIR, app, "json")?;
+        atomic::atomic_write(&png_path, png).map_err(|e| io_err(&png_path, &e))?;
+        let json = serde_json::to_string(meta).map_err(|e| Error::Io { path: meta_path.clone(), message: e.to_string() })?;
+        atomic::atomic_write(&meta_path, json.as_bytes()).map_err(|e| io_err(&meta_path, &e))
+    }
+
+    /// Record an icon check that found it unchanged (`304`).
+    pub fn touch_icon(&self, app: &str, fetched_at: u64) -> Result<()> {
+        let meta_path = self.app_path(ICONS_DIR, app, "json")?;
+        let Some(text) = read_capped(&meta_path, 4096)? else { return Ok(()) };
+        let meta: IconMeta = serde_json::from_str(&text).map_err(|e| Error::Corrupt { path: meta_path.clone(), reason: e.to_string() })?;
+        let json = serde_json::to_string(&IconMeta { fetched_at, ..meta }).map_err(|e| Error::Io { path: meta_path.clone(), message: e.to_string() })?;
+        atomic::atomic_write(&meta_path, json.as_bytes()).map_err(|e| io_err(&meta_path, &e))
     }
 
     /// `None` when `app` was never checked.
@@ -152,6 +217,12 @@ impl Store {
 
 /// Read a UTF-8 file of at most `limit` bytes; `None` if it doesn't exist.
 fn read_capped(path: &Path, limit: usize) -> Result<Option<String>> {
+    let Some(bytes) = read_bytes_capped(path, limit)? else { return Ok(None) };
+    String::from_utf8(bytes).map(Some).map_err(|_| Error::Corrupt { path: path.to_path_buf(), reason: "not UTF-8 text".into() })
+}
+
+/// Read a file of at most `limit` bytes; `None` if it doesn't exist.
+fn read_bytes_capped(path: &Path, limit: usize) -> Result<Option<Vec<u8>>> {
     let file = match std::fs::File::open(path) {
         Ok(f) => f,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
@@ -163,7 +234,7 @@ fn read_capped(path: &Path, limit: usize) -> Result<Option<String>> {
     if bytes.len() > limit {
         return Err(Error::TooLarge { path: path.to_path_buf(), len: bytes.len(), limit });
     }
-    String::from_utf8(bytes).map(Some).map_err(|_| Error::Corrupt { path: path.to_path_buf(), reason: "not UTF-8 text".into() })
+    Ok(Some(bytes))
 }
 
 #[cfg(test)]
@@ -239,6 +310,31 @@ mod tests {
         assert_eq!(store.load_feed("photocraft").unwrap(), Some(CachedFeed { fetched_at: 9, ..feed }));
         std::fs::write(root.join(FEEDS_DIR).join("vectorcraft.json"), "garbage").unwrap();
         assert!(matches!(store.load_feed("vectorcraft"), Err(Error::Corrupt { .. })));
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn state_and_icons_round_trip() {
+        let root = temp("icons");
+        let store = Store::open(&root).unwrap();
+        assert!(root.join(ICONS_DIR).is_dir());
+        assert_eq!(store.load_state().unwrap(), None);
+        let mut state = ToolboxState::default();
+        state.notified.insert("photocraft".into(), artcraft_toolbox_model::Version::new(0, 5, 0));
+        store.save_state(&state).unwrap();
+        assert_eq!(store.load_state().unwrap(), Some(state));
+
+        assert_eq!(store.load_icon("photocraft").unwrap(), None);
+        let meta = IconMeta { etag: Some("\"e\"".into()), fetched_at: 7 };
+        store.save_icon("photocraft", b"\x89PNG...", &meta).unwrap();
+        assert_eq!(store.load_icon("photocraft").unwrap(), Some((b"\x89PNG...".to_vec(), meta.clone())));
+        store.touch_icon("photocraft", 9).unwrap();
+        assert_eq!(store.load_icon("photocraft").unwrap().map(|(_, m)| m.fetched_at), Some(9));
+        // An image without its metadata counts as missing; oversized images are refused.
+        std::fs::remove_file(root.join(ICONS_DIR).join("photocraft.json")).unwrap();
+        assert_eq!(store.load_icon("photocraft").unwrap(), None);
+        assert!(matches!(store.save_icon("photocraft", &vec![0u8; MAX_ICON_BYTES + 1], &meta), Err(Error::TooLarge { .. })));
+        assert!(matches!(store.load_icon("../x"), Err(Error::BadName(_))));
         let _ = std::fs::remove_dir_all(&root);
     }
 

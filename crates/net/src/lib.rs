@@ -23,6 +23,8 @@ pub use client::Client;
 
 /// The GitHub REST API host: release feeds come from here.
 pub const GITHUB_API_HOST: &str = "api.github.com";
+/// Raw repository files (app icons). Not rate-limited like the API; never sent a token.
+pub const GITHUB_RAW_HOST: &str = "raw.githubusercontent.com";
 /// The REST API version the toolbox is written against (`X-GitHub-Api-Version`).
 pub const GITHUB_API_VERSION: &str = "2022-11-28";
 /// `Accept` for GitHub REST JSON.
@@ -44,10 +46,11 @@ pub struct Policy {
 }
 
 impl Policy {
-    /// The GitHub REST API, and nothing else.
-    pub fn github_api() -> Policy {
+    /// What the toolbox reaches: the GitHub REST API (feeds) and raw repository files (icons).
+    /// Only the API may receive a token.
+    pub fn github() -> Policy {
         Policy {
-            hosts: vec![GITHUB_API_HOST.into()],
+            hosts: vec![GITHUB_API_HOST.into(), GITHUB_RAW_HOST.into()],
             token_hosts: vec![GITHUB_API_HOST.into()],
             allow_http: false,
             max_redirects: 3,

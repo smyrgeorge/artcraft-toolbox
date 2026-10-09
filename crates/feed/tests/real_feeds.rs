@@ -28,7 +28,7 @@ fn photocraft_feed_follows_the_contract() {
     assert!(newest.checksums_url.is_some());
     for (os, arch, kind) in HOSTS {
         let host = Target::new(*os, *arch);
-        let (r, a) = artcraft_toolbox_feed::latest(&releases, Channel::Stable, host).unwrap_or_else(|| panic!("no build for {host}"));
+        let (r, a) = artcraft_toolbox_feed::latest(&releases, Channel::Stable, host, None).unwrap_or_else(|| panic!("no build for {host}"));
         assert_eq!(r.version, Version::new(0, 5, 0), "{host}");
         assert_eq!(a.name.kind, *kind, "{host}");
         assert!(a.url.starts_with("https://github.com/storytold/photocraft/releases/download/v0.5.0/"), "{}", a.url);
@@ -51,6 +51,6 @@ fn pdfcraft_keeps_its_printcraft_releases() {
 fn update_from_an_old_install() {
     let releases = parse_releases(PHOTOCRAFT, &["photocraft"]).unwrap();
     let installed = Version::new(0, 2, 0);
-    let s = status(Some(&installed), Some(&releases), Channel::Stable, Some(Target::new(Os::Linux, Arch::X86_64)));
+    let s = status(Some(&installed), Some(&releases), Channel::Stable, Some(Target::new(Os::Linux, Arch::X86_64)), None);
     assert_eq!(s, Status::UpdateAvailable { installed, latest: Version::new(0, 5, 0) });
 }

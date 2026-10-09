@@ -61,7 +61,6 @@ pub fn apply(ctx: &egui::Context) {
     v.window_stroke = Stroke::new(1.0, t.border);
     v.extreme_bg_color = t.field;
     v.faint_bg_color = t.card;
-    v.override_text_color = Some(t.text);
     v.hyperlink_color = t.accent;
     v.warn_fg_color = t.warning;
     v.error_fg_color = t.danger;
@@ -70,7 +69,9 @@ pub fn apply(ctx: &egui::Context) {
     let r = CornerRadius::same(t.radius_sm);
     let w = &mut v.widgets;
     w.noninteractive.bg_stroke = Stroke::new(1.0, t.border);
-    w.noninteractive.fg_stroke = Stroke::new(1.0, t.text_dim);
+    // Default label colour. (Not `override_text_color`: that would also force link text, in
+    // release notes, to the label colour.)
+    w.noninteractive.fg_stroke = Stroke::new(1.0, t.text);
     for (wv, bg) in [(&mut w.inactive, t.card_hover), (&mut w.hovered, t.border), (&mut w.active, t.border), (&mut w.open, t.border)] {
         wv.bg_fill = bg;
         wv.weak_bg_fill = bg;

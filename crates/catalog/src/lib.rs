@@ -51,6 +51,9 @@ pub struct App {
     pub former_slugs: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bundle_id: Option<String>,
+    /// The app icon (a PNG), when it isn't at the Crafting Apps' usual path (see [`App::icon_url`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
 }
 
 impl App {
@@ -68,6 +71,15 @@ impl App {
     /// `https://github.com/<repo>`.
     pub fn repo_url(&self) -> String {
         format!("https://github.com/{}", self.repo)
+    }
+
+    /// Its 128 px icon. Every craft keeps it at the same path in its repository
+    /// (`assets/app-icon/hicolor/128x128/apps/<bundle id>.png`, docs/release-contract.md › Icons),
+    /// served from `raw.githubusercontent.com`, which doesn't count against the API's rate limit.
+    pub fn icon_url(&self) -> String {
+        self.icon
+            .clone()
+            .unwrap_or_else(|| format!("https://raw.githubusercontent.com/{}/HEAD/assets/app-icon/hicolor/128x128/apps/{}.png", self.repo, self.bundle_id()))
     }
 
     /// The GitHub REST endpoint listing its releases, newest first.
@@ -140,6 +152,11 @@ impl Catalog {
             {
                 return bad(format!("{id}: website must be an https:// URL"));
             }
+            if let Some(i) = &app.icon
+                && (!i.starts_with("https://") || i.len() > 512 || i.contains(char::is_whitespace))
+            {
+                return bad(format!("{id}: icon must be an https:// URL"));
+            }
             if let Some(b) = &app.bundle_id
                 && (b.is_empty() || b.len() > 128 || !b.split('.').all(|p| !p.is_empty() && p.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'-')))
             {
@@ -193,6 +210,10 @@ mod tests {
         assert_eq!(pdf.bundle_id(), "ai.storyteller.pdfcraft");
         assert_eq!(pdf.releases_api_url(), "https://api.github.com/repos/storytold/pdfcraft/releases");
         assert_eq!(pdf.repo_url(), "https://github.com/storytold/pdfcraft");
+        assert_eq!(
+            pdf.icon_url(),
+            "https://raw.githubusercontent.com/storytold/pdfcraft/HEAD/assets/app-icon/hicolor/128x128/apps/ai.storyteller.pdfcraft.png"
+        );
         assert!(c.get("nope").is_none());
     }
 
@@ -216,6 +237,7 @@ mod tests {
             (one(&format!("{ok}\nwebsite = \"http://x\"")), "https"),
             (one(&format!("{ok}\nformer_slugs = [\"x\"]")), "twice"),
             (one(&format!("{ok}\nbundle_id = \"a..b\"")), "reverse-DNS"),
+            (one(&format!("{ok}\nicon = \"http://x/i.png\"")), "icon"),
             (format!("{}{}", one(ok), "[[app]]\nid=\"x\"\nname=\"X2\"\ntagline=\"\"\nrepo=\"o/y\""), "twice"),
         ];
         for (text, want) in cases {

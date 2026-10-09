@@ -5,13 +5,13 @@ use artcraft_toolbox_engine::{AppStatus, Status};
 
 use crate::ToolboxApp;
 use crate::theme::Tokens;
-use crate::widgets::{app_tile, card, section};
+use crate::widgets::{TILE, app_tile, card, section};
 
 /// Room kept for a row's action button (or spinner) on the right.
 const ACTION_WIDTH: f32 = 84.0;
 
 /// Why the action buttons are disabled: installing lands with milestone M2 (docs/roadmap.md).
-const NOT_YET: &str = "Installing and updating apps is not available yet.";
+pub(crate) const NOT_YET: &str = "Installing and updating apps is not available yet.";
 
 pub fn show(app: &mut ToolboxApp, ui: &mut egui::Ui, t: &Tokens) {
     toolbar(app, ui, t);
@@ -27,13 +27,13 @@ pub fn show(app: &mut ToolboxApp, ui: &mut egui::Ui, t: &Tokens) {
         if !installed.is_empty() {
             section(ui, "Installed", installed.len(), t);
             for r in &installed {
-                row(ui, r, t);
+                row(app, ui, r, t);
             }
         }
         if !available.is_empty() {
             section(ui, "Available", available.len(), t);
             for r in &available {
-                row(ui, r, t);
+                row(app, ui, r, t);
             }
         }
     });
@@ -79,21 +79,37 @@ fn installed_version(s: &Status) -> Option<&artcraft_toolbox_engine::Version> {
     }
 }
 
-fn row(ui: &mut egui::Ui, r: &AppStatus, t: &Tokens) {
+/// One app: click anywhere but its action to open its details.
+fn row(app: &mut ToolboxApp, ui: &mut egui::Ui, r: &AppStatus, t: &Tokens) {
+    let icon = app.icon_texture(ui.ctx(), &r.id);
+    // The row's own background takes the click; the action button, drawn on top, keeps its own.
+    let clicked = ui
+        .scope_builder(egui::UiBuilder::new().sense(egui::Sense::click()), |ui| row_card(ui, r, icon.as_ref(), t))
+        .response
+        .on_hover_cursor(egui::CursorIcon::PointingHand)
+        .clicked();
+    if clicked {
+        app.ui.selected = Some(r.id.clone());
+    }
+    ui.add_space(4.0);
+}
+
+fn row_card(ui: &mut egui::Ui, r: &AppStatus, icon: Option<&egui::TextureHandle>, t: &Tokens) {
     card(ui, t, |ui| {
         ui.horizontal(|ui| {
-            app_tile(ui, &r.id, &r.name, t);
+            app_tile(ui, &r.id, &r.name, icon, TILE, t);
             // Leave room for the action on the right; long lines end in an ellipsis (the tooltip
             // has the full text).
             let text_width = (ui.available_width() - ACTION_WIDTH).max(80.0);
             ui.vertical(|ui| {
                 ui.set_max_width(text_width);
-                ui.add(egui::Label::new(egui::RichText::new(&r.name).strong().color(t.text)).truncate());
+                // Not selectable: a selectable label would take the click meant for the row.
+                ui.add(egui::Label::new(egui::RichText::new(&r.name).strong().color(t.text)).truncate().selectable(false));
                 let (line, color) = match (&r.status, &r.error) {
                     (Status::Unknown { .. }, Some(e)) => (format!("Couldn't check: {e}"), t.danger),
                     _ => status_text(r, t),
                 };
-                ui.add(egui::Label::new(egui::RichText::new(line).small().color(color)).truncate()).on_hover_text(hover(r));
+                ui.add(egui::Label::new(egui::RichText::new(line).small().color(color)).truncate().selectable(false)).on_hover_text(hover(r));
             });
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if r.checking {
@@ -112,11 +128,18 @@ fn row(ui: &mut egui::Ui, r: &AppStatus, t: &Tokens) {
             });
         });
     });
-    ui.add_space(4.0);
 }
 
 /// The status line under an app's name, and its colour.
 fn status_text(r: &AppStatus, t: &Tokens) -> (String, egui::Color32) {
+    let (line, color) = status_base(r, t);
+    match &r.pinned {
+        Some(v) => (format!("{line} · pinned to {v}"), color),
+        None => (line, color),
+    }
+}
+
+fn status_base(r: &AppStatus, t: &Tokens) -> (String, egui::Color32) {
     match &r.status {
         Status::Unknown { installed: None } => (r.tagline.clone(), t.text_dim),
         Status::UpdateAvailable { .. } => (r.status.label(), t.accent),

@@ -31,7 +31,9 @@ exact reproduction steps, and expected versus actual behaviour.
 | Automation surface (CLI now; control channel and MCP later) | Commands validate every param (`engine/tests/panic_hunt.rs`); the control channel will require a bearer token and localhost, like PhotoCraft's |
 | Personal data in network requests | Generic User-Agent (`ArtCraft-Toolbox/<version>`), no identifiers |
 | Token leakage | A GitHub token is used only when the user sets `ARTCRAFT_TOOLBOX_GITHUB_TOKEN`; it is sent only to `api.github.com` (never along a redirect to another host, tested in `crates/net/tests/client.rs`), never logged, never stored |
-| Hostile or corrupt local files (settings, inventory, cached feeds) | Size-capped reads, parsed without panics; atomic replacement; an unreadable inventory is never overwritten; app ids are validated before they name a file |
+| Links in release notes (written by each craft's maintainers) | Only `http(s)` links open (`ui_egui::safe_url` filters the frame's open-URL commands); images in notes are never loaded |
+| Hostile icons | Fetched only from `raw.githubusercontent.com` (no token), at most 512 KB and 1024 × 1024, decoded on a worker with a memory limit (`icons::decode_png`); anything else keeps the monogram |
+| Hostile or corrupt local files (settings, inventory, cached feeds and icons, state) | Size-capped reads, parsed without panics; atomic replacement; an unreadable inventory is never overwritten; app ids are validated before they name a file |
 
 ## Scope
 

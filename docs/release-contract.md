@@ -66,6 +66,16 @@ a craft changed how it publishes: update this page, the parser and a fixture in 
 Windows architecture tokens are `x64`/`x86`/`arm64`; Linux and FreeBSD use `x86_64`/`aarch64`.
 `release::Arch::from_token` accepts both.
 
+## Icons
+
+Every craft keeps its icon at the same place in its repository (PhotoCraft's `packaging/icons.sh`
+writes them): `assets/app-icon/hicolor/<n>x<n>/apps/ai.storyteller.<id>.png`, n = 16 … 512. The
+toolbox reads the 128 px one from
+`https://raw.githubusercontent.com/<repo>/HEAD/assets/app-icon/hicolor/128x128/apps/<bundle id>.png`
+(`App::icon_url`; a catalog `icon` field overrides it). `raw.githubusercontent.com` is not the
+rate-limited API and never receives a token. Checked 2026-10-09: all 12 apps serve both the 64 and
+128 px icons there.
+
 ## Integrity
 
 `SHA256SUMS.txt` is GNU `sha256sum` output for every other asset, written by the same release job

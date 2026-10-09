@@ -94,7 +94,7 @@ mod tests {
     use super::*;
 
     fn policy() -> Policy {
-        Policy::github_api()
+        Policy::github()
     }
 
     #[test]
@@ -109,6 +109,8 @@ mod tests {
     #[test]
     fn the_policy_admits_only_its_hosts_over_https() {
         assert!(check(&policy(), "https://api.github.com/repos/o/r/releases").is_ok());
+        assert!(check(&policy(), "https://raw.githubusercontent.com/o/r/HEAD/icon.png").is_ok());
+        assert!(check(&policy(), "https://github.com/o/r").is_err(), "not needed until downloads (M2)");
         for bad in [
             "http://api.github.com/repos",
             "https://api.github.com.evil.example/repos",

@@ -56,7 +56,18 @@ cargo run -p artcraft-toolbox-ui-egui --example snapshot -- --out target/snapsho
 `--feed` and `--installed` put the app list in any state (update available, up to date, not
 installed); `--host` picks releases for another machine; `--search` filters the list;
 `--data-dir <dir>` draws a real data folder's state (copied first, never written; no network);
-`--checking` draws a check in progress. Look at the
+`--checking` draws a check in progress; `--details <app>` opens an app's page. The example draws
+what the desktop app shows, with notifications and a tray icon available. Fill a scratch data
+folder for it with `ARTCRAFT_TOOLBOX_CONFIG_DIR=<dir> artcraft-toolbox-cli check` and
+`… run icons.refresh`.
+
+The tray, notifications and the hidden-window behaviour can only be seen in the real app (the
+tray needs a running event loop). Run it against a scratch data folder and read its log:
+
+```sh
+ARTCRAFT_TOOLBOX_CONFIG_DIR=/tmp/tb RUST_LOG=info cargo run -p artcraft-toolbox
+grep -h 'tray\|notified' /tmp/tb/logs/artcraft-toolbox.log
+``` Look at the
 PNG after every UI change (AGENTS.md rule 7). Rendering needs a wgpu adapter: a GPU, or a
 software one such as llvmpipe (Linux) or WARP (Windows).
 
@@ -72,7 +83,7 @@ accessibility tree (`get_by_label`) and click, so they run anywhere, including C
 | `net` | URL policy and error classification unit tests; `tests/client.rs` runs the real client against a local HTTP server (redirect checks, token scoping, 304, rate limits, size caps) |
 | `store` | Temp folders: round trips, corrupt and oversized files, hostile app ids, atomic writes |
 | `engine` | Command tests per module (checks run against fake transports: rate limits, 304s, failures, cancel); `tests/panic_hunt.rs` runs every command with adversarial params, offline and online |
-| `ui-egui` | kittest (accessibility tree), the glyph test, and offscreen snapshots you look at |
+| `ui-egui` | kittest (accessibility tree): rows, details page, pinning, check button, notifications, close-to-tray; the glyph test; offscreen snapshots you look at |
 | apps | CLI integration tests (output, exit codes, the real binary); desktop arg parsing |
 | contract | `cargo xtask contract` against live GitHub, daily in CI (`contract.yml`) |
 

@@ -25,4 +25,6 @@ pub struct UiState {
     pub tab: Tab,
     /// The app list's filter (matches name, id and tagline, case-insensitively).
     pub search: String,
+    /// The app whose details page is open (Apps tab), by catalog id.
+    pub selected: Option<String>,
 }

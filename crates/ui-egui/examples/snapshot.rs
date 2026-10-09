@@ -11,7 +11,7 @@
 //! `--installed <app>=<version>` pretends a version is installed, so every status can be drawn
 //! without the network. `--host <os>-<arch>` (`linux-x86_64`) picks releases for another machine.
 //! `--data-dir <dir>` draws a real data folder's state (settings, cached feeds; read only, never
-//! the network). `--checking` draws a check in progress.
+//! the network). `--checking` draws a check in progress. `--details <app>` opens an app's page.
 
 use std::sync::Arc;
 
@@ -82,12 +82,15 @@ fn main() -> Result<(), String> {
         session.set_inventory(inventory);
     }
 
-    let mut app = ToolboxApp::new(session);
+    // Draw what the desktop app shows: notifications and a tray icon available.
+    let services = artcraft_toolbox_ui_egui::Services { notify: Some(Box::new(|_: &str, _: &str| {})), tray: true };
+    let mut app = ToolboxApp::with_services(session, services);
     if checking {
         app.start_check();
     }
     app.ui.tab = if arg(&args, "--tab").as_deref() == Some("settings") { Tab::Settings } else { Tab::Apps };
     app.ui.search = arg(&args, "--search").unwrap_or_default();
+    app.ui.selected = arg(&args, "--details");
 
     let mut harness = egui_kittest::Harness::builder().with_size(egui::vec2(w, h)).with_pixels_per_point(scale).wgpu().build_eframe(move |cc| {
         ToolboxApp::setup_context(&cc.egui_ctx);

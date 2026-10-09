@@ -12,6 +12,12 @@ workspace = true
 [dependencies]
 artcraft-toolbox-engine = { workspace = true }
 artcraft-toolbox-ui-egui = { workspace = true }
-eframe = { workspace = true, features = ["default_fonts", "wgpu", "accesskit", "wayland", "x11"] }
+# `links`: release-note and GitHub links open in the browser.
+eframe = { workspace = true, features = ["default_fonts", "wgpu", "accesskit", "wayland", "x11", "links"] }
 egui = { workspace = true }
 log = { workspace = true }
+# The menu-bar / tray icon. From the authors of muda (PhotoCraft's macOS menu bar), on the same
+# muda 0.21. Linux uses ksni (StatusNotifierItem over D-Bus): no GTK.
+tray-icon = { version = "0.26", default-features = false, features = ["ksni"] }
+# OS notifications for new versions (macOS Notification Center, Windows toasts, D-Bus on Linux).
+notify-rust = "4.18"

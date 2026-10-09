@@ -25,6 +25,11 @@ never copy their code, icons or assets).
 ```
 
 - Default window 440 × 720 points, minimum 360 × 480.
+- **Click a row** (anywhere but its action) to open the app's **details page**: icon, tagline,
+  status, links (GitHub, Releases, Website), the app's own settings (channel, updates, pinned
+  version: combo boxes whose first entry is "Default (…)" naming the global value), and its
+  versions, newest first and open, each with its release notes rendered from Markdown. "Back"
+  or the Apps tab returns to the list.
 - **One action per row**, chosen by status: Install (not installed), Update (update available),
   Open (installed and current). No action when there is no build for this computer. A spinner
   replaces it while that app is being checked.
@@ -37,14 +42,21 @@ never copy their code, icons or assets).
 - Errors from commands replace the status bar text (`ToolboxApp::notice`) until the next action.
   A check that couldn't reach an app also marks that row ("Couldn't check: …") until it succeeds.
 
-### Planned behaviour (M3–M4)
+### Menu bar and tray (M4)
+
+- macOS: a template glyph in the menu bar (`assets/app-icon/tray-template.svg`: only alpha
+  counts, macOS tints it); a click opens the menu. Windows and Linux: the colour icon; a left
+  click opens the window, the right button the menu.
+- Menu: Open ArtCraft Toolbox · Check for Updates · Quit ArtCraft Toolbox.
+- Closing the window hides it while there is a tray icon (Settings: "Keep running in the menu
+  bar / system tray"); Quit quits.
+
+### Planned behaviour (M3)
 
 - "Update all" at the top of Installed when more than one update is waiting.
-- A per-app "⋯" menu: release notes, other versions (install / roll back), show in
-  Finder/Explorer, settings (channel, auto-update), uninstall.
+- On the details page: install another version (roll back), show in Finder/Explorer, uninstall.
 - Progress replaces the action button while a job runs (bar + cancel).
-- Menu-bar / tray icon; closing the window keeps the toolbox in the tray; a badge when updates
-  are waiting.
+- A badge on the tray icon when updates are waiting.
 
 ## Tokens
 
@@ -65,8 +77,10 @@ One dark theme for now (`Tokens::DARK`): charcoal surfaces, PhotoCraft's Spectru
 
 ## Widgets (`widgets.rs`)
 
-- `app_tile`: the app's tile. Until M4 fetches real icons, a monogram (`PhotoCraft` → `Ph`) on a
-  colour hashed from the id: stable, distinct, and no logo bundled.
+- `app_tile`: the app's own icon (fetched from its repository, docs/release-contract.md › Icons),
+  or until it arrives a monogram (`PhotoCraft` → `Ph`) on a colour hashed from the id. No craft
+  logo is bundled.
+- `subhead`: a heading without a count (`SETTINGS FOR PHOTOCRAFT`).
 - `card`: a full-width rounded row.
 - `section`: `INSTALLED · 1` headings.
 
@@ -77,6 +91,10 @@ One dark theme for now (`Tokens::DARK`): charcoal surfaces, PhotoCraft's Spectru
   Prefer words; draw a symbol with the painter if you need one. `status_text_has_no_missing_glyphs`
   checks status lines; add new user-facing strings with symbols to it.
 - Sentence case for labels and buttons ("Check for updates", "Keep previous versions").
+- Labels inside a clickable row are not selectable (`Label::selectable(false)`): a selectable
+  label takes the click meant for the row. Release notes stay selectable, for copying.
+- Text colour comes from the widget visuals, never `Visuals::override_text_color`: the override
+  also forces link text (release notes) to the label colour.
 
 ## Verify
 

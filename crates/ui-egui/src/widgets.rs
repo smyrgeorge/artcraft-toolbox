@@ -7,12 +7,21 @@ use crate::theme::Tokens;
 /// Side of an app tile, in points.
 pub const TILE: f32 = 36.0;
 
-/// An app's tile: a monogram on a colour derived from its id, so every craft is recognisable
-/// without bundling its logo (docs/ui-design.md › App tiles).
-pub fn app_tile(ui: &mut egui::Ui, id: &str, name: &str, t: &Tokens) {
-    let (rect, _) = ui.allocate_exact_size(Vec2::splat(TILE), Sense::hover());
-    ui.painter().rect_filled(rect, CornerRadius::same(t.radius), tile_color(id));
-    ui.painter().text(rect.center(), Align2::CENTER_CENTER, monogram(name), FontId::proportional(15.0), Color32::WHITE);
+/// An app's tile, `side` points square: its own icon once fetched (docs/release-contract.md ›
+/// Icons), else a monogram on a colour derived from its id, so every craft is recognisable before
+/// its icon arrives or when it can't be fetched.
+pub fn app_tile(ui: &mut egui::Ui, id: &str, name: &str, icon: Option<&egui::TextureHandle>, side: f32, t: &Tokens) {
+    let (rect, _) = ui.allocate_exact_size(Vec2::splat(side), Sense::hover());
+    match icon {
+        Some(tex) => {
+            let uv = egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0));
+            ui.painter().image(tex.id(), rect, uv, Color32::WHITE);
+        }
+        None => {
+            ui.painter().rect_filled(rect, CornerRadius::same(t.radius), tile_color(id));
+            ui.painter().text(rect.center(), Align2::CENTER_CENTER, monogram(name), FontId::proportional(side * 0.42), Color32::WHITE);
+        }
+    }
 }
 
 /// `PhotoCraft` → `Ph`, `CADCraft` → `CA`: the first two letters of the name before `Craft`.
@@ -44,10 +53,15 @@ pub fn card<R>(ui: &mut egui::Ui, t: &Tokens, add: impl FnOnce(&mut egui::Ui) ->
         })
 }
 
-/// A section heading: `INSTALLED · 2`.
+/// A section heading with a count: `INSTALLED · 2`.
 pub fn section(ui: &mut egui::Ui, title: &str, count: usize, t: &Tokens) {
+    subhead(ui, &format!("{title} · {count}"), t);
+}
+
+/// A section heading: `SETTINGS FOR PHOTOCRAFT`.
+pub fn subhead(ui: &mut egui::Ui, title: &str, t: &Tokens) {
     ui.add_space(6.0);
-    ui.label(egui::RichText::new(format!("{} · {count}", title.to_uppercase())).small().strong().color(t.text_dim));
+    ui.label(egui::RichText::new(title.to_uppercase()).small().strong().color(t.text_dim));
 }
 
 #[cfg(test)]

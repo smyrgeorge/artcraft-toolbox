@@ -38,6 +38,12 @@ fn adversarial() -> Vec<Value> {
         json!({"force": "yes"}),
         json!({"force": null}),
         json!({"app": "photocraft", "force": 1}),
+        json!({"app": "photocraft", "pinned": "not.a.version"}),
+        json!({"app": "photocraft", "pinned": 5, "channel": null}),
+        json!({"app": "photocraft", "channel": "prerelease", "autoUpdate": null}),
+        json!({"app": "photocraft", "limit": -1}),
+        json!({"app": "photocraft", "limit": 1e9}),
+        json!({"notifications": "yes", "closeToTray": 0}),
     ];
     out.push(json!({ (long.clone()): 1 }));
     out

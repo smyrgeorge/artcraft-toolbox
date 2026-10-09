@@ -10,18 +10,20 @@
 //! - [`Session::wait_job`] blocks until a job ends; [`Session::cancel_job`] stops one.
 //! - Workers never touch the session. A panic in a worker becomes an error for the item it was on.
 //!
-//! The only job today is `updates.check` (a message per app, so rows update as results arrive).
-//! Install jobs (M2) add their own messages.
+//! Jobs work through a list of apps on a small worker pool ([`spawn_pool`]), one message per
+//! app, so rows update as results arrive: `updates.check` (`update_cmds`) and `icons.refresh`
+//! (`icons`). Install jobs (M2) add their own kind.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, VecDeque};
 use std::panic::{AssertUnwindSafe, catch_unwind};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::mpsc::{Receiver, TryRecvError};
+use std::sync::mpsc::{Receiver, Sender, TryRecvError};
+use std::sync::{Arc, Mutex, PoisonError};
 
 use serde::Serialize;
 use serde_json::Value;
 
+use crate::icons::{IconMsg, IconSummary};
 use crate::update_cmds::{CheckMsg, CheckSummary};
 use crate::{EngineError, Result, Session};
 
@@ -59,16 +61,39 @@ pub struct JobEvent {
     pub result: std::result::Result<Value, String>,
 }
 
+/// What a worker reports.
+pub(crate) enum JobMsg {
+    /// Work on this app began.
+    Started(String),
+    Check(CheckMsg),
+    Icon(IconMsg),
+}
+
+/// A job's own bookkeeping, by kind.
+pub(crate) enum JobState {
+    Check(CheckSummary),
+    Icons(IconSummary),
+}
+
+impl JobState {
+    fn done(&self) -> usize {
+        match self {
+            JobState::Check(s) => s.done(),
+            JobState::Icons(s) => s.done(),
+        }
+    }
+}
+
 pub(crate) struct Running {
     pub(crate) id: JobId,
     pub(crate) command: &'static str,
     pub(crate) label: String,
-    pub(crate) rx: Receiver<CheckMsg>,
+    pub(crate) rx: Receiver<JobMsg>,
     pub(crate) cancel: Arc<AtomicBool>,
     /// Every item the job covers.
     pub(crate) items: Vec<String>,
     pub(crate) in_flight: BTreeSet<String>,
-    pub(crate) summary: CheckSummary,
+    pub(crate) state: JobState,
 }
 
 impl Running {
@@ -77,7 +102,7 @@ impl Running {
             id: self.id,
             command: self.command.into(),
             label: self.label.clone(),
-            done: self.summary.done(),
+            done: self.state.done(),
             total: self.items.len(),
             in_flight: self.in_flight.iter().cloned().collect(),
         }
@@ -105,9 +130,60 @@ impl Jobs {
         self.running.iter().any(|r| r.command == command)
     }
 
-    /// Is `app` being worked on right now?
-    pub(crate) fn checking(&self, app: &str) -> bool {
-        self.running.iter().any(|r| r.in_flight.contains(app))
+    /// Is a job of `command` working on `app` right now?
+    pub(crate) fn working_on(&self, command: &str, app: &str) -> bool {
+        self.running.iter().any(|r| r.command == command && r.in_flight.contains(app))
+    }
+}
+
+/// One item of a pooled job.
+pub(crate) trait PoolTask: Send + 'static {
+    fn app(&self) -> &str;
+    /// The message for this item when its work panicked.
+    fn panicked(&self) -> JobMsg;
+}
+
+/// Work through `tasks` on up to `workers` threads: for each, send [`JobMsg::Started`], then
+/// whatever `work` returns. A panic in `work` becomes the task's [`PoolTask::panicked`] message.
+/// Workers stop taking tasks once `cancel` is set or the receiver is gone; when the last one
+/// ends the channel disconnects, which is how the session learns the job is over.
+pub(crate) fn spawn_pool<T: PoolTask>(
+    name: &'static str,
+    tasks: Vec<T>,
+    workers: usize,
+    cancel: Arc<AtomicBool>,
+    tx: Sender<JobMsg>,
+    work: impl Fn(&T) -> Vec<JobMsg> + Send + Sync + 'static,
+) {
+    let n = tasks.len().min(workers);
+    let queue = Arc::new(Mutex::new(VecDeque::from(tasks)));
+    let work = Arc::new(work);
+    for i in 0..n {
+        let (queue, cancel, tx, work) = (Arc::clone(&queue), Arc::clone(&cancel), tx.clone(), Arc::clone(&work));
+        let spawned = std::thread::Builder::new().name(format!("{name}-{i}")).spawn(move || {
+            loop {
+                if cancel.load(Ordering::Relaxed) {
+                    return;
+                }
+                let next = queue.lock().unwrap_or_else(PoisonError::into_inner).pop_front();
+                let Some(task) = next else { return };
+                if tx.send(JobMsg::Started(task.app().to_string())).is_err() {
+                    return;
+                }
+                let msgs = catch_unwind(AssertUnwindSafe(|| work(&task))).unwrap_or_else(|_| {
+                    log::error!("{name}: {} panicked", task.app());
+                    vec![task.panicked()]
+                });
+                for m in msgs {
+                    if tx.send(m).is_err() {
+                        return;
+                    }
+                }
+            }
+        });
+        if let Err(e) = spawned {
+            log::error!("couldn't start a {name} worker: {e}");
+        }
     }
 }
 
@@ -135,7 +211,7 @@ impl Session {
         for mut job in std::mem::take(&mut self.jobs.running) {
             let ended = loop {
                 match job.rx.try_recv() {
-                    Ok(msg) => crate::update_cmds::apply(self, &mut job, msg),
+                    Ok(msg) => self.apply(&mut job, msg),
                     Err(TryRecvError::Empty) => break false,
                     // Every worker is gone: the job is over.
                     Err(TryRecvError::Disconnected) => break true,
@@ -159,7 +235,7 @@ impl Session {
         };
         let mut job = self.jobs.running.remove(i);
         while let Ok(msg) = job.rx.recv() {
-            crate::update_cmds::apply(self, &mut job, msg);
+            self.apply(&mut job, msg);
         }
         self.finish(job).result.map_err(EngineError::Job)
     }
@@ -183,9 +259,22 @@ impl Session {
         self.jobs.running.iter().map(Running::info).collect()
     }
 
+    fn apply(&mut self, job: &mut Running, msg: JobMsg) {
+        match msg {
+            JobMsg::Started(app) => {
+                job.in_flight.insert(app);
+            }
+            JobMsg::Check(m) => crate::update_cmds::apply(self, job, m),
+            JobMsg::Icon(m) => crate::icons::apply(self, job, m),
+        }
+    }
+
     fn finish(&mut self, job: Running) -> JobEvent {
         let (id, command) = (job.id, job.command.to_string());
-        let result = crate::update_cmds::finish(self, job);
+        let result = match job.state {
+            JobState::Check(_) => crate::update_cmds::finish(self, job),
+            JobState::Icons(_) => crate::icons::finish(job),
+        };
         JobEvent { id, command, result: Ok(result) }
     }
 }
