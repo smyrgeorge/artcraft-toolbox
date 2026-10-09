@@ -8,7 +8,7 @@ use std::time::Duration;
 use std::sync::Arc;
 
 use artcraft_toolbox_engine::net::{NetError, Request, Response, Transport};
-use artcraft_toolbox_engine::{Catalog, Session, command_specs};
+use artcraft_toolbox_engine::{Catalog, Layout, Session, command_specs};
 use serde_json::{Value, json};
 
 fn adversarial() -> Vec<Value> {
@@ -44,6 +44,12 @@ fn adversarial() -> Vec<Value> {
         json!({"app": "photocraft", "limit": -1}),
         json!({"app": "photocraft", "limit": 1e9}),
         json!({"notifications": "yes", "closeToTray": 0}),
+        json!({"app": "photocraft", "version": ""}),
+        json!({"app": "photocraft", "version": "../../x"}),
+        json!({"app": "photocraft", "version": "1.0.0\u{0}"}),
+        json!({"app": "photocraft", "version": 1}),
+        json!({"app": "photocraft", "version": null}),
+        json!({"app": "photocraft", "version": long}),
     ];
     out.push(json!({ (long.clone()): 1 }));
     out
@@ -58,8 +64,18 @@ impl Transport for Offline {
     }
 }
 
-fn sessions() -> [fn() -> Session; 2] {
-    [|| Session::new().unwrap(), || Session::open(Catalog::builtin().unwrap(), None, Some(Arc::new(Offline))).0]
+/// No layout, no network, and (so installing gets past its first check) a scratch layout offline.
+fn sessions() -> [fn() -> Session; 3] {
+    [
+        || Session::new().unwrap(),
+        || Session::open(Catalog::builtin().unwrap(), None, Some(Arc::new(Offline))).0,
+        || {
+            let mut s = Session::open(Catalog::builtin().unwrap(), None, Some(Arc::new(Offline))).0;
+            let dir = std::env::temp_dir().join(format!("artcraft-toolbox-hunt-{}", std::process::id()));
+            s.set_layout(Some(Layout { apps: dir.join("apps"), desktop_entries: None, icons: None, start_menu: None, downloads: dir.join("downloads") }));
+            s
+        },
+    ]
 }
 
 #[test]

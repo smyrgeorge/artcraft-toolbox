@@ -2,7 +2,7 @@
 
 use std::io::Read;
 
-use crate::{GITHUB_API_VERSION, NetError, Policy, Request, Response, Transport, classify, parse_rate, url};
+use crate::{Download, GITHUB_API_VERSION, NetError, Policy, Request, Response, Transport, classify, parse_content_range, parse_rate, url};
 
 /// How much of an error response's body is read for its message.
 const ERROR_BODY_BYTES: u64 = 64 * 1024;
@@ -83,6 +83,54 @@ impl Transport for Client {
                     return Err(classify(status, &rate, retry_after, &body));
                 }
             }
+        }
+        Err(NetError::TooManyRedirects)
+    }
+
+    fn download(&self, url: &str, resume_from: u64) -> Result<Download, NetError> {
+        let mut target = url.to_string();
+        for _ in 0..=self.policy.max_redirects {
+            let u = url::check(&self.policy, &target)?;
+            let mut call = self.agent.get(&target).header("Accept", "application/octet-stream");
+            if resume_from > 0 {
+                call = call.header("Range", format!("bytes={resume_from}-"));
+            }
+            // Downloads never carry the token: they go to github.com and its asset storage.
+            let mut resp = call.config().timeout_global(Some(self.policy.download_timeout)).build().call().map_err(map_err)?;
+            let status = resp.status().as_u16();
+            let header = |name: &str| resp.headers().get(name).and_then(|v| v.to_str().ok()).map(str::to_string);
+            log::debug!("GET {} (from {resume_from}) -> {status}", u.origin());
+            let length = header("content-length").and_then(|v| v.trim().parse::<u64>().ok());
+            let (offset, total) = match status {
+                301 | 302 | 303 | 307 | 308 => {
+                    let location = header("location").ok_or_else(|| NetError::Other(format!("HTTP {status} without a Location")))?;
+                    target = url::resolve_location(&u, &location).ok_or_else(|| NetError::Forbidden(location.chars().take(120).collect()))?;
+                    continue;
+                }
+                200 => (0, length),
+                206 => {
+                    let (start, total) = header("content-range")
+                        .as_deref()
+                        .and_then(parse_content_range)
+                        .ok_or_else(|| NetError::Other("a partial answer without a usable Content-Range".into()))?;
+                    if start != resume_from {
+                        return Err(NetError::Other(format!("asked to resume at byte {resume_from}, got byte {start}")));
+                    }
+                    (start, total)
+                }
+                _ => {
+                    let rate = parse_rate(header);
+                    let retry_after = header("retry-after").and_then(|v| v.trim().parse::<u64>().ok());
+                    let mut body = Vec::new();
+                    let _ = resp.body_mut().as_reader().take(ERROR_BODY_BYTES).read_to_end(&mut body);
+                    return Err(classify(status, &rate, retry_after, &body));
+                }
+            };
+            if total.is_some_and(|t| t > self.policy.max_download_bytes) {
+                return Err(NetError::TooLarge(usize::try_from(self.policy.max_download_bytes).unwrap_or(usize::MAX)));
+            }
+            let reader = resp.into_body().into_with_config().limit(self.policy.max_download_bytes).reader();
+            return Ok(Download { reader: Box::new(reader), offset, total });
         }
         Err(NetError::TooManyRedirects)
     }

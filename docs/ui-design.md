@@ -30,9 +30,16 @@ never copy their code, icons or assets).
   version: combo boxes whose first entry is "Default (…)" naming the global value), and its
   versions, newest first and open, each with its release notes rendered from Markdown. "Back"
   or the Apps tab returns to the list.
-- **One action per row**, chosen by status: Install (not installed), Update (update available),
-  Open (installed and current). No action when there is no build for this computer. A spinner
-  replaces it while that app is being checked.
+- **One action per row**, chosen by status: Install (not installed), Open (installed). Update
+  (update available) comes with M3; until then an installed app shows Open. No action when there
+  is no build for this computer. A spinner replaces it while that app is being checked.
+- **Installing** (M2): the row's action becomes Cancel and its status line the phase
+  ("Verifying the release", "Downloading 45%", "Verifying", "Installing") in the accent colour,
+  with a thin bar under it (a sliding segment while there is no fraction). Cancel keeps the
+  partial download, so Install resumes it. Several apps can install at once.
+- **The details page's actions**: the row's action, then Update (disabled until M3) and
+  Uninstall, which asks first: "Uninstall PhotoCraft 0.5.0?", its Uninstall in the danger colour;
+  Cancel, Escape or a click outside keeps the app.
 - Names and status lines are truncated with an ellipsis before they reach the action column
   (the tooltip has the full text). Check at 360 points wide.
 - "Check for updates" is disabled with its reason as the tooltip: no network, a check running,
@@ -54,8 +61,7 @@ never copy their code, icons or assets).
 ### Planned behaviour (M3)
 
 - "Update all" at the top of Installed when more than one update is waiting.
-- On the details page: install another version (roll back), show in Finder/Explorer, uninstall.
-- Progress replaces the action button while a job runs (bar + cancel).
+- On the details page: install another version (roll back), show in Finder/Explorer.
 - A badge on the tray icon when updates are waiting.
 
 ## Tokens

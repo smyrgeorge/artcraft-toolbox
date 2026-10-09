@@ -110,7 +110,10 @@ mod tests {
     fn the_policy_admits_only_its_hosts_over_https() {
         assert!(check(&policy(), "https://api.github.com/repos/o/r/releases").is_ok());
         assert!(check(&policy(), "https://raw.githubusercontent.com/o/r/HEAD/icon.png").is_ok());
-        assert!(check(&policy(), "https://github.com/o/r").is_err(), "not needed until downloads (M2)");
+        assert!(check(&policy(), "https://github.com/o/r/releases/download/v1/a.dmg").is_ok());
+        assert!(check(&policy(), "https://release-assets.githubusercontent.com/x").is_ok());
+        assert!(check(&policy(), "https://gist.github.com/x").is_err());
+        assert!(check(&policy(), "https://githubusercontent.com/x").is_err());
         for bad in [
             "http://api.github.com/repos",
             "https://api.github.com.evil.example/repos",

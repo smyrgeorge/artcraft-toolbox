@@ -25,3 +25,5 @@ egui_commonmark = { version = "0.25", default-features = false, features = ["pul
 egui_kittest = { workspace = true, features = ["wgpu", "snapshot", "eframe"] }
 # Only examples/snapshot.rs: drawing a data folder's state.
 artcraft-toolbox-store = { workspace = true }
+# Checksums of the test packages the install tests serve.
+sha2 = "0.10"

@@ -12,9 +12,10 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use artcraft_toolbox_engine::install_cmds::{INSTALL, LAUNCH, UNINSTALL};
 use artcraft_toolbox_engine::net::Transport;
 use artcraft_toolbox_engine::update_cmds::{CHECK, CheckSummary};
-use artcraft_toolbox_engine::{Session, build_info, command_specs, setup, time};
+use artcraft_toolbox_engine::{Layout, Session, Started, Target, build_info, command_specs, setup, time};
 use serde_json::{Value, json};
 
 pub const USAGE: &str = "\
@@ -28,6 +29,11 @@ commands:
   check [--json] [--app <id>] [--force]
                                      check GitHub for new releases (all apps, or one); apps
                                      checked in the last minute are skipped unless --force
+  install <app> [--version <x.y.z>] [--json]
+                                     download, verify (SHA-256) and install an app; progress on
+                                     stderr (check first, so the toolbox knows its releases)
+  uninstall <app> [--json]           remove an app the toolbox installed (its documents stay)
+  open <app>                         open an installed app
   commands [--json]                  every engine command with its params
   run <command-id> [<json-params>]   run one engine command and print its JSON result
   --version                          print the version
@@ -47,13 +53,18 @@ const USAGE_ERROR: i32 = 2;
 pub struct Env {
     pub data_dir: Result<PathBuf, String>,
     pub transport: Option<Arc<dyn Transport>>,
+    /// Where apps are installed; `None`: the platform's (docs/architecture.md § 5).
+    pub layout: Option<Layout>,
+    /// The computer to pick releases for; `None`: this one. Tests use it to install a Linux
+    /// AppImage on any OS.
+    pub host: Option<Target>,
 }
 
 impl Env {
     pub fn from_process() -> Env {
         let data_dir = artcraft_toolbox_engine::setup::data_dir().map_err(|e| e.to_string());
         let token = std::env::var(setup::ENV_GITHUB_TOKEN).ok();
-        Env { data_dir, transport: Some(Arc::new(setup::github_client(token))) }
+        Env { data_dir, transport: Some(Arc::new(setup::github_client(token))), layout: None, host: None }
     }
 }
 
@@ -93,6 +104,7 @@ pub fn run(args: &[&str], out: &mut dyn Write, err: &mut dyn Write, env: impl Fn
         return report(commands(json, out), err);
     }
     let env = env();
+    let (layout, host) = (env.layout, env.host);
     let mut opened = match setup::open_in(env.data_dir, env.transport) {
         Ok(o) => o,
         Err(e) => {
@@ -104,10 +116,21 @@ pub fn run(args: &[&str], out: &mut dyn Write, err: &mut dyn Write, env: impl Fn
         let _ = writeln!(err, "warning: {w}");
     }
     let s = &mut opened.session;
+    if layout.is_some() {
+        s.set_layout(layout);
+    }
+    if host.is_some() {
+        s.set_host(host);
+    }
     let result = match cmd {
         Cmd::List { json } => list(s, json, out),
         Cmd::Status { json, feeds } => status(s, json, &feeds, out),
         Cmd::Check { json, app, force } => check(s, json, app, force, out, err),
+        Cmd::Install { app, version, json } => install(s, &app, version, json, out, err),
+        Cmd::Uninstall { app, json } => {
+            s.execute(UNINSTALL, json!({ "app": app })).map_err(|e| e.to_string()).and_then(|v| report_change(out, json, &v, "removed"))
+        }
+        Cmd::Open { app } => s.execute(LAUNCH, json!({ "app": app })).map(|_| ()).map_err(|e| e.to_string()),
         Cmd::Run { id, params } => s.execute(&id, params).map_err(|e| e.to_string()).and_then(|v| print_json(out, &v)),
         Cmd::Commands { .. } => Ok(()),
     };
@@ -134,6 +157,9 @@ enum Cmd {
     List { json: bool },
     Status { json: bool, feeds: Vec<(String, String)> },
     Check { json: bool, app: Option<String>, force: bool },
+    Install { app: String, version: Option<String>, json: bool },
+    Uninstall { app: String, json: bool },
+    Open { app: String },
     Commands { json: bool },
     Run { id: String, params: Value },
 }
@@ -183,6 +209,31 @@ fn parse(args: &[&str]) -> Result<Parsed, String> {
                 "commands" => Cmd::Commands { json },
                 "status" => Cmd::Status { json, feeds },
                 _ => Cmd::Check { json, app, force },
+            }
+        }
+        "install" | "uninstall" | "open" => {
+            let (app, rest) = match rest.split_first() {
+                Some((a, r)) if !a.starts_with('-') => (a.to_string(), r),
+                _ => return Err(format!("{cmd} needs an app id (see `list`)")),
+            };
+            let mut version = None;
+            let mut it = rest.iter();
+            while let Some(a) = it.next() {
+                match (cmd, *a) {
+                    ("install" | "uninstall", "--json") => flag(&mut json, "--json")?,
+                    ("install", "--version") => {
+                        let v = it.next().ok_or("--version needs a version, like 0.5.0")?;
+                        if version.replace(v.to_string()).is_some() {
+                            return Err("`--version` given twice".into());
+                        }
+                    }
+                    (_, other) => return Err(format!("unexpected argument `{}`", short(other))),
+                }
+            }
+            match cmd {
+                "install" => Cmd::Install { app, version, json },
+                "uninstall" => Cmd::Uninstall { app, json },
+                _ => Cmd::Open { app },
             }
         }
         "run" => match rest {
@@ -273,4 +324,53 @@ fn commands(json: bool, out: &mut dyn Write) -> Result<(), String> {
         let _ = writeln!(out, "{:<14} {}", s.id, s.params);
     }
     Ok(())
+}
+
+/// `installed: /path` (or the JSON result).
+fn report_change(out: &mut dyn Write, json: bool, v: &Value, what: &str) -> Result<(), String> {
+    if json {
+        return print_json(out, v);
+    }
+    let path = v.get("path").or_else(|| v.get("removed")).and_then(Value::as_str).unwrap_or("");
+    let _ = writeln!(out, "{} {} {what}: {path}", v["app"].as_str().unwrap_or(""), v["version"].as_str().unwrap_or(""));
+    Ok(())
+}
+
+/// Install in the background, printing progress to stderr until it ends.
+fn install(s: &mut Session, app: &str, version: Option<String>, json: bool, out: &mut dyn Write, err: &mut dyn Write) -> Result<(), String> {
+    let mut params = json!({ "app": app });
+    if let Some(v) = version {
+        params["version"] = Value::String(v);
+    }
+    let id = match s.start(INSTALL, params).map_err(|e| e.to_string())? {
+        Started::Job(id) => id,
+        Started::Done(v) => return report_change(out, json, &v, "installed"),
+    };
+    let mut last = String::new();
+    loop {
+        for event in s.poll_jobs() {
+            if event.id == id {
+                if !last.is_empty() {
+                    let _ = writeln!(err);
+                }
+                return event.result.and_then(|v| report_change(out, json, &v, "installed"));
+            }
+        }
+        if !s.has_jobs() {
+            return Err("the install stopped unexpectedly".into());
+        }
+        if let Some(job) = s.job_for(INSTALL, app) {
+            let line = match (job.phase.as_deref(), job.fraction) {
+                (Some("Downloading"), Some(f)) => format!("Downloading {:.0}%", f * 100.0),
+                (Some(p), _) => p.to_string(),
+                _ => String::new(),
+            };
+            if line != last && !line.is_empty() {
+                let _ = write!(err, "\r{line:<24}");
+                let _ = err.flush();
+                last = line;
+            }
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
 }

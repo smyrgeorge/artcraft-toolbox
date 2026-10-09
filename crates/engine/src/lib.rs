@@ -18,6 +18,7 @@ pub mod build_info;
 mod catalog_cmds;
 mod commands;
 pub mod icons;
+pub mod install_cmds;
 pub mod jobs;
 mod params;
 mod settings_cmds;
@@ -39,6 +40,7 @@ use serde_json::Value;
 
 pub use artcraft_toolbox_catalog::Catalog;
 pub use artcraft_toolbox_feed::Status;
+pub use artcraft_toolbox_install::Layout;
 /// The network layer, for callers that pass a [`Transport`] (the apps, test fakes).
 pub use artcraft_toolbox_net as net;
 pub use artcraft_toolbox_release::{Target, Version};
@@ -62,6 +64,10 @@ pub enum EngineError {
     Locked(String),
     #[error("{0}")]
     Job(String),
+    #[error("{0}")]
+    Refused(String),
+    #[error(transparent)]
+    Install(#[from] artcraft_toolbox_install::Error),
     #[error(transparent)]
     Catalog(#[from] artcraft_toolbox_catalog::Error),
     #[error(transparent)]
@@ -133,6 +139,10 @@ pub struct Session {
     icons_attempted_at: Option<u64>,
     /// What is remembered between runs (`state.json`).
     state: ToolboxState,
+    /// Where apps are installed; `None`: this session doesn't install (tests, the snapshot).
+    layout: Option<Layout>,
+    /// The layout follows the platform and the `installDir` setting (the apps' sessions).
+    platform_layout: bool,
 }
 
 /// After a check, an automatic one waits at least this long, whatever the outcome (an offline
@@ -165,6 +175,8 @@ impl Session {
             icon_revision: 0,
             icons_attempted_at: None,
             state: ToolboxState::default(),
+            layout: None,
+            platform_layout: false,
         }
     }
 
@@ -258,8 +270,33 @@ impl Session {
         if let Some(store) = &self.store {
             store.save_settings(&settings)?;
         }
+        let moved = settings.install_dir != self.settings.install_dir;
         self.settings = settings;
+        if moved && self.platform_layout {
+            self.use_platform_layout();
+        }
         Ok(())
+    }
+
+    /// Where apps are installed, when this session installs.
+    pub fn layout(&self) -> Option<&Layout> {
+        self.layout.as_ref()
+    }
+
+    /// Install into `layout` (tests; `None` turns installing off).
+    pub fn set_layout(&mut self, layout: Option<Layout>) {
+        self.layout = layout;
+        self.platform_layout = false;
+    }
+
+    /// Install where the platform and the `installDir` setting say (docs/architecture.md § 5).
+    /// Needs the data folder (downloads are staged there).
+    pub fn use_platform_layout(&mut self) {
+        self.platform_layout = true;
+        self.layout = self
+            .store
+            .as_ref()
+            .and_then(|st| Layout::platform(st.root(), self.settings.install_dir.as_deref().map(std::path::Path::new), |k| std::env::var_os(k)));
     }
 
     /// The machine releases are chosen for; `None` on a platform no craft ships for.

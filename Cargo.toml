@@ -17,6 +17,7 @@ artcraft-toolbox-model = { path = "crates/model" }
 artcraft-toolbox-feed = { path = "crates/feed" }
 artcraft-toolbox-store = { path = "crates/store" }
 artcraft-toolbox-net = { path = "crates/net" }
+artcraft-toolbox-install = { path = "crates/install" }
 artcraft-toolbox-engine = { path = "crates/engine" }
 artcraft-toolbox-ui-egui = { path = "crates/ui-egui" }
 

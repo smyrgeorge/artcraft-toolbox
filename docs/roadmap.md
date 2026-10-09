@@ -6,7 +6,7 @@ Status legend: ✅ done · 🟡 in progress · ⬜ not started. Updated 2026-10-
 |---|---|---|
 | M0 Skeleton | ✅ | PhotoCraft's workspace, conventions and CI; the pure core; engine, CLI and UI shell |
 | M1 Live feeds | ✅ | Fetch, cache and show every app's releases; persist settings and inventory |
-| M2 Install and launch | ⬜ | Install, uninstall and open any craft on macOS, Windows and Linux |
+| M2 Install and launch | ✅ | Install, uninstall and open any craft on macOS, Windows and Linux |
 | M3 Updates, rollback, trust | ⬜ | Update one or all, keep and switch versions, verify signatures, adopt existing installs |
 | M4 Toolbox UX parity | ✅ | Menu-bar/tray app, background checks, notifications, release notes, per-app settings |
 | M5 Distribution and self-update | ⬜ | Signed installers via PhotoCraft's release pipeline; the toolbox updates itself |
@@ -14,7 +14,7 @@ Status legend: ✅ done · 🟡 in progress · ⬜ not started. Updated 2026-10-
 | M7 Catalog from the network | ⬜ | A signed remote catalog; non-conforming apps (ArtCraft itself) |
 | M8 Polish | ⬜ | Localization (PhotoCraft's `tl!` pattern), accessibility, light theme |
 
-## Current focus: M2 Install and launch
+## Current focus: M3 Updates, rollback, trust
 
 Agents: pick the first unchecked item of the current milestone. Tick it in the same change that
 lands it.
@@ -48,21 +48,27 @@ lands it.
 Measured along the way: anonymous `304`s still count against GitHub's 60 requests/hour (see
 `docs/release-contract.md` › GitHub API), so one full check costs 12 of them. That shapes M7.
 
-### M2 Install and launch
+### M2 Install and launch ✅ (2026-10-09)
 
-- [ ] `install` crate (L3) with a per-OS backend behind one trait; tests against temp dirs
-- [ ] Download to a staging file with progress and resume; verify SHA-256 against `SHA256SUMS.txt` before anything else
-- [ ] macOS: mount DMG read-only, copy `<Name>.app`, detach; expose in `~/Applications`
-- [ ] Windows: extract the portable zip safely (zip-slip, symlinks, size caps), delete `portable.txt`, Start Menu shortcut
-- [ ] Linux: place the AppImage, `chmod +x`, desktop entry and icons under `~/.local/share`
-- [ ] `app.install`, `app.uninstall`, `app.launch` commands; Install / Open buttons go live
-- [ ] Decide and document the install layout (docs/architecture.md § 5 is the proposal)
+- [x] `install` crate (L3): one `install` / `uninstall` entry dispatching on the package kind, a per-OS `Layout`; tests against temp dirs (a real `hdiutil` round trip on macOS)
+- [x] Download to `downloads/<file>.part` with progress and HTTP range resume (`Transport::download`: GitHub's asset CDN allowed, the token never sent); `SHA256SUMS.txt` fetched first, exact size and SHA-256 checked before the package is opened
+- [x] macOS: mount the DMG read-only, check the bundle id, copy `<Name>.app` into `~/Applications` with `ditto`, detach
+- [x] Windows: extract the portable zip safely (zip-slip, drive paths, symlinks, duplicates, size caps), delete `portable.txt`, Start Menu shortcut
+- [x] Linux: check and place the AppImage, `chmod +x`, desktop entry (marked as the toolbox's) and icon under `~/.local/share`
+- [x] `app.install` (background job, cancellable), `app.uninstall`, `app.launch`; Install / Open / Cancel live in the list, Uninstall (with a confirmation) on the app's page; CLI `install` / `uninstall` / `open`
+- [x] Install layout decided and documented (docs/architecture.md § 5)
+
+Verified live on macOS: the CLI installed PhotoCraft 0.5.0 from GitHub (checksum and bundle id
+checked), resumed a download interrupted at 41%, and uninstalled it, leaving no mounted image.
+Not run on a real machine yet: the Windows Start Menu shortcut and the Linux desktop entry (both
+are covered by tests up to the OS call). An app that is already installed can't be installed
+again: updating it is M3.
 
 ### M3 Updates, rollback, trust
 
-- [ ] `app.update`, `apps.updateAll` (with "Update all" in the UI), never replacing a running app
+- [ ] `app.update`, `apps.updateAll` (with "Update all" in the UI), never replacing a running app (the install crate's `is_running`)
 - [ ] Keep `keepPrevious` versions; `app.rollback`; versions list per app
-- [ ] macOS: `codesign --verify` + Gatekeeper assessment before activating; Windows: Authenticode status reported
+- [ ] macOS: `codesign --verify` + Gatekeeper assessment before activating (the toolbox's installs carry no quarantine attribute, so nothing else assesses them; `spctl -a -vv` accepts PhotoCraft 0.5.0 as "Notarized Developer ID", team DJ6XS33FX8); Windows: Authenticode status reported
 - [ ] Detect apps installed by hand and offer to adopt them; re-read installed versions on refresh (release contract › Gotchas 4)
 - [ ] Coordinate with crafts that check for updates themselves
 
@@ -77,7 +83,7 @@ Measured along the way: anonymous `304`s still count against GitHub's 60 request
 
 Still open from M4: macOS keeps its Dock icon while the window is hidden (an accessory activation
 policy needs AppKit calls; PhotoCraft's `mac_window.rs` shows the safe way), and a notification
-click doesn't open the toolbox yet. The Install / Update / Open buttons stay disabled until M2.
+click doesn't open the toolbox yet. Install / Open went live in M2; Update stays disabled until M3.
 
 ### M5 Distribution and self-update
 

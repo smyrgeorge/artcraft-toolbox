@@ -7,6 +7,7 @@ use artcraft_toolbox_release::asset;
 use serde_json::{Value, json};
 
 use crate::ToolboxApp;
+use crate::actions::{self, Clicked};
 use crate::app_list::NOT_YET;
 use crate::theme::Tokens;
 use crate::widgets::{app_tile, card, section, subhead};
@@ -26,8 +27,9 @@ pub fn show(app: &mut ToolboxApp, ui: &mut egui::Ui, t: &Tokens, id: &str) {
     ui.add_space(4.0);
     let icon = app.icon_texture(ui.ctx(), id);
     let mut change: Option<(&'static str, Value)> = None;
+    let mut clicked = None;
     egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-        header(app, ui, &status, icon.as_ref(), t);
+        clicked = header(app, ui, &status, icon.as_ref(), t);
         ui.add_space(8.0);
         change = settings(app, ui, &status, t);
         ui.add_space(4.0);
@@ -38,17 +40,67 @@ pub fn show(app: &mut ToolboxApp, ui: &mut egui::Ui, t: &Tokens, id: &str) {
         params[key] = value;
         app.run("app.settings.set", params);
     }
+    match clicked {
+        Some(HeaderClick::Action(c)) => actions::perform(app, id, c),
+        Some(HeaderClick::Uninstall) => app.ui.confirm_uninstall = Some(id.to_string()),
+        None => {}
+    }
+    if app.ui.confirm_uninstall.as_deref() == Some(id) {
+        confirm_uninstall(app, ui, &status);
+    }
 }
 
-fn header(app: &ToolboxApp, ui: &mut egui::Ui, st: &AppStatus, icon: Option<&egui::TextureHandle>, t: &Tokens) {
-    let Some(entry) = app.session.catalog().get(&st.id) else { return };
+enum HeaderClick {
+    Action(Clicked),
+    Uninstall,
+}
+
+/// "Uninstall PhotoCraft 0.5.0?", over everything else.
+fn confirm_uninstall(app: &mut ToolboxApp, ui: &mut egui::Ui, st: &AppStatus) {
+    let version = app.session.inventory().current(&st.id).map(|i| i.version.to_string()).unwrap_or_default();
+    let t = Tokens::get(ui.ctx());
+    let mut answer = None;
+    let modal = egui::Modal::new(egui::Id::new(("confirm-uninstall", &st.id))).show(ui.ctx(), |ui| {
+        // 320 wide, or less in a narrow window (the frame adds its margins around it).
+        ui.set_max_width((ui.ctx().content_rect().width() - 64.0).clamp(160.0, 320.0));
+        ui.label(egui::RichText::new(format!("Uninstall {} {version}?", st.name)).strong());
+        ui.label("The app is removed. Your documents and its settings are kept.");
+        ui.add_space(8.0);
+        ui.horizontal(|ui| {
+            if ui.button(egui::RichText::new("Uninstall").color(t.danger)).clicked() {
+                answer = Some(true);
+            }
+            if ui.button("Cancel").clicked() {
+                answer = Some(false);
+            }
+        });
+    });
+    // Escape or a click outside is a Cancel.
+    if answer.is_none() && modal.should_close() {
+        answer = Some(false);
+    }
+    if let Some(yes) = answer {
+        app.ui.confirm_uninstall = None;
+        if yes {
+            app.run(artcraft_toolbox_engine::install_cmds::UNINSTALL, json!({ "app": st.id }));
+        }
+    }
+}
+
+fn header(app: &ToolboxApp, ui: &mut egui::Ui, st: &AppStatus, icon: Option<&egui::TextureHandle>, t: &Tokens) -> Option<HeaderClick> {
+    let entry = app.session.catalog().get(&st.id)?;
+    let job = actions::installing(&app.session, st);
+    let mut clicked = None;
     card(ui, t, |ui| {
         ui.horizontal(|ui| {
             app_tile(ui, &st.id, &st.name, icon, 56.0, t);
             ui.vertical(|ui| {
                 ui.label(egui::RichText::new(&st.name).heading().color(t.text));
                 ui.add(egui::Label::new(egui::RichText::new(&st.tagline).color(t.text_dim)).wrap());
-                let mut line = st.status.label();
+                let mut line = match &job {
+                    Some(j) => actions::progress_text(j),
+                    None => st.status.label(),
+                };
                 if let Some(pin) = &st.pinned {
                     line.push_str(&format!(" · pinned to {pin}"));
                 }
@@ -56,6 +108,9 @@ fn header(app: &ToolboxApp, ui: &mut egui::Ui, st: &AppStatus, icon: Option<&egu
                     line.push_str(&format!(" · checked {}", artcraft_toolbox_engine::time::ago(app.session.now(), at)));
                 }
                 ui.label(egui::RichText::new(line).small().color(t.text_dim));
+                if let Some(j) = &job {
+                    actions::bar(ui, j, ui.available_width().min(240.0), t);
+                }
                 if let Some(e) = &st.error {
                     ui.label(egui::RichText::new(format!("Last check failed: {e}")).small().color(t.danger));
                 }
@@ -68,17 +123,27 @@ fn header(app: &ToolboxApp, ui: &mut egui::Ui, st: &AppStatus, icon: Option<&egu
                 });
             });
         });
-        let action = match &st.status {
-            Status::Unknown { installed: None } | Status::NotInstalled { .. } => Some("Install"),
-            Status::UpdateAvailable { .. } => Some("Update"),
-            Status::Unknown { installed: Some(_) } | Status::UpToDate { .. } => Some("Open"),
-            Status::Unsupported { .. } => None,
-        };
-        if let Some(label) = action {
-            ui.add_space(4.0);
-            ui.add_enabled(false, egui::Button::new(label)).on_disabled_hover_text(NOT_YET);
-        }
+        ui.add_space(4.0);
+        ui.horizontal(|ui| {
+            if let Some(c) = actions::draw(ui, &app.session, st, t) {
+                clicked = Some(HeaderClick::Action(c));
+            }
+            if matches!(st.status, Status::UpdateAvailable { .. }) && job.is_none() {
+                ui.add_enabled(false, egui::Button::new("Update")).on_disabled_hover_text(NOT_YET);
+            }
+            if actions::installed(st) && job.is_none() {
+                let reason = app.session.disabled_reason(artcraft_toolbox_engine::install_cmds::UNINSTALL);
+                let b = ui.add_enabled(reason.is_none(), egui::Button::new("Uninstall"));
+                if b.clicked() {
+                    clicked = Some(HeaderClick::Uninstall);
+                }
+                if let Some(why) = reason {
+                    b.on_disabled_hover_text(why);
+                }
+            }
+        });
     });
+    clicked
 }
 
 /// The app's own settings. Returns the one change the user made this frame, if any.

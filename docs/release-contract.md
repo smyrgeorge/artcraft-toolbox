@@ -13,9 +13,12 @@ a craft changed how it publishes: update this page, the parser and a fixture in 
 - GitHub Releases of `github.com/<repo>` (`repo` in `crates/catalog/catalog.toml`; today
   `storytold/<id>` for every app).
 - Listed by `GET https://api.github.com/repos/<repo>/releases` (newest first).
-- Downloads are each asset's `browser_download_url`, `https://github.com/<repo>/releases/download/<tag>/<file>`,
-  which redirects to GitHub's asset CDN. The toolbox follows that redirect and no other
-  (`feed::github::DOWNLOAD_PREFIX`).
+- Downloads are each asset's `browser_download_url`, `https://github.com/<repo>/releases/download/<tag>/<file>`
+  (`feed::github::DOWNLOAD_PREFIX`), which answers `302` to GitHub's asset CDN,
+  `release-assets.githubusercontent.com` (formerly `objects.githubusercontent.com`). The toolbox
+  follows redirects to those hosts and no others (`net::Policy::github`, checked per hop), never
+  sends a token there, and resumes an interrupted download with `Range: bytes=<n>-`: the CDN
+  answers `206` with a `Content-Range` that is checked (measured 2026-10-09).
 
 ## GitHub API (measured 2026-10-09)
 
@@ -112,7 +115,8 @@ installable, every asset listed in `SHA256SUMS.txt`).
 3. **The Windows portable zip carries `portable.txt`.** It switches the app to portable mode:
    preferences, presets and autosaves go to `<Name>Data` beside the exe instead of
    `%APPDATA%\<Name>`. With one directory per version, the user's data would stay behind in the
-   old version's directory. The toolbox must delete `portable.txt` after extracting (decided in M2).
+   old version's directory. The toolbox deletes `portable.txt` (and `<Name>.portable`) after
+   extracting (M2).
 4. **Some crafts check for updates themselves.** PdfCraft has an in-app check ("check only when
    asked", 0.2.1 notes); PhotoCraft has none (2026-10-09). If a craft ever updates itself in place,
    the inventory drifts, so the toolbox re-reads the installed version on refresh (`Info.plist`
@@ -124,7 +128,9 @@ installable, every asset listed in `SHA256SUMS.txt`).
    `ArtCraft_0.41.0_x64-setup.exe`, `ArtCraft_0.41.0_x64_en-US.msi`, no Linux build and no
    checksums. It is not in the catalog; supporting it is roadmap M7.
 7. **The DMG volume is named after the product without the version** and holds `<Name>.app` plus
-   an `Applications` link.
+   an `Applications` link. The toolbox mounts it at a private mount point, so two installs never
+   collide on `/Volumes/<Name>`, and requires exactly one `.app` whose `CFBundleIdentifier` is
+   `ai.storyteller.<id>`.
 
 ## Refreshing the fixtures
 

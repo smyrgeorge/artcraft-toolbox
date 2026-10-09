@@ -27,4 +27,6 @@ pub struct UiState {
     pub search: String,
     /// The app whose details page is open (Apps tab), by catalog id.
     pub selected: Option<String>,
+    /// The app whose uninstall is waiting for confirmation.
+    pub confirm_uninstall: Option<String>,
 }

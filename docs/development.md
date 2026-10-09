@@ -29,6 +29,9 @@ like PhotoCraft, so debug builds of the UI stay responsive.
 artcraft-toolbox-cli list [--json]
 artcraft-toolbox-cli check [--json] [--app <id>] [--force]   # GitHub, in the background job, waited for
 artcraft-toolbox-cli status [--json] [--feed <app>=<releases.json>]...
+artcraft-toolbox-cli install <app> [--version <x.y.z>] [--json]   # progress on stderr; check first
+artcraft-toolbox-cli uninstall <app> [--json]
+artcraft-toolbox-cli open <app>
 artcraft-toolbox-cli commands [--json]                   # every engine command and its params
 artcraft-toolbox-cli run <command-id> [<json-params>]    # e.g. run app.status '{"app":"photocraft"}'
 ```
@@ -44,6 +47,21 @@ cargo run -p artcraft-toolbox-cli -- status \
   --feed photocraft=crates/feed/tests/fixtures/photocraft-releases.json
 ```
 
+`install` installs for real, into the platform's apps folder (docs/architecture.md § 5). To try
+it without touching `~/Applications` (or its Windows and Linux equivalents), point a scratch data
+folder's `installDir` at a scratch folder first; Ctrl-C mid-download and run it again to see it
+resume:
+
+```sh
+export ARTCRAFT_TOOLBOX_CONFIG_DIR=/tmp/tb
+artcraft-toolbox-cli run settings.set '{"installDir": "/tmp/tb-apps"}'
+artcraft-toolbox-cli check --app photocraft
+artcraft-toolbox-cli install photocraft
+artcraft-toolbox-cli uninstall photocraft
+```
+
+On Linux the desktop entry and icon still go to `~/.local/share` (only the apps folder moves).
+
 ## Offscreen UI snapshots (no window)
 
 ```sh
@@ -56,7 +74,9 @@ cargo run -p artcraft-toolbox-ui-egui --example snapshot -- --out target/snapsho
 `--feed` and `--installed` put the app list in any state (update available, up to date, not
 installed); `--host` picks releases for another machine; `--search` filters the list;
 `--data-dir <dir>` draws a real data folder's state (copied first, never written; no network);
-`--checking` draws a check in progress; `--details <app>` opens an app's page. The example draws
+`--checking` draws a check in progress; `--details <app>` opens an app's page and
+`--confirm-uninstall` its uninstall question; `--installing <app>` draws an install stopped at
+45% of its download (needs that app's `--feed`; nothing is installed). The example draws
 what the desktop app shows, with notifications and a tray icon available. Fill a scratch data
 folder for it with `ARTCRAFT_TOOLBOX_CONFIG_DIR=<dir> artcraft-toolbox-cli check` and
 `… run icons.refresh`.
@@ -82,14 +102,19 @@ accessibility tree (`get_by_label`) and click, so they run anywhere, including C
 | `feed` | Real GitHub responses captured in `crates/feed/tests/fixtures/` plus synthetic edge cases |
 | `net` | URL policy and error classification unit tests; `tests/client.rs` runs the real client against a local HTTP server (redirect checks, token scoping, 304, rate limits, size caps) |
 | `store` | Temp folders: round trips, corrupt and oversized files, hostile app ids, atomic writes |
-| `engine` | Command tests per module (checks run against fake transports: rate limits, 304s, failures, cancel); `tests/panic_hunt.rs` runs every command with adversarial params, offline and online |
-| `ui-egui` | kittest (accessibility tree): rows, details page, pinning, check button, notifications, close-to-tray; the glyph test; offscreen snapshots you look at |
-| apps | CLI integration tests (output, exit codes, the real binary); desktop arg parsing |
+| `install` | Temp folders: hostile zips (zip-slip, drive paths, symlinks, duplicates, bombs), AppImage and desktop entry checks, uninstall refusing foreign paths; on macOS a real DMG made with `hdiutil` |
+| `engine` | Command tests per module (checks and installs run against fake transports: rate limits, 304s, failures, cancel, resume, bad checksums); `tests/panic_hunt.rs` runs every command with adversarial params, offline, online and with a scratch install layout |
+| `ui-egui` | kittest (accessibility tree): rows, details page, pinning, check button, notifications, close-to-tray, install and uninstall; the glyph test; offscreen snapshots you look at |
+| apps | CLI integration tests (output, exit codes, install / uninstall / open against a fake GitHub, the real binary); desktop arg parsing |
 | contract | `cargo xtask contract` against live GitHub, daily in CI (`contract.yml`) |
 
 Never call the network from `cargo test`. Code that needs it takes a `net::Transport`; tests pass
 a fake (or the real client against a local server, `crates/net/tests/client.rs`). The CLI's
 `run(args, out, err, env)` takes its data folder and transport the same way.
+
+Never install into real folders from a test either. A `Session` from `Session::open` has no
+install layout (installing is refused); give it a temp one with `Session::set_layout`, and the
+CLI's `Env` a `layout`. Only the apps' startup (`setup::open_in`) uses the platform layout.
 
 ## Environment variables
 

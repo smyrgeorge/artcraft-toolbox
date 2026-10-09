@@ -248,7 +248,7 @@ pub(crate) fn apply(s: &mut Session, job: &mut Running, msg: IconMsg) {
 pub(crate) fn finish(job: Running) -> Value {
     match job.state {
         JobState::Icons(summary) => serde_json::to_value(&summary).unwrap_or(Value::Null),
-        JobState::Check(_) => Value::Null,
+        _ => Value::Null,
     }
 }
 

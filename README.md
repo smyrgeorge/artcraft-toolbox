@@ -13,10 +13,10 @@
 </p>
 
 > [!NOTE]
-> **Pre-alpha.** Milestones M0, M1 and M4 are done: the toolbox lives in the menu bar or tray,
-> checks GitHub for every app's releases in the background, notifies you of updates, and shows
-> each app's versions and release notes, with its own channel and pinned version. It does not
-> install or update anything yet (M2); see [the roadmap](docs/roadmap.md).
+> **Pre-alpha.** Milestones M0, M1, M2 and M4 are done: the toolbox lives in the menu bar or
+> tray, checks GitHub for every app's releases in the background, notifies you of updates, shows
+> each app's versions and release notes, and installs, opens and uninstalls any craft. It does
+> not update an installed app yet (M3); see [the roadmap](docs/roadmap.md).
 
 ## What it manages
 
@@ -53,6 +53,7 @@ release against that contract; on 2026-10-09 all twelve pass.
 cargo run --release -p artcraft-toolbox            # the desktop app
 cargo run -p artcraft-toolbox-cli -- list          # the catalog, headless
 cargo run -p artcraft-toolbox-cli -- check         # check GitHub for new releases
+cargo run -p artcraft-toolbox-cli -- install photocraft   # download, verify, install
 cargo run -p artcraft-toolbox-cli -- status \
   --feed photocraft=crates/feed/tests/fixtures/photocraft-releases.json
 cargo xtask ci                                     # fmt, clippy, tests, layering

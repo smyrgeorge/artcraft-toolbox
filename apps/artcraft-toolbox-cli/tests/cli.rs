@@ -7,7 +7,9 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use artcraft_toolbox_cli::{Env, run};
-use artcraft_toolbox_engine::net::{NetError, RateLimit, Request, Response, Transport};
+use artcraft_toolbox_engine::net::{Download, NetError, RateLimit, Request, Response, Transport};
+use artcraft_toolbox_engine::{Layout, Target};
+use sha2::Digest;
 
 const PHOTOCRAFT: &str = include_str!("../../../crates/feed/tests/fixtures/photocraft-releases.json");
 const FEED: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../crates/feed/tests/fixtures/photocraft-releases.json");
@@ -45,7 +47,8 @@ struct Run {
 fn cli_in(dir: &Path, fake: &Arc<Fake>, args: &[&str]) -> Run {
     let (mut out, mut err) = (Vec::new(), Vec::new());
     let (dir, fake) = (dir.to_path_buf(), Arc::clone(fake));
-    let code = run(args, &mut out, &mut err, move || Env { data_dir: Ok(dir), transport: Some(fake) });
+    let layout = Layout { apps: dir.join("apps"), desktop_entries: None, icons: None, start_menu: None, downloads: dir.join("downloads") };
+    let code = run(args, &mut out, &mut err, move || Env { data_dir: Ok(dir), transport: Some(fake), layout: Some(layout), host: None });
     Run { code, out: String::from_utf8(out).unwrap(), err: String::from_utf8(err).unwrap() }
 }
 
@@ -54,7 +57,10 @@ fn fake(flaky: bool) -> Arc<Fake> {
 }
 
 fn cli(args: &[&str]) -> Run {
-    cli_in(&temp(), &fake(false), args)
+    let dir = temp();
+    let r = cli_in(&dir, &fake(false), args);
+    let _ = std::fs::remove_dir_all(&dir);
+    r
 }
 
 #[test]
@@ -168,6 +174,13 @@ fn usage_errors_exit_2_and_touch_nothing() {
         vec!["run"],
         vec!["run", "app.status", "{not json"],
         vec!["run", "a", "{}", "extra"],
+        vec!["install"],
+        vec!["install", "--json"],
+        vec!["install", "photocraft", "--version"],
+        vec!["install", "photocraft", "--force"],
+        vec!["uninstall", "photocraft", "--version", "1.0.0"],
+        vec!["open"],
+        vec!["open", "photocraft", "--json"],
     ] {
         let (mut out, mut err) = (Vec::new(), Vec::new());
         let code = run(&args, &mut out, &mut err, || panic!("a usage error must not open the session ({args:?})"));
@@ -182,7 +195,7 @@ fn usage_errors_exit_2_and_touch_nothing() {
 #[test]
 fn no_data_folder_is_a_warning() {
     let (mut out, mut err) = (Vec::new(), Vec::new());
-    let code = run(&["list"], &mut out, &mut err, || Env { data_dir: Err("no HOME".into()), transport: None });
+    let code = run(&["list"], &mut out, &mut err, || Env { data_dir: Err("no HOME".into()), transport: None, layout: None, host: None });
     assert_eq!(code, 0);
     assert!(String::from_utf8(err).unwrap().contains("warning: no HOME; nothing will be saved"));
 }
@@ -194,4 +207,82 @@ fn binary_exit_codes() {
     assert!(ok.status.success());
     let bad = Command::new(exe).arg("--bogus").output().unwrap();
     assert_eq!(bad.status.code(), Some(2));
+}
+
+/// A GitHub with one installable PhotoCraft release for Linux.
+struct Installable;
+
+const ASSET_URL: &str = "https://github.com/storytold/photocraft/releases/download/v9.0.0/photocraft-9.0.0-linux-x86_64.AppImage";
+
+fn appimage() -> Vec<u8> {
+    let mut b = b"\x7fELF\x02\x01\x01\x00AI\x02\x00\x00\x00\x00\x00".to_vec();
+    b.extend(std::iter::repeat_n(7u8, 50_000));
+    b
+}
+
+impl Transport for Installable {
+    fn get(&self, req: &Request<'_>) -> Result<Response, NetError> {
+        let body = if req.url.ends_with("SHA256SUMS.txt") {
+            let hex: String = sha2::Sha256::digest(appimage()).iter().map(|b| format!("{b:02x}")).collect();
+            format!("{hex}  photocraft-9.0.0-linux-x86_64.AppImage\n")
+        } else if req.url.contains("/photocraft/") {
+            serde_json::json!([{"tag_name": "v9.0.0", "assets": [
+                {"name": "photocraft-9.0.0-linux-x86_64.AppImage", "size": appimage().len(), "browser_download_url": ASSET_URL},
+                {"name": "SHA256SUMS.txt", "size": 100, "browser_download_url": "https://github.com/storytold/photocraft/releases/download/v9.0.0/SHA256SUMS.txt"},
+            ]}])
+            .to_string()
+        } else {
+            "[]".into()
+        };
+        Ok(Response::Ok { body: body.into_bytes(), etag: None, rate: RateLimit::default() })
+    }
+    fn download(&self, url: &str, from: u64) -> Result<Download, NetError> {
+        assert_eq!(url, ASSET_URL);
+        let rest = appimage().get(from as usize..).unwrap_or_default().to_vec();
+        Ok(Download { reader: Box::new(std::io::Cursor::new(rest)), offset: from, total: Some(appimage().len() as u64) })
+    }
+}
+
+fn cli_installable(dir: &Path, args: &[&str]) -> Run {
+    let (mut out, mut err) = (Vec::new(), Vec::new());
+    let dir = dir.to_path_buf();
+    let layout = Layout { apps: dir.join("apps"), desktop_entries: None, icons: None, start_menu: None, downloads: dir.join("downloads") };
+    let code = run(args, &mut out, &mut err, move || Env {
+        data_dir: Ok(dir),
+        transport: Some(Arc::new(Installable)),
+        layout: Some(layout),
+        host: Target::from_consts("linux", "x86_64"),
+    });
+    Run { code, out: String::from_utf8(out).unwrap(), err: String::from_utf8(err).unwrap() }
+}
+
+#[test]
+fn install_open_and_uninstall() {
+    let dir = temp();
+    // Nothing known yet: install says to check first.
+    let r = cli_installable(&dir, &["install", "photocraft"]);
+    assert_eq!(r.code, 1);
+    assert!(r.err.contains("check for updates first"), "{}", r.err);
+    // The session pretends to be a Linux computer, so this installs the AppImage on any OS.
+    assert_eq!(cli_installable(&dir, &["check", "--app", "photocraft"]).code, 0);
+    let r = cli_installable(&dir, &["install", "photocraft"]);
+    assert_eq!(r.code, 0, "{}", r.err);
+    assert!(r.err.contains("Starting"), "progress goes to stderr: {}", r.err);
+    assert!(r.out.starts_with("photocraft 9.0.0 installed: "), "{}", r.out);
+    assert!(dir.join("apps/photocraft/9.0.0/photocraft.AppImage").is_file());
+    let r = cli_installable(&dir, &["uninstall", "photocraft", "--json"]);
+    assert_eq!(r.code, 0, "{}", r.err);
+    assert!(r.out.contains("\"removed\""));
+    assert!(!dir.join("apps/photocraft").exists());
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn opening_or_removing_what_isnt_installed_fails_cleanly() {
+    for args in [vec!["open", "photocraft"], vec!["uninstall", "photocraft"]] {
+        let r = cli(&args);
+        assert_eq!(r.code, 1, "{args:?}");
+        assert!(r.err.contains("isn't installed"), "{args:?}: {}", r.err);
+    }
+    assert!(cli(&["open", "nope"]).err.contains("unknown app"));
 }

@@ -17,6 +17,7 @@
 mod client;
 pub mod url;
 
+use std::io::Read;
 use std::time::Duration;
 
 pub use client::Client;
@@ -25,6 +26,10 @@ pub use client::Client;
 pub const GITHUB_API_HOST: &str = "api.github.com";
 /// Raw repository files (app icons). Not rate-limited like the API; never sent a token.
 pub const GITHUB_RAW_HOST: &str = "raw.githubusercontent.com";
+/// Release downloads start here (`/<owner>/<repo>/releases/download/…`)...
+pub const GITHUB_HOST: &str = "github.com";
+/// ...and are redirected to GitHub's asset storage, one of these.
+pub const GITHUB_ASSET_HOSTS: [&str; 2] = ["release-assets.githubusercontent.com", "objects.githubusercontent.com"];
 /// The REST API version the toolbox is written against (`X-GitHub-Api-Version`).
 pub const GITHUB_API_VERSION: &str = "2022-11-28";
 /// `Accept` for GitHub REST JSON.
@@ -43,19 +48,27 @@ pub struct Policy {
     /// Whole request, connect to last body byte.
     pub timeout: Duration,
     pub connect_timeout: Duration,
+    /// Whole download (a large file on a slow line): the bound for [`Transport::download`].
+    pub download_timeout: Duration,
+    /// Largest download accepted.
+    pub max_download_bytes: u64,
 }
 
 impl Policy {
-    /// What the toolbox reaches: the GitHub REST API (feeds) and raw repository files (icons).
-    /// Only the API may receive a token.
+    /// What the toolbox reaches: the GitHub REST API (feeds), raw repository files (icons) and
+    /// release downloads with GitHub's asset storage. Only the API may receive a token.
     pub fn github() -> Policy {
+        let mut hosts = vec![GITHUB_API_HOST.to_string(), GITHUB_RAW_HOST.into(), GITHUB_HOST.into()];
+        hosts.extend(GITHUB_ASSET_HOSTS.map(String::from));
         Policy {
-            hosts: vec![GITHUB_API_HOST.into(), GITHUB_RAW_HOST.into()],
+            hosts,
             token_hosts: vec![GITHUB_API_HOST.into()],
             allow_http: false,
             max_redirects: 3,
             timeout: Duration::from_secs(30),
             connect_timeout: Duration::from_secs(10),
+            download_timeout: Duration::from_secs(2 * 3600),
+            max_download_bytes: 4 << 30,
         }
     }
 }
@@ -133,10 +146,49 @@ pub enum NetError {
     Other(String),
 }
 
+/// A download in progress: the body as a stream, for files too large to hold in memory.
+pub struct Download {
+    pub reader: Box<dyn Read + Send>,
+    /// Where the body starts in the file: the resume offset the server honoured, else 0.
+    pub offset: u64,
+    /// The whole file's size, when the server said (`Content-Range` total, or `Content-Length`).
+    pub total: Option<u64>,
+}
+
+impl std::fmt::Debug for Download {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Download").field("offset", &self.offset).field("total", &self.total).finish_non_exhaustive()
+    }
+}
+
 /// Something that can GET under a [`Policy`]. `Send + Sync` so jobs can share one across worker
 /// threads.
 pub trait Transport: Send + Sync {
     fn get(&self, req: &Request<'_>) -> Result<Response, NetError>;
+
+    /// Stream `url` from byte `resume_from` (0: the whole file). A server that ignores the range
+    /// answers with the whole file: check [`Download::offset`]. Transports that don't download
+    /// (most test fakes) refuse.
+    fn download(&self, url: &str, resume_from: u64) -> Result<Download, NetError> {
+        let _ = (url, resume_from);
+        Err(NetError::Other("this transport doesn't download".into()))
+    }
+}
+
+/// `(start, total)` from a `Content-Range: bytes start-end/total` header (`total` may be `*`).
+pub fn parse_content_range(v: &str) -> Option<(u64, Option<u64>)> {
+    let rest = v.trim().strip_prefix("bytes ")?;
+    let (range, total) = rest.split_once('/')?;
+    let (start, end) = range.split_once('-')?;
+    let (start, end) = (start.trim().parse::<u64>().ok()?, end.trim().parse::<u64>().ok()?);
+    if end < start {
+        return None;
+    }
+    let total = match total.trim() {
+        "*" => None,
+        t => Some(t.parse::<u64>().ok().filter(|t| *t > end)?),
+    };
+    Some((start, total))
 }
 
 /// The error for a non-success status: a rate-limit refusal (`429`, or `403` with no requests
@@ -210,6 +262,15 @@ mod tests {
         assert_eq!(parse_rate(h), RateLimit { limit: Some(60), remaining: Some(44), reset_at: Some(1_791_528_397) });
         assert_eq!(parse_rate(|_| Some("-1".into())), RateLimit::default());
         assert_eq!(parse_rate(|_| Some("99999999999999999999".into())), RateLimit::default());
+    }
+
+    #[test]
+    fn content_ranges() {
+        assert_eq!(parse_content_range("bytes 100-199/1000"), Some((100, Some(1000))));
+        assert_eq!(parse_content_range("bytes 0-15/*"), Some((0, None)));
+        for bad in ["", "bytes", "bytes 5-1/10", "bytes 0-9/9", "items 0-1/2", "bytes a-b/c", "bytes 0-1/x"] {
+            assert_eq!(parse_content_range(bad), None, "{bad}");
+        }
     }
 
     #[test]

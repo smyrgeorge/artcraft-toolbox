@@ -24,6 +24,7 @@ use serde::Serialize;
 use serde_json::Value;
 
 use crate::icons::{IconMsg, IconSummary};
+use crate::install_cmds::{InstallMsg, InstallState};
 use crate::update_cmds::{CheckMsg, CheckSummary};
 use crate::{EngineError, Result, Session};
 
@@ -41,7 +42,7 @@ pub enum Started {
 }
 
 /// A running job, for progress displays and `jobs` listings.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct JobInfo {
     pub id: JobId,
@@ -51,6 +52,10 @@ pub struct JobInfo {
     pub total: usize,
     /// Items being worked on right now (app ids).
     pub in_flight: Vec<String>,
+    /// What the job is doing now, when it says (`Downloading`, `Verifying`, `Installing`).
+    pub phase: Option<String>,
+    /// How far along, 0..=1, when known.
+    pub fraction: Option<f32>,
 }
 
 /// A job that ended, as [`Session::poll_jobs`] reports it.
@@ -67,12 +72,14 @@ pub(crate) enum JobMsg {
     Started(String),
     Check(CheckMsg),
     Icon(IconMsg),
+    Install(InstallMsg),
 }
 
 /// A job's own bookkeeping, by kind.
 pub(crate) enum JobState {
     Check(CheckSummary),
     Icons(IconSummary),
+    Install(InstallState),
 }
 
 impl JobState {
@@ -80,6 +87,7 @@ impl JobState {
         match self {
             JobState::Check(s) => s.done(),
             JobState::Icons(s) => s.done(),
+            JobState::Install(s) => usize::from(s.outcome.is_some()),
         }
     }
 }
@@ -105,6 +113,14 @@ impl Running {
             done: self.state.done(),
             total: self.items.len(),
             in_flight: self.in_flight.iter().cloned().collect(),
+            phase: match &self.state {
+                JobState::Install(s) => Some(s.phase.clone()),
+                _ => None,
+            },
+            fraction: match &self.state {
+                JobState::Install(s) => s.fraction(),
+                _ => None,
+            },
         }
     }
 }
@@ -259,6 +275,11 @@ impl Session {
         self.jobs.running.iter().map(Running::info).collect()
     }
 
+    /// The running job of `command` that covers `app`, if any.
+    pub fn job_for(&self, command: &str, app: &str) -> Option<JobInfo> {
+        self.jobs.running.iter().find(|r| r.command == command && r.items.iter().any(|i| i == app)).map(Running::info)
+    }
+
     fn apply(&mut self, job: &mut Running, msg: JobMsg) {
         match msg {
             JobMsg::Started(app) => {
@@ -266,15 +287,17 @@ impl Session {
             }
             JobMsg::Check(m) => crate::update_cmds::apply(self, job, m),
             JobMsg::Icon(m) => crate::icons::apply(self, job, m),
+            JobMsg::Install(m) => crate::install_cmds::apply(self, job, m),
         }
     }
 
     fn finish(&mut self, job: Running) -> JobEvent {
         let (id, command) = (job.id, job.command.to_string());
         let result = match job.state {
-            JobState::Check(_) => crate::update_cmds::finish(self, job),
-            JobState::Icons(_) => crate::icons::finish(job),
+            JobState::Check(_) => Ok(crate::update_cmds::finish(self, job)),
+            JobState::Icons(_) => Ok(crate::icons::finish(job)),
+            JobState::Install(_) => crate::install_cmds::finish(job),
         };
-        JobEvent { id, command, result: Ok(result) }
+        JobEvent { id, command, result }
     }
 }

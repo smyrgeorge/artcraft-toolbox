@@ -15,9 +15,14 @@ artcraft-toolbox-model = { workspace = true }
 artcraft-toolbox-feed = { workspace = true }
 artcraft-toolbox-store = { workspace = true }
 artcraft-toolbox-net = { workspace = true }
+artcraft-toolbox-install = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
 log = { workspace = true }
 # Decoding cached and fetched app icons (pure Rust).
 png = "0.18"
+
+[dev-dependencies]
+# Checksums of test packages.
+sha2 = "0.10"

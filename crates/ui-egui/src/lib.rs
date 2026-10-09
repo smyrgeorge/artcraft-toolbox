@@ -8,6 +8,7 @@
 #![forbid(unsafe_code)]
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
+pub mod actions;
 pub mod app_list;
 pub mod details;
 pub mod settings_ui;
@@ -221,9 +222,14 @@ impl ToolboxApp {
                 ui.add(egui::Label::new(egui::RichText::new(n).small().color(t.danger)).truncate()).on_hover_text(n);
                 return;
             }
-            ui.label(egui::RichText::new(status_line(&self.session)).small().color(t.text_dim));
+            // The version first, on the right; the status line gets the rest and ends in an
+            // ellipsis in a narrow window.
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.label(egui::RichText::new(artcraft_toolbox_engine::build_info::long_version()).small().color(t.text_faint));
+                ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                    let line = status_line(&self.session);
+                    ui.add(egui::Label::new(egui::RichText::new(&line).small().color(t.text_dim)).truncate()).on_hover_text(line);
+                });
             });
         });
     }

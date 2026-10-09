@@ -2,6 +2,8 @@
 //! checks) and how every kind of answer comes back. No internet access.
 
 use std::io::{Read, Write};
+
+use artcraft_toolbox_net::Download;
 use std::net::{TcpListener, TcpStream};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -69,6 +71,8 @@ fn policy(hosts: &[&str], token_hosts: &[&str]) -> Policy {
         max_redirects: 3,
         timeout: Duration::from_secs(5),
         connect_timeout: Duration::from_secs(2),
+        download_timeout: Duration::from_secs(5),
+        max_download_bytes: 1 << 20,
     }
 }
 
@@ -174,4 +178,55 @@ fn forbidden_and_unreachable_hosts() {
     // A closed port: a connection error, not a panic.
     let closed = TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
     assert!(matches!(c.get(&get(&format!("http://127.0.0.1:{closed}/"), None)), Err(NetError::Connect(_))));
+}
+
+fn body(mut d: Download) -> Vec<u8> {
+    let mut v = Vec::new();
+    d.reader.read_to_end(&mut v).unwrap();
+    v
+}
+
+#[test]
+fn downloads_stream_the_whole_file() {
+    let s = Server::start(vec![reply("200 OK", &[], "0123456789")]);
+    let d = client(&["127.0.0.1"], &["127.0.0.1"], Some("ghp_secret")).download(&s.url("/a.AppImage"), 0).unwrap();
+    assert_eq!((d.offset, d.total), (0, Some(10)));
+    assert_eq!(body(d), b"0123456789");
+    let head = &s.requests()[0];
+    assert!(!head.contains("range:") && !head.contains("authorization"), "downloads never carry the token: {head}");
+}
+
+#[test]
+fn downloads_resume_with_a_range() {
+    let s = Server::start(vec![reply("206 Partial Content", &["content-range: bytes 4-9/10"], "456789")]);
+    let d = client(&["127.0.0.1"], &[], None).download(&s.url("/a"), 4).unwrap();
+    assert_eq!((d.offset, d.total), (4, Some(10)));
+    assert_eq!(body(d), b"456789");
+    assert!(s.requests()[0].contains("range: bytes=4-"));
+
+    // A server that ignores the range sends everything from 0: the caller starts over.
+    let s = Server::start(vec![reply("200 OK", &[], "0123456789")]);
+    assert_eq!(client(&["127.0.0.1"], &[], None).download(&s.url("/a"), 4).unwrap().offset, 0);
+
+    // A partial answer from the wrong place is an error, never silently appended.
+    let s = Server::start(vec![reply("206 Partial Content", &["content-range: bytes 2-9/10"], "23456789")]);
+    assert!(matches!(client(&["127.0.0.1"], &[], None).download(&s.url("/a"), 4), Err(NetError::Other(_))));
+
+    let s = Server::start(vec![reply("416 Range Not Satisfiable", &[], "")]);
+    assert!(matches!(client(&["127.0.0.1"], &[], None).download(&s.url("/a"), 99), Err(NetError::Status { status: 416, .. })));
+}
+
+#[test]
+fn downloads_follow_checked_redirects_and_respect_the_size_cap() {
+    let b = Server::start(vec![reply("200 OK", &[], "payload")]);
+    let a = Server::start(vec![reply("302 Found", &[&format!("location: http://localhost:{}/asset", b.port)], "")]);
+    let d = client(&["127.0.0.1", "localhost"], &[], None).download(&a.url("/releases/download/v1/x"), 0).unwrap();
+    assert_eq!(body(d), b"payload");
+
+    let s = Server::start(vec![reply("302 Found", &["location: https://evil.example/x"], "")]);
+    assert!(matches!(client(&["127.0.0.1"], &[], None).download(&s.url("/x"), 0), Err(NetError::Forbidden(_))));
+
+    // Announced as larger than the cap (1 MiB here): refused before reading.
+    let s = Server::start(vec![reply("206 Partial Content", &["content-range: bytes 0-0/99999999"], "x")]);
+    assert!(matches!(client(&["127.0.0.1"], &[], None).download(&s.url("/x"), 0), Err(NetError::TooLarge(_))));
 }

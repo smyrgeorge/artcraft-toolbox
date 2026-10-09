@@ -26,15 +26,15 @@ crates/
   feed         L2             GitHub release JSON -> Release; each app's update Status (pure)
   net          L3             HTTPS (ureq + rustls): GitHub-only host policy per redirect hop, token scoping, caps
   store        L3             the toolbox's files: data dir, atomic writes, settings, inventory, feed cache
-  install      L3  planned    per-OS install / uninstall / launch: DMG -> .app, portable zip, AppImage
-  jobs         L4  planned    download -> verify -> install -> record, as background jobs; self-update
-  engine       L5             Session + command registry (every action is a command) + background jobs
+  install      L3             per-OS install / uninstall / launch: DMG -> .app, portable zip, AppImage; Layout
+  jobs         L4  planned    background work outside the engine (self-update)
+  engine       L5             Session + command registry (every action is a command) + background jobs (checks, icons, installs)
   ui-egui      L6             egui shell (thin: all actions go through the engine)
   automation   L6  planned    control channel + MCP server over the command registry
   testkit          planned    shared test helpers (fake feeds, temp install roots); dev-dependency only
 apps/
   artcraft-toolbox            desktop app (eframe/wgpu): window, menu-bar/tray icon, OS notifications, logger
-  artcraft-toolbox-cli        headless CLI: list / status / check / commands / run
+  artcraft-toolbox-cli        headless CLI: list / status / check / install / uninstall / open / commands / run
 xtask/                        cargo xtask layers | ci | contract | version
 ```
 
@@ -74,7 +74,7 @@ The toolbox downloads executables and runs them; a mistake here is a supply-chai
 5. **Tests are the gate.** Every change comes with tests. Parsers get hostile-input tests; `engine/tests/panic_hunt.rs` runs every command with adversarial params and must stay green. Network and install code is tested against local fixtures, temp dirs and a local server, never live GitHub in `cargo test` (live checks belong to `cargo xtask contract`).
 6. **The UI is thin and data-driven.** Colours and radii come from `theme::Tokens`, never hard-coded. Rows come from `Session::statuses()`; actions call `ToolboxApp::run(id, params)`.
 7. **Verify UI changes visually.** Render offscreen with `cargo run -p artcraft-toolbox-ui-egui --example snapshot` (no window, no focus stealing) and look at the PNG, at the default size and a narrow one. **No missing-glyph boxes:** egui's default fonts lack many symbols (`→ ✓ ⟳ ⬇`); `status_text_has_no_missing_glyphs` guards status lines, so add new user-facing symbols to it.
-8. **Respect the user's machine.** Per-user locations by default; touch nothing outside the install root and the toolbox's data dir; uninstall removes exactly what we installed. **Keep the user's app data across updates**: the crafts' Windows portable zips ship `portable.txt`, which keeps data beside the exe, so a per-version install directory would lose it (`docs/release-contract.md` › Gotchas).
+8. **Respect the user's machine.** Per-user locations by default; touch nothing outside the install root and the toolbox's data dir; uninstall removes exactly what we installed. **Keep the user's app data across updates**: the crafts' Windows portable zips ship `portable.txt`, which keeps data beside the exe, so a per-version install directory would lose it (`docs/release-contract.md` › Gotchas), so the installer deletes it. **Tests never install into real folders:** give the session a temp `Layout` (`Session::set_layout`); `Session::open` has none, so installing stays off until one is set (the apps call `use_platform_layout`).
 9. **Be a good API citizen.** A generic User-Agent (`ArtCraft-Toolbox/<version>`; never a person's name, email or other personal details in requests), conditional requests (ETag), cached feeds, no re-request of an app checked in the last minute, and back-off on GitHub's rate limit. Anonymous users get 60 requests per hour and a `304` still costs one (docs/release-contract.md › GitHub API): every new request path must count against that budget.
 10. **Long work is a background job.** Give the command a `start` hook (`engine/src/jobs.rs`): workers send messages, `Session::poll_jobs` applies them on the session's thread. Workers never touch the session, catch their own panics, and stop when cancelled.
 11. **Platform features come through `Services`.** The tray, notifications (and later file managers, launching) live in the desktop app crate; `ui-egui` receives them as optional callbacks (`ui_egui::Services`), so tests and the snapshot example run without them. Work that must happen while the window is hidden goes in `ToolboxApp::tick`, which eframe's `App::logic` runs even then.

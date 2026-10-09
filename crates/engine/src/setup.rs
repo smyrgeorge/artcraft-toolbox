@@ -48,7 +48,8 @@ pub fn open_in(dir: std::result::Result<PathBuf, String>, transport: Option<Arc<
     if let Some(store) = &store {
         log::info!("data directory: {}", store.root().display());
     }
-    let (session, mut more) = Session::open(catalog, store, transport);
+    let (mut session, mut more) = Session::open(catalog, store, transport);
+    session.use_platform_layout();
     warnings.append(&mut more);
     Ok(Opened { session, warnings })
 }

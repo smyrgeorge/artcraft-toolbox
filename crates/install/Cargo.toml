@@ -1,0 +1,19 @@
+[package]
+name = "artcraft-toolbox-install"
+description = "Installs, uninstalls and launches Crafting Apps per OS: DMG on macOS, portable zip on Windows, AppImage on Linux"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+artcraft-toolbox-release = { workspace = true }
+thiserror = { workspace = true }
+log = { workspace = true }
+# SHA-256 of downloads, checked against the release's SHA256SUMS.txt (RustCrypto, pure Rust).
+sha2 = "0.10"
+# Windows portable zips: deflate only, pure-Rust backend.
+zip = { version = "9", default-features = false, features = ["deflate-flate2"] }
+flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
