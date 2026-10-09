@@ -163,8 +163,7 @@ fn shortcut(menu: &Path, app: &AppInfo, exe: &Path) -> Result<()> {
     let lnk = menu.join(format!("{}.lnk", app.name));
     let dir = exe.parent().unwrap_or(exe);
     let script = "$s = (New-Object -ComObject WScript.Shell).CreateShortcut($env:TOOLBOX_LNK); $s.TargetPath = $env:TOOLBOX_TARGET; $s.WorkingDirectory = $env:TOOLBOX_DIR; $s.Description = $env:TOOLBOX_DESC; $s.Save()";
-    let out = std::process::Command::new("powershell")
-        .args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script])
+    let out = crate::powershell(script)
         .env("TOOLBOX_LNK", &lnk)
         .env("TOOLBOX_TARGET", exe)
         .env("TOOLBOX_DIR", dir)

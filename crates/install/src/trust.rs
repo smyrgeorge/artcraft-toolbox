@@ -93,23 +93,25 @@ pub fn gatekeeper_accepts(exit_ok: bool, output: &str) -> bool {
 fn windows(exe: &Path) -> Result<Trust> {
     // The path travels in an environment variable, so no quoting can break the command. Only
     // stdout is read, its lines marked: Windows PowerShell may write progress records ("#< CLIXML")
-    // to stderr when it loads a module for the first time.
-    let script = "$ProgressPreference = 'SilentlyContinue'; $s = Get-AuthenticodeSignature -LiteralPath $env:TOOLBOX_PATH; 'STATUS=' + $s.Status; if ($s.SignerCertificate) { 'SIGNER=' + $s.SignerCertificate.Subject }";
-    let out = Command::new("powershell")
-        .args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script])
-        .env("TOOLBOX_PATH", exe)
-        .stdin(Stdio::null())
-        .output();
+    // to stderr when it loads a module for the first time. The cmdlet's module is imported from
+    // Windows PowerShell's own folder: a `PSModulePath` inherited from PowerShell 7 (its terminal,
+    // GitHub's runners) would load PowerShell 7's copy, which Windows PowerShell can't. A failure
+    // comes back as an `ERROR=` line.
+    let script = "$ProgressPreference = 'SilentlyContinue'; try { Import-Module (Join-Path $PSHOME 'Modules\\Microsoft.PowerShell.Security\\Microsoft.PowerShell.Security.psd1') -ErrorAction Stop; $s = Get-AuthenticodeSignature -LiteralPath $env:TOOLBOX_PATH -ErrorAction Stop; 'STATUS=' + $s.Status; if ($s.SignerCertificate) { 'SIGNER=' + $s.SignerCertificate.Subject } } catch { 'ERROR=' + $_.Exception.Message }";
+    let out = crate::powershell(script).env("TOOLBOX_PATH", exe).stdin(Stdio::null()).output();
     match out {
         Ok(out) => authenticode(&String::from_utf8_lossy(&out.stdout)),
         Err(e) => Ok(Trust::Unchecked { reason: format!("powershell: {e}") }),
     }
 }
 
-/// The `STATUS=` and `SIGNER=` lines of `Get-AuthenticodeSignature`'s result; other lines are
-/// ignored.
+/// The `STATUS=` and `SIGNER=` lines of `Get-AuthenticodeSignature`'s result, or the `ERROR=`
+/// line of a check that couldn't run; other lines are ignored.
 pub fn authenticode(output: &str) -> Result<Trust> {
     let value = |key: &str| output.lines().find_map(|l| l.trim().strip_prefix(key)).map(str::trim);
+    if let Some(e) = value("ERROR=") {
+        return Ok(Trust::Unchecked { reason: format!("Authenticode: {}", e.chars().take(MAX_SIGNER).collect::<String>()) });
+    }
     let status = value("STATUS=").unwrap_or("");
     let subject = value("SIGNER=").filter(|s| !s.is_empty()).map(|s| s.chars().take(MAX_SIGNER).collect::<String>());
     match (status, subject) {
@@ -169,6 +171,10 @@ mod tests {
             "valid but no signer: not trusted blindly"
         );
         assert_eq!(authenticode("").unwrap(), Trust::Unchecked { reason: "Authenticode status unknown".into() });
+        assert_eq!(
+            authenticode("ERROR=The module could not be loaded.\r\n").unwrap(),
+            Trust::Unchecked { reason: "Authenticode: The module could not be loaded.".into() }
+        );
     }
 
     #[test]

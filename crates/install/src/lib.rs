@@ -252,6 +252,15 @@ pub fn sha256_file(path: &Path) -> Result<Sha256> {
     Ok(Sha256(hasher.finalize().into()))
 }
 
+/// Windows PowerShell running `script`: no profile, no prompts, and no `PSModulePath` inherited
+/// from PowerShell 7 (a terminal or CI runner of that version would make Windows PowerShell load
+/// PowerShell 7's modules, which it can't).
+pub(crate) fn powershell(script: &str) -> std::process::Command {
+    let mut cmd = std::process::Command::new("powershell");
+    cmd.args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script]).env_remove("PSModulePath");
+    cmd
+}
+
 /// A unique staging name beside `final_name` in `dir`: `.<final>.toolbox-<pid>-<n>`.
 pub(crate) fn staging(dir: &Path, final_name: &str) -> PathBuf {
     static N: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);

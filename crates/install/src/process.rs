@@ -68,8 +68,7 @@ pub fn is_running(path: &Path) -> bool {
     if cfg!(windows) {
         // The path travels in an environment variable, so no quoting can break the command.
         let script = "if (Get-Process | Where-Object { $_.Path -and ($_.Path -eq $env:TOOLBOX_PATH -or $_.Path.StartsWith($env:TOOLBOX_PATH + '\\', 'OrdinalIgnoreCase')) }) { exit 0 } else { exit 1 }";
-        return Command::new("powershell")
-            .args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script])
+        return crate::powershell(script)
             .env("TOOLBOX_PATH", path)
             .stdin(Stdio::null())
             .stdout(Stdio::null())
