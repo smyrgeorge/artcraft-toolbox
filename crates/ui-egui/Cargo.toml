@@ -1,0 +1,23 @@
+[package]
+name = "artcraft-toolbox-ui-egui"
+description = "ArtCraft Toolbox's egui shell: the app list, settings and theme (thin: every action is an engine command)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+artcraft-toolbox-engine = { workspace = true }
+artcraft-toolbox-model = { workspace = true }
+egui = { workspace = true }
+eframe = { workspace = true, features = ["default_fonts", "wgpu", "accesskit"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+log = { workspace = true }
+
+[dev-dependencies]
+egui_kittest = { workspace = true, features = ["wgpu", "snapshot", "eframe"] }
+# Only examples/snapshot.rs (fake installations for every status).
+artcraft-toolbox-release = { workspace = true }

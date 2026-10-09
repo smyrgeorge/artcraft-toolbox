@@ -1,0 +1,17 @@
+[package]
+name = "artcraft-toolbox"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+default-run = "artcraft-toolbox"
+description = "ArtCraft Toolbox: install, update and launch the Crafting Apps"
+
+[lints]
+workspace = true
+
+[dependencies]
+artcraft-toolbox-engine = { workspace = true }
+artcraft-toolbox-ui-egui = { workspace = true }
+eframe = { workspace = true, features = ["default_fonts", "wgpu", "accesskit", "wayland", "x11"] }
+egui = { workspace = true }
+log = { workspace = true }

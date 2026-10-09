@@ -1,0 +1,15 @@
+[package]
+name = "artcraft-toolbox-model"
+description = "ArtCraft Toolbox state as plain data: installed versions and settings (serde, no I/O)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+artcraft-toolbox-release = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }

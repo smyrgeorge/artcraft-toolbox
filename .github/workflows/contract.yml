@@ -1,0 +1,51 @@
+# The release contract (docs/release-contract.md): every catalog app's newest stable release must
+# still be installable by the toolbox on every supported host. Daily, because the crafts release
+# on their own schedules; and on changes to the parsers or the catalog. A failure means a craft
+# changed how it publishes: update the contract doc, the parser and a fixture together.
+name: Release contract
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  push:
+    branches: [main]
+    paths:
+      - "crates/catalog/**"
+      - "crates/release/**"
+      - "crates/feed/**"
+      - "xtask/src/contract.rs"
+      - ".github/workflows/contract.yml"
+  pull_request:
+    paths:
+      - "crates/catalog/**"
+      - "crates/release/**"
+      - "crates/feed/**"
+      - "xtask/src/contract.rs"
+      - ".github/workflows/contract.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: contract-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract:
+    name: every craft follows the release contract
+    runs-on: ubuntu-latest
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: contract
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Check the latest release of every catalog app
+        env:
+          # Authenticated GitHub API requests (5,000/hour instead of 60 per runner IP).
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: cargo xtask contract

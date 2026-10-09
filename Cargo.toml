@@ -1,0 +1,46 @@
+[workspace]
+resolver = "3"
+members = ["crates/*", "apps/*", "xtask"]
+default-members = ["crates/*", "apps/artcraft-toolbox", "apps/artcraft-toolbox-cli", "xtask"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+rust-version = "1.95"
+
+[workspace.dependencies]
+# internal
+artcraft-toolbox-release = { path = "crates/release" }
+artcraft-toolbox-catalog = { path = "crates/catalog" }
+artcraft-toolbox-model = { path = "crates/model" }
+artcraft-toolbox-feed = { path = "crates/feed" }
+artcraft-toolbox-engine = { path = "crates/engine" }
+artcraft-toolbox-ui-egui = { path = "crates/ui-egui" }
+
+# external (keep in step with PhotoCraft's workspace: same majors, same egui/eframe line)
+thiserror = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "1"
+eframe = { version = "0.36", default-features = false }
+egui = "0.36"
+egui_kittest = "0.36"
+log = "0.4"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+dbg_macro = "warn"
+todo = "warn"
+
+[profile.dev.package."*"]
+opt-level = 2
+
+[profile.dev]
+opt-level = 1
+
+[profile.release]
+lto = "thin"
+codegen-units = 1

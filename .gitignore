@@ -1,0 +1,11 @@
+*~
+plan/
+/target
+target/
+/dist
+/log
+/secrets
+/temp
+*.log
+__pycache__/
+.DS_Store

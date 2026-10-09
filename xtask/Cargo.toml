@@ -1,0 +1,17 @@
+[package]
+name = "xtask"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+serde_json = { workspace = true }
+# `cargo xtask contract` checks the live releases with the toolbox's own parsers.
+artcraft-toolbox-catalog = { workspace = true }
+artcraft-toolbox-feed = { workspace = true }
+artcraft-toolbox-model = { workspace = true }
+artcraft-toolbox-release = { workspace = true }

@@ -1,0 +1,406 @@
+[
+ {
+  "tag_name": "v0.4.0",
+  "name": "PdfCraft v0.4.0",
+  "draft": false,
+  "prerelease": false,
+  "published_at": "2026-10-08T14:41:34Z",
+  "html_url": "https://github.com/storytold/pdfcraft/releases/tag/v0.4.0",
+  "body": "Release notes trimmed for this test fixture.",
+  "assets": [
+   {
+    "name": "pdfcraft-0.4.0-freebsd-x86_64.tar.gz",
+    "size": 54968447,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.4.0/pdfcraft-0.4.0-freebsd-x86_64.tar.gz"
+   },
+   {
+    "name": "pdfcraft-0.4.0-linux-aarch64.AppImage",
+    "size": 49433096,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.4.0/pdfcraft-0.4.0-linux-aarch64.AppImage"
+   },
+   {
+    "name": "pdfcraft-0.4.0-linux-aarch64.AppImage.zsync",
+    "size": 169211,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.4.0/pdfcraft-0.4.0-linux-aarch64.AppImage.zsync"
+   },
+   {
+    "name": "pdfcraft-0.4.0-linux-aarch64.deb",
+    "size": 53758282,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.4.0/pdfcraft-0.4.0-linux-aarch64.deb"
+   },
+   {
+    "name": "pdfcraft-0.4.0-linux-aarch64.flatpak",
+    "size": 36677776,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.4.0/pdfcraft-0.4.0-linux-aarch64.flatpak"
+   },
+   {
+    "name": "pdfcraft-0.4.0-linux-aarch64.rpm",
+    "size": 53356140,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.4.0/pdfcraft-0.4.0-linux-aarch64.rpm"
+   },
+   {
+    "name": "pdfcraft-0.4.0-linux-aarch64.tar.gz",
+    "size": 52223694,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.4.0/pdfcraft-0.4.0-linux-aarch64.tar.gz"
+   },
+   {
+    "name": "pdfcraft-0.4.0-linux-x86_64.AppImage",
+    "size": 52324856,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.4.0/pdfcraft-0.4.0-linux-x86_64.AppImage"
+   },
+   {
+    "name": "pdfcraft-0.4.0-linux-x86_64.AppImage.zsync",
+    "size": 179093,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.4.0/pdfcraft-0.4.0-linux-x86_64.AppImage.zsync"
+   },
+   {
+    "name": "pdfcraft-0.4.0-linux-x86_64.deb",
+    "size": 56164366,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.4.0/pdfcraft-0.4.0-linux-x86_64.deb"
+   },
+   {
+    "name": "pdfcraft-0.4.0-linux-x86_64.flatpak",
+    "size": 39965744,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.4.0/pdfcraft-0.4.0-linux-x86_64.flatpak"
+   },
+   {
+    "name": "pdfcraft-0.4.0-linux-x86_64.rpm",
+    "size": 55849600,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.4.0/pdfcraft-0.4.0-linux-x86_64.rpm"
+   },
+   {
+    "name": "pdfcraft-0.4.0-linux-x86_64.tar.gz",
+    "size": 55283710,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.4.0/pdfcraft-0.4.0-linux-x86_64.tar.gz"
+   },
+   {
+    "name": "pdfcraft-0.4.0-macos-universal.dmg",
+    "size": 72137812,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.4.0/pdfcraft-0.4.0-macos-universal.dmg"
+   },
+   {
+    "name": "pdfcraft-0.4.0-windows-arm64-portable.zip",
+    "size": 51947309,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.4.0/pdfcraft-0.4.0-windows-arm64-portable.zip"
+   },
+   {
+    "name": "pdfcraft-0.4.0-windows-arm64.msi",
+    "size": 40931328,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.4.0/pdfcraft-0.4.0-windows-arm64.msi"
+   },
+   {
+    "name": "pdfcraft-0.4.0-windows-x64-portable.zip",
+    "size": 54951540,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.4.0/pdfcraft-0.4.0-windows-x64-portable.zip"
+   },
+   {
+    "name": "pdfcraft-0.4.0-windows-x64.msi",
+    "size": 44273664,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.4.0/pdfcraft-0.4.0-windows-x64.msi"
+   },
+   {
+    "name": "pdfcraft-0.4.0-windows-x86-portable.zip",
+    "size": 51577498,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.4.0/pdfcraft-0.4.0-windows-x86-portable.zip"
+   },
+   {
+    "name": "pdfcraft-0.4.0-windows-x86.msi",
+    "size": 42401792,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.4.0/pdfcraft-0.4.0-windows-x86.msi"
+   },
+   {
+    "name": "pdfcraft-cli-0.4.0-macos-universal.zip",
+    "size": 34099222,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.4.0/pdfcraft-cli-0.4.0-macos-universal.zip"
+   },
+   {
+    "name": "pdfcraft-web-0.4.0.zip",
+    "size": 14462694,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.4.0/pdfcraft-web-0.4.0.zip"
+   },
+   {
+    "name": "SHA256SUMS.txt",
+    "size": 2239,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.4.0/SHA256SUMS.txt"
+   }
+  ]
+ },
+ {
+  "tag_name": "v0.2.1",
+  "name": "PrintCraft v0.2.1",
+  "draft": false,
+  "prerelease": false,
+  "published_at": "2026-10-06T12:37:41Z",
+  "html_url": "https://github.com/storytold/pdfcraft/releases/tag/v0.2.1",
+  "body": "Release notes trimmed for this test fixture.",
+  "assets": [
+   {
+    "name": "printcraft-0.2.1-freebsd-x86_64.tar.gz",
+    "size": 43656761,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.2.1/printcraft-0.2.1-freebsd-x86_64.tar.gz"
+   },
+   {
+    "name": "printcraft-0.2.1-linux-aarch64.AppImage",
+    "size": 38677000,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.2.1/printcraft-0.2.1-linux-aarch64.AppImage"
+   },
+   {
+    "name": "printcraft-0.2.1-linux-aarch64.deb",
+    "size": 42437800,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.2.1/printcraft-0.2.1-linux-aarch64.deb"
+   },
+   {
+    "name": "printcraft-0.2.1-linux-aarch64.rpm",
+    "size": 42087937,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.2.1/printcraft-0.2.1-linux-aarch64.rpm"
+   },
+   {
+    "name": "printcraft-0.2.1-linux-aarch64.tar.gz",
+    "size": 40983822,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.2.1/printcraft-0.2.1-linux-aarch64.tar.gz"
+   },
+   {
+    "name": "printcraft-0.2.1-linux-x86_64.AppImage",
+    "size": 41540088,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.2.1/printcraft-0.2.1-linux-x86_64.AppImage"
+   },
+   {
+    "name": "printcraft-0.2.1-linux-x86_64.deb",
+    "size": 44794282,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.2.1/printcraft-0.2.1-linux-x86_64.deb"
+   },
+   {
+    "name": "printcraft-0.2.1-linux-x86_64.rpm",
+    "size": 44530825,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.2.1/printcraft-0.2.1-linux-x86_64.rpm"
+   },
+   {
+    "name": "printcraft-0.2.1-linux-x86_64.tar.gz",
+    "size": 43955702,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.2.1/printcraft-0.2.1-linux-x86_64.tar.gz"
+   },
+   {
+    "name": "printcraft-0.2.1-macos-universal.dmg",
+    "size": 50176404,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.2.1/printcraft-0.2.1-macos-universal.dmg"
+   },
+   {
+    "name": "printcraft-0.2.1-windows-x64-portable.zip",
+    "size": 43436865,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.2.1/printcraft-0.2.1-windows-x64-portable.zip"
+   },
+   {
+    "name": "printcraft-0.2.1-windows-x64.msi",
+    "size": 34353152,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.2.1/printcraft-0.2.1-windows-x64.msi"
+   },
+   {
+    "name": "printcraft-0.2.1-windows-x86-portable.zip",
+    "size": 40192450,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.2.1/printcraft-0.2.1-windows-x86-portable.zip"
+   },
+   {
+    "name": "printcraft-0.2.1-windows-x86.msi",
+    "size": 32563200,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.2.1/printcraft-0.2.1-windows-x86.msi"
+   },
+   {
+    "name": "printcraft-cli-0.2.1-macos-universal.zip",
+    "size": 33170356,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.2.1/printcraft-cli-0.2.1-macos-universal.zip"
+   },
+   {
+    "name": "printcraft-web-0.2.1.zip",
+    "size": 15461594,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.2.1/printcraft-web-0.2.1.zip"
+   },
+   {
+    "name": "SHA256SUMS.txt",
+    "size": 1640,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.2.1/SHA256SUMS.txt"
+   }
+  ]
+ },
+ {
+  "tag_name": "v0.2.0",
+  "name": "PrintCraft v0.2.0",
+  "draft": false,
+  "prerelease": false,
+  "published_at": "2026-10-05T07:03:10Z",
+  "html_url": "https://github.com/storytold/pdfcraft/releases/tag/v0.2.0",
+  "body": "Release notes trimmed for this test fixture.",
+  "assets": [
+   {
+    "name": "printcraft-0.2.0-linux-aarch64.AppImage",
+    "size": 29723144,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.2.0/printcraft-0.2.0-linux-aarch64.AppImage"
+   },
+   {
+    "name": "printcraft-0.2.0-linux-aarch64.deb",
+    "size": 33085394,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.2.0/printcraft-0.2.0-linux-aarch64.deb"
+   },
+   {
+    "name": "printcraft-0.2.0-linux-aarch64.rpm",
+    "size": 32800890,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.2.0/printcraft-0.2.0-linux-aarch64.rpm"
+   },
+   {
+    "name": "printcraft-0.2.0-linux-aarch64.tar.gz",
+    "size": 31673108,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.2.0/printcraft-0.2.0-linux-aarch64.tar.gz"
+   },
+   {
+    "name": "printcraft-0.2.0-linux-x86_64.AppImage",
+    "size": 32532984,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.2.0/printcraft-0.2.0-linux-x86_64.AppImage"
+   },
+   {
+    "name": "printcraft-0.2.0-linux-x86_64.deb",
+    "size": 35434472,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.2.0/printcraft-0.2.0-linux-x86_64.deb"
+   },
+   {
+    "name": "printcraft-0.2.0-linux-x86_64.rpm",
+    "size": 35228260,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.2.0/printcraft-0.2.0-linux-x86_64.rpm"
+   },
+   {
+    "name": "printcraft-0.2.0-linux-x86_64.tar.gz",
+    "size": 34633267,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.2.0/printcraft-0.2.0-linux-x86_64.tar.gz"
+   },
+   {
+    "name": "printcraft-0.2.0-macos-universal.dmg",
+    "size": 40790625,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.2.0/printcraft-0.2.0-macos-universal.dmg"
+   },
+   {
+    "name": "printcraft-0.2.0-windows-x64-portable.zip",
+    "size": 34084130,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.2.0/printcraft-0.2.0-windows-x64-portable.zip"
+   },
+   {
+    "name": "printcraft-0.2.0-windows-x64.msi",
+    "size": 26296320,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.2.0/printcraft-0.2.0-windows-x64.msi"
+   },
+   {
+    "name": "printcraft-0.2.0-windows-x86-portable.zip",
+    "size": 30848751,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.2.0/printcraft-0.2.0-windows-x86-portable.zip"
+   },
+   {
+    "name": "printcraft-0.2.0-windows-x86.msi",
+    "size": 24489984,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.2.0/printcraft-0.2.0-windows-x86.msi"
+   },
+   {
+    "name": "printcraft-cli-0.2.0-macos-universal.zip",
+    "size": 23657057,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.2.0/printcraft-cli-0.2.0-macos-universal.zip"
+   },
+   {
+    "name": "printcraft-web-0.2.0.zip",
+    "size": 10863255,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.2.0/printcraft-web-0.2.0.zip"
+   },
+   {
+    "name": "SHA256SUMS.txt",
+    "size": 1535,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.2.0/SHA256SUMS.txt"
+   }
+  ]
+ },
+ {
+  "tag_name": "v0.1.1",
+  "name": "PrintCraft v0.1.1",
+  "draft": false,
+  "prerelease": false,
+  "published_at": "2026-10-03T14:24:20Z",
+  "html_url": "https://github.com/storytold/pdfcraft/releases/tag/v0.1.1",
+  "body": "Release notes trimmed for this test fixture.",
+  "assets": [
+   {
+    "name": "printcraft-0.1.1-linux-aarch64.AppImage",
+    "size": 28875272,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.1.1/printcraft-0.1.1-linux-aarch64.AppImage"
+   },
+   {
+    "name": "printcraft-0.1.1-linux-aarch64.deb",
+    "size": 32171474,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.1.1/printcraft-0.1.1-linux-aarch64.deb"
+   },
+   {
+    "name": "printcraft-0.1.1-linux-aarch64.rpm",
+    "size": 31886801,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.1.1/printcraft-0.1.1-linux-aarch64.rpm"
+   },
+   {
+    "name": "printcraft-0.1.1-linux-aarch64.tar.gz",
+    "size": 30790497,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.1.1/printcraft-0.1.1-linux-aarch64.tar.gz"
+   },
+   {
+    "name": "printcraft-0.1.1-linux-x86_64.AppImage",
+    "size": 31693304,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.1.1/printcraft-0.1.1-linux-x86_64.AppImage"
+   },
+   {
+    "name": "printcraft-0.1.1-linux-x86_64.deb",
+    "size": 34470500,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.1.1/printcraft-0.1.1-linux-x86_64.deb"
+   },
+   {
+    "name": "printcraft-0.1.1-linux-x86_64.rpm",
+    "size": 34276278,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.1.1/printcraft-0.1.1-linux-x86_64.rpm"
+   },
+   {
+    "name": "printcraft-0.1.1-linux-x86_64.tar.gz",
+    "size": 33695555,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.1.1/printcraft-0.1.1-linux-x86_64.tar.gz"
+   },
+   {
+    "name": "printcraft-0.1.1-macos-universal.dmg",
+    "size": 38882273,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.1.1/printcraft-0.1.1-macos-universal.dmg"
+   },
+   {
+    "name": "printcraft-0.1.1-windows-x64-portable.zip",
+    "size": 33154458,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.1.1/printcraft-0.1.1-windows-x64-portable.zip"
+   },
+   {
+    "name": "printcraft-0.1.1-windows-x64.msi",
+    "size": 25681920,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.1.1/printcraft-0.1.1-windows-x64.msi"
+   },
+   {
+    "name": "printcraft-0.1.1-windows-x86-portable.zip",
+    "size": 30184713,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.1.1/printcraft-0.1.1-windows-x86-portable.zip"
+   },
+   {
+    "name": "printcraft-0.1.1-windows-x86.msi",
+    "size": 23965696,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.1.1/printcraft-0.1.1-windows-x86.msi"
+   },
+   {
+    "name": "printcraft-cli-0.1.1-macos-universal.zip",
+    "size": 23640664,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.1.1/printcraft-cli-0.1.1-macos-universal.zip"
+   },
+   {
+    "name": "printcraft-web-0.1.1.zip",
+    "size": 10862952,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.1.1/printcraft-web-0.1.1.zip"
+   },
+   {
+    "name": "SHA256SUMS.txt",
+    "size": 1535,
+    "browser_download_url": "https://github.com/storytold/pdfcraft/releases/download/v0.1.1/SHA256SUMS.txt"
+   }
+  ]
+ }
+]

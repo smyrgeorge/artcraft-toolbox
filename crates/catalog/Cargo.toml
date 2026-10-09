@@ -1,0 +1,14 @@
+[package]
+name = "artcraft-toolbox-catalog"
+description = "The Crafting Apps the toolbox manages: ids, names, repositories (data, embedded catalog.toml)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+serde = { workspace = true }
+thiserror = { workspace = true }
+toml = { workspace = true }

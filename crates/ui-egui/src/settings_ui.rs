@@ -1,0 +1,49 @@
+//! The Settings tab. Every change is a `settings.set` command, like any other action.
+
+use artcraft_toolbox_model::Channel;
+use serde_json::json;
+
+use crate::ToolboxApp;
+use crate::theme::Tokens;
+use crate::widgets::card;
+
+pub fn show(app: &mut ToolboxApp, ui: &mut egui::Ui, t: &Tokens) {
+    let s = app.session.settings().clone();
+    card(ui, t, |ui| {
+        ui.label(egui::RichText::new("Updates").strong());
+        ui.horizontal(|ui| {
+            ui.label("Channel:");
+            for (c, label) in [(Channel::Stable, "Stable"), (Channel::Prerelease, "Pre-release")] {
+                if ui.radio(s.channel == c, label).clicked() && s.channel != c {
+                    app.run("settings.set", json!({"channel": c}));
+                }
+            }
+        });
+        let mut auto = s.auto_update;
+        if ui.checkbox(&mut auto, "Install updates automatically").changed() {
+            app.run("settings.set", json!({"autoUpdate": auto}));
+        }
+        ui.horizontal(|ui| {
+            ui.label("Check every");
+            let mut hours = s.check_interval_hours;
+            if ui.add(egui::DragValue::new(&mut hours).range(0..=artcraft_toolbox_model::settings::MAX_CHECK_INTERVAL_HOURS).suffix(" h")).changed() {
+                app.run("settings.set", json!({"checkIntervalHours": hours}));
+            }
+        });
+        ui.horizontal(|ui| {
+            ui.label("Keep previous versions:");
+            let mut keep = s.keep_previous;
+            if ui.add(egui::DragValue::new(&mut keep).range(0..=artcraft_toolbox_model::settings::MAX_KEEP_PREVIOUS)).changed() {
+                app.run("settings.set", json!({"keepPrevious": keep}));
+            }
+        });
+        ui.label(egui::RichText::new("Settings are not saved between launches yet.").small().color(t.text_faint));
+    });
+    ui.add_space(8.0);
+    card(ui, t, |ui| {
+        ui.label(egui::RichText::new("About").strong());
+        ui.label(format!("ArtCraft Toolbox {}", artcraft_toolbox_engine::build_info::long_version()));
+        let host = app.session.host().map(|h| h.to_string()).unwrap_or_else(|| "unsupported platform".into());
+        ui.label(egui::RichText::new(format!("This computer: {host}")).color(t.text_dim));
+    });
+}

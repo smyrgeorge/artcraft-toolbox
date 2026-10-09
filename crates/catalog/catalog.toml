@@ -1,0 +1,97 @@
+# The Crafting Apps ArtCraft Toolbox installs and updates, in display order.
+#
+# Every app here must follow the release contract in docs/release-contract.md (GitHub Releases
+# tagged v<version>, assets named <id>-<version>-<os>-<arch>.<ext>, SHA256SUMS.txt).
+# `cargo xtask contract` checks the live releases of every entry against it.
+#
+# Fields:
+#   id            the slug in asset names, binaries and the bundle id (ai.storyteller.<id>)
+#   name          user-facing name, always {Function}Craft in PascalCase
+#   tagline       one line for the app list
+#   repo          GitHub owner/name that publishes the releases
+#   website       optional product page
+#   former_slugs  optional earlier asset-name slugs (PdfCraft shipped 0.2.x as printcraft)
+#   bundle_id     optional, when it is not ai.storyteller.<id>
+#
+# Checked against GitHub on 2026-10-09: all twelve publish the contract's full asset set.
+schema = 1
+
+[[app]]
+id = "photocraft"
+name = "PhotoCraft"
+tagline = "Image editing: layers, masks, type and real PSD files"
+repo = "storytold/photocraft"
+website = "https://getartcraft.com/apps/photocraft"
+
+[[app]]
+id = "vectorcraft"
+name = "VectorCraft"
+tagline = "Vector illustration"
+repo = "storytold/vectorcraft"
+website = "https://getartcraft.com/apps/vectorcraft"
+
+[[app]]
+id = "filmcraft"
+name = "FilmCraft"
+tagline = "Video editing, color and sound"
+repo = "storytold/filmcraft"
+website = "https://getartcraft.com/apps/filmcraft"
+
+[[app]]
+id = "lightcraft"
+name = "LightCraft"
+tagline = "Photo library and raw development"
+repo = "storytold/lightcraft"
+website = "https://getartcraft.com/apps/lightcraft"
+
+[[app]]
+id = "pdfcraft"
+name = "PdfCraft"
+tagline = "Reading, organizing and protecting PDFs"
+repo = "storytold/pdfcraft"
+website = "https://getartcraft.com/apps/pdfcraft"
+former_slugs = ["printcraft"]
+
+[[app]]
+id = "effectcraft"
+name = "EffectCraft"
+tagline = "Motion graphics and visual effects"
+repo = "storytold/effectcraft"
+website = "https://getartcraft.com/apps/effectcraft"
+
+[[app]]
+id = "designcraft"
+name = "DesignCraft"
+tagline = "Page layout and publishing"
+repo = "storytold/designcraft"
+website = "https://getartcraft.com/apps/designcraft"
+
+[[app]]
+id = "cadcraft"
+name = "CADCraft"
+tagline = "Computer-aided design and drafting"
+repo = "storytold/cadcraft"
+
+[[app]]
+id = "deckcraft"
+name = "DeckCraft"
+tagline = "Presentations and slide shows"
+repo = "storytold/deckcraft"
+
+[[app]]
+id = "gridcraft"
+name = "GridCraft"
+tagline = "Spreadsheets"
+repo = "storytold/gridcraft"
+
+[[app]]
+id = "soundcraft"
+name = "SoundCraft"
+tagline = "Audio recording, editing and mixing"
+repo = "storytold/soundcraft"
+
+[[app]]
+id = "wordcraft"
+name = "WordCraft"
+tagline = "Word processing"
+repo = "storytold/wordcraft"
