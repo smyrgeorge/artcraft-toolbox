@@ -23,8 +23,8 @@ impl Sha256 {
             return None;
         }
         let mut out = [0u8; 32];
-        for (o, pair) in out.iter_mut().zip(b.chunks_exact(2)) {
-            let [hi, lo] = pair else { return None };
+        let (pairs, _) = b.as_chunks::<2>();
+        for (o, [hi, lo]) in out.iter_mut().zip(pairs) {
             *o = (hex_val(*hi)? << 4) | hex_val(*lo)?;
         }
         Some(Sha256(out))

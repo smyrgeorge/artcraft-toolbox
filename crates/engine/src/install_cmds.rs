@@ -444,7 +444,8 @@ mod tests {
     fn install_downloads_verifies_installs_and_records() {
         let Setup { root, mut session, .. } = good();
         let out = session.execute(INSTALL, json!({"app": "photocraft"})).unwrap();
-        let path = root.join("apps/photocraft/0.5.0/photocraft.AppImage");
+        // Joined part by part: the path is compared as text, with the platform's separators.
+        let path = root.join("apps").join("photocraft").join("0.5.0").join("photocraft.AppImage");
         assert_eq!(out["path"], path.to_str().unwrap());
         assert_eq!(std::fs::read(&path).unwrap(), appimage());
         assert!(root.join("share/applications/ai.storyteller.photocraft.desktop").is_file());
