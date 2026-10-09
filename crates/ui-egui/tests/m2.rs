@@ -67,12 +67,16 @@ fn harness(app: ToolboxApp) -> Harness<'static, ToolboxApp> {
     h
 }
 
+/// Draw frames until the background jobs are done (by a deadline, not a frame count: CI machines
+/// differ).
 fn wait_for_jobs(h: &mut Harness<'static, ToolboxApp>) {
-    for _ in 0..400 {
+    let deadline = std::time::Instant::now() + Duration::from_secs(20);
+    loop {
         h.step();
         if !h.state().session.has_jobs() {
             break;
         }
+        assert!(std::time::Instant::now() < deadline, "background jobs still running after 20 s");
         std::thread::sleep(Duration::from_millis(5));
     }
     h.run();

@@ -22,16 +22,23 @@ fn session() -> Session {
 
 /// Draws with `tick` too, as eframe's `logic` does in the app.
 fn harness(app: ToolboxApp) -> Harness<'static, ToolboxApp> {
-    let mut h = Harness::builder().with_size(egui::vec2(440.0, 1400.0)).build_ui_state(
+    let mut h = unsettled(app);
+    h.run();
+    h
+}
+
+/// The harness before its first frames: for a test whose first tick starts background work,
+/// which keeps the UI repainting until it ends (`Harness::run` gives up after a few frames, and
+/// how many the work takes depends on the machine).
+fn unsettled(app: ToolboxApp) -> Harness<'static, ToolboxApp> {
+    Harness::builder().with_size(egui::vec2(440.0, 1400.0)).build_ui_state(
         |ui, app: &mut ToolboxApp| {
             ToolboxApp::setup_context(ui.ctx());
             app.tick(ui.ctx());
             app.show(ui);
         },
         app,
-    );
-    h.run();
-    h
+    )
 }
 
 #[test]
@@ -80,12 +87,16 @@ impl Transport for Feed {
     }
 }
 
+/// Draw frames until the background jobs are done (by a deadline, not a frame count: CI machines
+/// differ).
 fn wait_for_jobs(h: &mut Harness<'static, ToolboxApp>) {
-    for _ in 0..400 {
+    let deadline = std::time::Instant::now() + Duration::from_secs(20);
+    loop {
         h.step();
         if !h.state().session.has_jobs() {
             break;
         }
+        assert!(std::time::Instant::now() < deadline, "background jobs still running after 20 s");
         std::thread::sleep(Duration::from_millis(5));
     }
     h.step();
@@ -110,7 +121,7 @@ fn a_background_check_notifies_once_per_new_version() {
     let log = Arc::clone(&sent);
     let services = Services { notify: Some(Box::new(move |title, body| log.lock().unwrap().push((title.into(), body.into())))), tray: false };
     // The first tick starts the due check by itself (never checked), as the app does at start.
-    let mut h = harness(ToolboxApp::with_services(s, services));
+    let mut h = unsettled(ToolboxApp::with_services(s, services));
     wait_for_jobs(&mut h);
     assert_eq!(*sent.lock().unwrap(), [("Update available".to_string(), "PhotoCraft 0.5.0".to_string())]);
     // A manual check finds the same version: no second notification.
