@@ -10,6 +10,7 @@
 - **Tests:** required for every change. Parsers need malformed-input tests; anything that touches the network or the disk is tested with fixtures and temp dirs, not live services.
 - **Style:** `cargo fmt`, and `cargo clippy --workspace --all-targets -- -D warnings`. Match surrounding code. Comments explain *why*.
 - **UI:** use `theme::Tokens` and `widgets::*`. Verify visually (the offscreen `snapshot` example) and attach before/after screenshots to PRs.
+- **Strings:** user-facing text goes through `tl!` (or `wording`) and gets a translation in every catalog in the same change; see `docs/localization.md`.
 - **Commits:** small, focused, with a clear subject line.
 
 ## Adding a command

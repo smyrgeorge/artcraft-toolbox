@@ -13,7 +13,8 @@ ArtCraft Toolbox installs, updates, rolls back and launches the **Crafting Apps*
 | `docs/development.md` | Build, run, test, offline feeds, offscreen UI snapshots, env vars |
 | `docs/contributing.md` | Rules, and the "add a command" checklist |
 | `docs/roadmap.md` | Milestones M0–M8 and the **current focus** |
-| `docs/ui-design.md` | Layout, tokens, widgets, and the planned behaviour |
+| `docs/ui-design.md` | Layout, tokens (dark and light), widgets, accessibility, and the planned behaviour |
+| `docs/localization.md` | The 15 UI languages, `tl!`, catalogs, adding a string or a language |
 | `SECURITY.md` | Threat model: this app downloads executables and runs them |
 
 ## 2. Workspace map
@@ -29,7 +30,7 @@ crates/
   install      L3             per-OS place / activate / remove versions, launch, platform signatures (trust): DMG -> .app, portable zip, AppImage; Layout
   jobs         L4  planned    background work outside the engine (self-update)
   engine       L5             Session + command registry (every action is a command) + background jobs (checks, icons, installs)
-  ui-egui      L6             egui shell (thin: all actions go through the engine)
+  ui-egui      L6             egui shell (thin: all actions go through the engine); i18n catalogs, wording, themes
   automation   L6  planned    control channel + MCP server over the command registry
   testkit          planned    shared test helpers (fake feeds, temp install roots); dev-dependency only
 apps/
@@ -72,8 +73,8 @@ The toolbox downloads executables and runs them; a mistake here is a supply-chai
 3. **The release contract is our API.** `docs/release-contract.md` is everything we rely on from the crafts; `cargo xtask contract` checks it against the live releases. When a craft changes its release pipeline, update the doc, the parser and a fixture in one change.
 4. **The core is pure.** L0–L2 take bytes and return data: no network, no filesystem, no clock (pass `now` in), no environment. That is what lets them be tested with real captured responses (`crates/feed/tests/fixtures/`). Above L2, network goes through a `net::Transport` and time through the session's clock (`Session::set_clock`), so tests fake both.
 5. **Tests are the gate.** Every change comes with tests. Parsers get hostile-input tests; `engine/tests/panic_hunt.rs` runs every command with adversarial params and must stay green. Network and install code is tested against local fixtures, temp dirs and a local server, never live GitHub in `cargo test` (live checks belong to `cargo xtask contract`).
-6. **The UI is thin and data-driven.** Colours and radii come from `theme::Tokens`, never hard-coded. Rows come from `Session::statuses()`; actions call `ToolboxApp::run(id, params)`.
-7. **Verify UI changes visually.** Render offscreen with `cargo run -p artcraft-toolbox-ui-egui --example snapshot` (no window, no focus stealing) and look at the PNG, at the default size and a narrow one. **No missing-glyph boxes:** egui's default fonts lack many symbols (`→ ✓ ⟳ ⬇`); `status_text_has_no_missing_glyphs` guards status lines, so add new user-facing symbols to it.
+6. **The UI is thin and data-driven.** Colours and radii come from `theme::Tokens`, never hard-coded, and a new text colour pairing must pass the WCAG AA test in both themes. Rows come from `Session::statuses()`; actions call `ToolboxApp::run(id, params)`. **Every user-facing string is translated:** `tl!("literal")`, `fmt`/`tn` for placeholders and counts, `wording` for text built from engine data; add its translation to all 14 catalogs in the same change (`docs/localization.md`). The engine, CLI and logs stay English.
+7. **Verify UI changes visually.** Render offscreen with `cargo run -p artcraft-toolbox-ui-egui --example snapshot` (no window, no focus stealing) and look at the PNG, at the default size and a narrow one, and with `--theme light` and `--lang de` when you touched layout or wording. **No missing-glyph boxes:** egui's default fonts lack many symbols (`→ ✓ ⟳ ⬇`); `status_text_has_no_missing_glyphs` guards status lines, so add new user-facing symbols to it.
 8. **Respect the user's machine.** Per-user locations by default; touch nothing outside the install root and the toolbox's data dir; uninstall removes exactly what we installed. **Keep the user's app data across updates**: the crafts' Windows portable zips ship `portable.txt`, which keeps data beside the exe, so a per-version install directory would lose it (`docs/release-contract.md` › Gotchas), so the installer deletes it. **Tests never install into real folders:** give the session a temp `Layout` (`Session::set_layout`); `Session::open` has none, so installing stays off until one is set (the apps call `use_platform_layout`).
 9. **Be a good API citizen.** A generic User-Agent (`ArtCraft-Toolbox/<version>`; never a person's name, email or other personal details in requests), conditional requests (ETag), cached feeds, no re-request of an app checked in the last minute, and back-off on GitHub's rate limit. Anonymous users get 60 requests per hour and a `304` still costs one (docs/release-contract.md › GitHub API): every new request path must count against that budget.
 10. **Long work is a background job.** Give the command a `start` hook (`engine/src/jobs.rs`): workers send messages, `Session::poll_jobs` applies them on the session's thread. Workers never touch the session, catch their own panics, and stop when cancelled.

@@ -62,7 +62,14 @@ fn session(root: &Path) -> Session {
     s
 }
 
+/// The UI in English whatever this computer's language (the tests read English labels).
+fn english(mut app: ToolboxApp) -> ToolboxApp {
+    app.session.execute("settings.set", serde_json::json!({ "language": "en" })).unwrap();
+    app
+}
+
 fn harness(app: ToolboxApp) -> Harness<'static, ToolboxApp> {
+    let app = english(app);
     let mut h = Harness::builder().with_size(egui::vec2(440.0, 1400.0)).build_ui_state(
         |ui, app: &mut ToolboxApp| {
             ToolboxApp::setup_context(ui.ctx());

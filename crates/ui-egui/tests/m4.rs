@@ -20,6 +20,12 @@ fn session() -> Session {
     s
 }
 
+/// The UI in English whatever this computer's language (the tests read English labels).
+fn english(mut app: ToolboxApp) -> ToolboxApp {
+    app.session.execute("settings.set", serde_json::json!({ "language": "en" })).unwrap();
+    app
+}
+
 /// Draws with `tick` too, as eframe's `logic` does in the app.
 fn harness(app: ToolboxApp) -> Harness<'static, ToolboxApp> {
     let mut h = unsettled(app);
@@ -31,6 +37,7 @@ fn harness(app: ToolboxApp) -> Harness<'static, ToolboxApp> {
 /// which keeps the UI repainting until it ends (`Harness::run` gives up after a few frames, and
 /// how many the work takes depends on the machine).
 fn unsettled(app: ToolboxApp) -> Harness<'static, ToolboxApp> {
+    let app = english(app);
     Harness::builder().with_size(egui::vec2(440.0, 1400.0)).build_ui_state(
         |ui, app: &mut ToolboxApp| {
             ToolboxApp::setup_context(ui.ctx());

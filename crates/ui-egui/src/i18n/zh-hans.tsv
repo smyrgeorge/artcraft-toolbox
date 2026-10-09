@@ -1,0 +1,170 @@
+# Simplified Chinese (zh-hans) catalog for ArtCraft Toolbox. Columns, separated by a TAB:  context <TAB> source <TAB> translation
+#
+#   context  empty                a plain UI string; `source` is the English text in the code
+#            @plural              `source` is "one|other" (the English forms); the translation lists the
+#                                 language's forms separated by "|" (see `plural` in i18n/mod.rs)
+#            anything else        a disambiguating context passed to `tr_ctx`
+#   escapes  \n  \t  \\  inside a column. `{name}` placeholders must appear in both columns.
+#   lines starting with # and blank lines are ignored.
+#
+# Clean-room: entries are written from the plain meaning of the English text in ordinary computing
+# vocabulary, or taken from PhotoCraft's catalog for the same English string (MIT OR Apache-2.0,
+# like this project). No proprietary localisation resource was consulted or copied.
+# Product names (ArtCraft Toolbox, PhotoCraft, GitHub, macOS ...) stay as they are; the trailing "…"
+# of commands that ask before acting is kept.
+
+# == Interface
+	Downloading {percent}%	正在下载 {percent}%
+	Cancel	取消
+	Stop; installing again resumes the download	停止；再次安装会继续下载
+	Update {app} from {installed} to {latest}	将 {app} 从 {installed} 更新到 {latest}
+	Update	更新
+	Open	打开
+	Open {app}	打开 {app}
+	Let the toolbox update and roll back the {app} found on this computer	让工具箱更新和回滚在这台电脑上找到的 {app}
+	Adopt	纳入管理
+	Install {app} {version}	安装 {app} {version}
+	Install	安装
+	Check for updates first	请先检查更新
+	No app matches “{query}”	没有与“{query}”匹配的应用
+	Installed	已安装
+	Update all ({n})	全部更新（{n}）
+	Update every app that has an update	更新所有有可用更新的应用
+	Available	可安装
+	Checking {done} of {total}	正在检查 {done}/{total}
+	Check for updates	检查更新
+	Look for new versions of every app now	立即查找所有应用的新版本
+	Search apps	搜索应用
+	Couldn't check: {error}	无法检查：{error}
+	{version} installed outside the toolbox	已在工具箱外安装 {version}
+	{status} · pinned to {version}	{status} · 固定为 {version}
+	Last check failed: {error}	上次检查失败：{error}
+	Back	返回
+	All apps	所有应用
+	The app is removed.	将删除该应用。
+	Uninstall {app} {version}?	要卸载 {app} {version} 吗？
+	Your documents and its settings are kept.	你的文档和该应用的设置会保留。
+	Uninstall	卸载
+	{status} · checked {when}	{status} · 上次检查：{when}
+	Releases	发布版本
+	Website	网站
+	Settings for {app}	{app} 的设置
+	Channel	渠道
+	Default ({value})	默认（{value}）
+	Stable	稳定版
+	Pre-release	预发布版
+	Updates	更新
+	automatic	自动
+	ask first	先询问
+	Automatic	自动
+	Ask first	先询问
+	Version	版本
+	Latest	最新
+	Pinned to {version}	固定为 {version}
+	Pin to {version}	固定到 {version}
+	Versions	版本
+	Not checked yet: check for updates to see versions and release notes.	尚未检查：检查更新后即可查看版本和发行说明。
+	pre-release	预发布
+	in use	使用中
+	kept	已保留
+	pinned	已固定
+	no build for this computer	没有适用于这台电脑的版本
+	Switch to this version	切换到此版本
+	Install this version	安装此版本
+	Make {app} {version} the version in use, without downloading it	无需下载，将 {app} {version} 设为使用中的版本
+	Download and install {app} {version}	下载并安装 {app} {version}
+	No release notes.	没有发行说明。
+	Open on GitHub	在 GitHub 上打开
+	Updated	已更新
+	An automatic update failed: {error}	自动更新失败：{error}
+	Update available	有可用更新
+	Updates available	有可用更新
+	Settings	设置
+	Apps	应用
+	Channel:	渠道：
+	Install updates automatically	自动安装更新
+	Notify me when updates are found	发现更新时通知我
+	Notifications aren't available here	此处无法使用通知
+	Keep running in the menu bar when the window is closed	关闭窗口后继续在菜单栏中运行
+	Keep running in the system tray when the window is closed	关闭窗口后继续在系统托盘中运行
+	There is no menu bar or tray icon on this desktop	此桌面没有菜单栏或托盘图标
+	Check every	检查间隔
+	h	小时
+	0: only when asked	0：仅在手动要求时
+	Keep previous versions:	保留旧版本：
+	Appearance	外观
+	Language	语言
+	Automatic ({language})	自动（{language}）
+	Theme	主题
+	Same as the system	跟随系统
+	Dark	深色
+	Light	浅色
+	Text size	文字大小
+	{n}%	{n}%
+	Also {keys}	也可使用 {keys}
+	About	关于
+	unsupported platform	不受支持的平台
+	This computer: {host}	这台电脑：{host}
+	not saved (no data folder)	不会保存（没有数据文件夹）
+	Data folder: {path}	数据文件夹：{path}
+	Open ArtCraft Toolbox	打开 ArtCraft Toolbox
+	Check for Updates	检查更新
+	Quit ArtCraft Toolbox	退出 ArtCraft Toolbox
+	{version} installed	已安装 {version}
+	Not installed	未安装
+	{version} available	{version} 可用
+	{version} · up to date	{version} · 已是最新
+	{latest} available · {installed} installed	{latest} 可用 · 已安装 {installed}
+	No build for this computer	没有适用于这台电脑的版本
+	just now	刚刚
+	in under a minute	一分钟内
+	Checked {when}	上次检查：{when}
+	Not checked yet	尚未检查
+	GitHub's request limit for this computer is used up; checking can resume {when}. A GitHub token in {variable} raises the limit.	这台电脑对 GitHub 的请求次数已用完；{when}可以继续检查。在 {variable} 中设置 GitHub 令牌可以提高上限。
+	Couldn't check {app}: {error}	无法检查 {app}：{error}
+	Signed by {who}	签名者：{who}
+	notarized	已公证
+	No platform signature	没有平台签名
+	Signature not checked: {reason}	未检查签名：{reason}
+
+# == Messages from the engine (shown by exact match)
+	this session has no network access	此会话无法访问网络
+	this session has no install location	此会话没有安装位置
+	a check is already running	检查已在进行中
+	the icons are already being refreshed	图标已在刷新中
+	the server took too long to answer	服务器响应超时
+	GitHub's request limit is used up	GitHub 的请求次数已用完
+	too many redirects	重定向次数过多
+	cancelled	已取消
+	the install stopped unexpectedly	安装意外停止
+	Starting	正在开始
+	Verifying the release	正在验证发布版本
+	Downloading	正在下载
+	Verifying	正在验证
+	Installing	正在安装
+	Checking the signature	正在检查签名
+
+# == App descriptions (crates/catalog/catalog.toml)
+	Image editing: layers, masks, type and real PSD files	图像编辑：图层、蒙版、文字和真正的 PSD 文件
+	Vector illustration	矢量插画
+	Video editing, color and sound	视频剪辑、调色和声音
+	Photo library and raw development	照片库和 RAW 冲印
+	Reading, organizing and protecting PDFs	阅读、整理和保护 PDF
+	Motion graphics and visual effects	动态图形和视觉效果
+	Page layout and publishing	页面排版和出版
+	Computer-aided design and drafting	计算机辅助设计和制图
+	Presentations and slide shows	演示文稿和幻灯片放映
+	Spreadsheets	电子表格
+	Audio recording, editing and mixing	录音、音频编辑和混音
+	Word processing	文字处理
+
+# == Plurals
+@plural	The app is removed, with {n} earlier version kept for rollback.|The app is removed, with {n} earlier versions kept for rollback.	将删除该应用以及为回滚保留的 {n} 个旧版本。
+@plural	{n} min ago|{n} min ago	{n} 分钟前
+@plural	{n} h ago|{n} h ago	{n} 小时前
+@plural	{n} day ago|{n} days ago	{n} 天前
+@plural	in {n} min|in {n} min	{n} 分钟后
+@plural	in {n} h|in {n} h	{n} 小时后
+@plural	{n} app|{n} apps	{n} 个应用
+@plural	Couldn't check {n} app: {error}|Couldn't check {n} apps: {error}	无法检查 {n} 个应用：{error}
+@plural	{first}, {second} and {n} more|{first}, {second} and {n} more	{first}、{second} 等另外 {n} 个

@@ -13,11 +13,11 @@
 </p>
 
 > [!NOTE]
-> **Pre-alpha.** Milestones M0 to M4 are done: the toolbox lives in the menu bar or tray, checks
-> GitHub for every app's releases in the background, and installs, updates (on request or
+> **Pre-alpha.** Milestones M0 to M4 and M8 are done: the toolbox lives in the menu bar or tray,
+> checks GitHub for every app's releases in the background, and installs, updates (on request or
 > automatically), rolls back, opens and uninstalls any craft, checking each version's checksum and
-> platform signature first. It isn't packaged for download yet (M5); see
-> [the roadmap](docs/roadmap.md).
+> platform signature first. Its window speaks 15 languages, in a dark or light theme. It isn't
+> packaged for download yet (M5); see [the roadmap](docs/roadmap.md).
 
 ## What it manages
 

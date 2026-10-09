@@ -6,10 +6,11 @@ use artcraft_toolbox_engine::{AppStatus, Status};
 use artcraft_toolbox_release::asset;
 use serde_json::{Value, json};
 
-use crate::ToolboxApp;
 use crate::actions::{self, Clicked};
+use crate::i18n::{fmt, tn};
 use crate::theme::Tokens;
 use crate::widgets::{app_tile, card, section, subhead};
+use crate::{ToolboxApp, wording};
 
 /// Versions listed on the page (the feed asks GitHub for 20).
 const MAX_VERSIONS: usize = 20;
@@ -19,7 +20,7 @@ pub fn show(app: &mut ToolboxApp, ui: &mut egui::Ui, t: &Tokens, id: &str) {
         app.ui.selected = None;
         return;
     };
-    if ui.button("Back").on_hover_text("All apps").clicked() {
+    if ui.button(tl!("Back")).on_hover_text(tl!("All apps")).clicked() {
         app.ui.selected = None;
         return;
     }
@@ -61,23 +62,24 @@ fn confirm_uninstall(app: &mut ToolboxApp, ui: &mut egui::Ui, st: &AppStatus) {
     let version = app.session.inventory().current(&st.id).map(|i| i.version.to_string()).unwrap_or_default();
     let kept = app.session.inventory().previous(&st.id).len();
     let removed = match kept {
-        0 => "The app is removed.".to_string(),
-        1 => "The app is removed, with the earlier version kept for rollback.".to_string(),
-        n => format!("The app is removed, with the {n} earlier versions kept for rollback."),
+        0 => tl!("The app is removed.").to_string(),
+        n => {
+            tn(n as u64, "The app is removed, with {n} earlier version kept for rollback.", "The app is removed, with {n} earlier versions kept for rollback.")
+        }
     };
     let t = Tokens::get(ui.ctx());
     let mut answer = None;
     let modal = egui::Modal::new(egui::Id::new(("confirm-uninstall", &st.id))).show(ui.ctx(), |ui| {
         // 320 wide, or less in a narrow window (the frame adds its margins around it).
         ui.set_max_width((ui.ctx().content_rect().width() - 64.0).clamp(160.0, 320.0));
-        ui.label(egui::RichText::new(format!("Uninstall {} {version}?", st.name)).strong());
-        ui.label(format!("{removed} Your documents and its settings are kept."));
+        ui.label(egui::RichText::new(fmt(tl!("Uninstall {app} {version}?"), &[("app", &st.name), ("version", &version)])).strong());
+        ui.label(format!("{removed} {}", tl!("Your documents and its settings are kept.")));
         ui.add_space(8.0);
         ui.horizontal(|ui| {
-            if ui.button(egui::RichText::new("Uninstall").color(t.danger)).clicked() {
+            if ui.button(egui::RichText::new(tl!("Uninstall")).color(t.danger)).clicked() {
                 answer = Some(true);
             }
-            if ui.button("Cancel").clicked() {
+            if ui.button(tl!("Cancel")).clicked() {
                 answer = Some(false);
             }
         });
@@ -103,33 +105,33 @@ fn header(app: &ToolboxApp, ui: &mut egui::Ui, st: &AppStatus, icon: Option<&egu
             app_tile(ui, &st.id, &st.name, icon, 56.0, t);
             ui.vertical(|ui| {
                 ui.label(egui::RichText::new(&st.name).heading().color(t.text));
-                ui.add(egui::Label::new(egui::RichText::new(&st.tagline).color(t.text_dim)).wrap());
+                ui.add(egui::Label::new(egui::RichText::new(wording::tagline(&st.tagline)).color(t.text_dim)).wrap());
                 let mut line = match (&job, &st.found) {
                     (Some(j), _) => actions::progress_text(j),
-                    (None, Some(v)) if !actions::installed(st) => format!("{v} installed outside the toolbox"),
-                    (None, _) => st.status.label(),
+                    (None, Some(v)) if !actions::installed(st) => fmt(tl!("{version} installed outside the toolbox"), &[("version", &v.to_string())]),
+                    (None, _) => wording::status(&st.status),
                 };
                 if let Some(pin) = &st.pinned {
-                    line.push_str(&format!(" · pinned to {pin}"));
+                    line = fmt(tl!("{status} · pinned to {version}"), &[("status", &line), ("version", &pin.to_string())]);
                 }
                 if let Some(at) = st.checked_at {
-                    line.push_str(&format!(" · checked {}", artcraft_toolbox_engine::time::ago(app.session.now(), at)));
+                    line = fmt(tl!("{status} · checked {when}"), &[("status", &line), ("when", &wording::ago(app.session.now(), at))]);
                 }
                 ui.label(egui::RichText::new(line).small().color(t.text_dim));
                 if let Some(trust) = app.session.inventory().current(&st.id).and_then(|i| i.trust.as_ref()) {
-                    ui.label(egui::RichText::new(trust.label()).small().color(t.text_dim));
+                    ui.label(egui::RichText::new(wording::trust(trust)).small().color(t.text_dim));
                 }
                 if let Some(j) = &job {
                     actions::bar(ui, j, ui.available_width().min(240.0), t);
                 }
                 if let Some(e) = &st.error {
-                    ui.label(egui::RichText::new(format!("Last check failed: {e}")).small().color(t.danger));
+                    ui.label(egui::RichText::new(fmt(tl!("Last check failed: {error}"), &[("error", wording::engine(e))])).small().color(t.danger));
                 }
                 ui.horizontal(|ui| {
                     ui.hyperlink_to("GitHub", entry.repo_url());
-                    ui.hyperlink_to("Releases", format!("{}/releases", entry.repo_url()));
+                    ui.hyperlink_to(tl!("Releases"), format!("{}/releases", entry.repo_url()));
                     if let Some(w) = &entry.website {
-                        ui.hyperlink_to("Website", w);
+                        ui.hyperlink_to(tl!("Website"), w);
                     }
                 });
             });
@@ -140,17 +142,20 @@ fn header(app: &ToolboxApp, ui: &mut egui::Ui, st: &AppStatus, icon: Option<&egu
                 clicked = Some(HeaderClick::Action(c));
             }
             // The action is Update then; the app can still be opened.
-            if matches!(st.status, Status::UpdateAvailable { .. }) && job.is_none() && ui.button("Open").on_hover_text(format!("Open {}", st.name)).clicked() {
+            if matches!(st.status, Status::UpdateAvailable { .. })
+                && job.is_none()
+                && ui.button(tl!("Open")).on_hover_text(fmt(tl!("Open {app}"), &[("app", &st.name)])).clicked()
+            {
                 clicked = Some(HeaderClick::Action(Clicked::Open));
             }
             if actions::installed(st) && job.is_none() {
                 let reason = app.session.disabled_reason(artcraft_toolbox_engine::install_cmds::UNINSTALL);
-                let b = ui.add_enabled(reason.is_none(), egui::Button::new("Uninstall"));
+                let b = ui.add_enabled(reason.is_none(), egui::Button::new(tl!("Uninstall")));
                 if b.clicked() {
                     clicked = Some(HeaderClick::Uninstall);
                 }
                 if let Some(why) = reason {
-                    b.on_disabled_hover_text(why);
+                    b.on_disabled_hover_text(wording::engine(&why));
                 }
             }
         });
@@ -165,14 +170,14 @@ fn settings(app: &ToolboxApp, ui: &mut egui::Ui, st: &AppStatus, t: &Tokens) -> 
     let versions: Vec<String> =
         app.session.feed(&st.id).map(|f| f.releases.iter().take(MAX_VERSIONS).map(|r| r.version.to_string()).collect()).unwrap_or_default();
     let mut change = None;
-    subhead(ui, &format!("Settings for {}", st.name), t);
+    subhead(ui, &fmt(tl!("Settings for {app}"), &[("app", &st.name)]), t);
     card(ui, t, |ui| {
         egui::Grid::new(("app-settings", &st.id)).num_columns(2).spacing([12.0, 8.0]).show(ui, |ui| {
-            ui.label("Channel");
-            let default = format!("Default ({})", channel_name(global.channel));
+            ui.label(tl!("Channel"));
+            let default = fmt(tl!("Default ({value})"), &[("value", channel_name(global.channel))]);
             let current = own.channel.map_or(default.clone(), |c| channel_name(c).to_string());
             egui::ComboBox::from_id_salt(("channel", &st.id)).selected_text(current).show_ui(ui, |ui| {
-                for (label, value) in [(default.as_str(), Value::Null), ("Stable", json!("stable")), ("Pre-release", json!("prerelease"))] {
+                for (label, value) in [(default.as_str(), Value::Null), (tl!("Stable"), json!("stable")), (tl!("Pre-release"), json!("prerelease"))] {
                     let selected = match (&own.channel, &value) {
                         (None, Value::Null) => true,
                         (Some(c), Value::String(v)) => channel_key(*c) == v,
@@ -185,11 +190,11 @@ fn settings(app: &ToolboxApp, ui: &mut egui::Ui, st: &AppStatus, t: &Tokens) -> 
             });
             ui.end_row();
 
-            ui.label("Updates");
-            let default = format!("Default ({})", if global.auto_update { "automatic" } else { "ask first" });
-            let current = own.auto_update.map_or(default.clone(), |b| if b { "Automatic".into() } else { "Ask first".into() });
+            ui.label(tl!("Updates"));
+            let default = fmt(tl!("Default ({value})"), &[("value", if global.auto_update { tl!("automatic") } else { tl!("ask first") })]);
+            let current = own.auto_update.map_or(default.clone(), |b| if b { tl!("Automatic").into() } else { tl!("Ask first").into() });
             egui::ComboBox::from_id_salt(("auto", &st.id)).selected_text(current).show_ui(ui, |ui| {
-                for (label, value) in [(default.as_str(), Value::Null), ("Automatic", json!(true)), ("Ask first", json!(false))] {
+                for (label, value) in [(default.as_str(), Value::Null), (tl!("Automatic"), json!(true)), (tl!("Ask first"), json!(false))] {
                     let selected = match (&own.auto_update, &value) {
                         (None, Value::Null) => true,
                         (Some(b), Value::Bool(v)) => b == v,
@@ -202,15 +207,15 @@ fn settings(app: &ToolboxApp, ui: &mut egui::Ui, st: &AppStatus, t: &Tokens) -> 
             });
             ui.end_row();
 
-            ui.label("Version");
-            let current = own.pinned.as_ref().map_or("Latest".to_string(), |v| format!("Pinned to {v}"));
+            ui.label(tl!("Version"));
+            let current = own.pinned.as_ref().map_or(tl!("Latest").to_string(), |v| fmt(tl!("Pinned to {version}"), &[("version", &v.to_string())]));
             egui::ComboBox::from_id_salt(("pin", &st.id)).selected_text(current).show_ui(ui, |ui| {
-                if ui.selectable_label(own.pinned.is_none(), "Latest").clicked() && own.pinned.is_some() {
+                if ui.selectable_label(own.pinned.is_none(), tl!("Latest")).clicked() && own.pinned.is_some() {
                     change = Some(("pinned", Value::Null));
                 }
                 for v in &versions {
                     let selected = own.pinned.as_ref().is_some_and(|p| &p.to_string() == v);
-                    if ui.selectable_label(selected, format!("Pin to {v}")).clicked() && !selected {
+                    if ui.selectable_label(selected, fmt(tl!("Pin to {version}"), &[("version", v)])).clicked() && !selected {
                         change = Some(("pinned", json!(v)));
                     }
                 }
@@ -223,8 +228,8 @@ fn settings(app: &ToolboxApp, ui: &mut egui::Ui, st: &AppStatus, t: &Tokens) -> 
 
 fn channel_name(c: artcraft_toolbox_model::Channel) -> &'static str {
     match c {
-        artcraft_toolbox_model::Channel::Stable => "Stable",
-        artcraft_toolbox_model::Channel::Prerelease => "Pre-release",
+        artcraft_toolbox_model::Channel::Stable => tl!("Stable"),
+        artcraft_toolbox_model::Channel::Prerelease => tl!("Pre-release"),
     }
 }
 
@@ -292,8 +297,8 @@ pub fn date(published_at: &str) -> Option<&str> {
 fn versions(app: &mut ToolboxApp, ui: &mut egui::Ui, st: &AppStatus, t: &Tokens) -> Option<Clicked> {
     let ToolboxApp { session, markdown, .. } = app;
     let Some(feed) = session.feed(&st.id) else {
-        section(ui, "Versions", 0, t);
-        ui.label(egui::RichText::new("Not checked yet: check for updates to see versions and release notes.").color(t.text_dim));
+        section(ui, tl!("Versions"), 0, t);
+        ui.label(egui::RichText::new(tl!("Not checked yet: check for updates to see versions and release notes.")).color(t.text_dim));
         return None;
     };
     let installed = session.inventory().current(&st.id).filter(|i| i.active).map(|i| i.version.clone());
@@ -301,48 +306,48 @@ fn versions(app: &mut ToolboxApp, ui: &mut egui::Ui, st: &AppStatus, t: &Tokens)
     let mut clicked = None;
     let host = session.host();
     let shown = feed.releases.len().min(MAX_VERSIONS);
-    section(ui, "Versions", shown, t);
+    section(ui, tl!("Versions"), shown, t);
     for (i, r) in feed.releases.iter().take(MAX_VERSIONS).enumerate() {
         let mut title = r.version.to_string();
         if let Some(d) = r.published_at.as_deref().and_then(date) {
             title.push_str(&format!(" · {d}"));
         }
         if r.is_prerelease() {
-            title.push_str(" · pre-release");
+            title.push_str(&format!(" · {}", tl!("pre-release")));
         }
         let kept = installed.as_ref() != Some(&r.version) && session.inventory().get(&st.id, &r.version).is_some();
         if installed.as_ref() == Some(&r.version) {
-            title.push_str(" · in use");
+            title.push_str(&format!(" · {}", tl!("in use")));
         } else if kept {
-            title.push_str(" · kept");
+            title.push_str(&format!(" · {}", tl!("kept")));
         }
         if st.pinned.as_ref() == Some(&r.version) {
-            title.push_str(" · pinned");
+            title.push_str(&format!(" · {}", tl!("pinned")));
         }
         let buildable = host.is_some_and(|h| asset::select(&r.assets, h, |a| &a.name).is_some());
         if !buildable {
-            title.push_str(" · no build for this computer");
+            title.push_str(&format!(" · {}", tl!("no build for this computer")));
         }
         card(ui, t, |ui| {
             egui::CollapsingHeader::new(egui::RichText::new(title).strong()).id_salt(("release", &st.id, i)).default_open(i == 0).show(ui, |ui| {
-                let label = if kept { "Switch to this version" } else { "Install this version" };
+                let label = if kept { tl!("Switch to this version") } else { tl!("Install this version") };
                 if installed.as_ref() != Some(&r.version) && (kept || (buildable && st.found.is_none())) {
                     let hover = if kept {
-                        format!("Make {} {} the version in use, without downloading it", st.name, r.version)
+                        fmt(tl!("Make {app} {version} the version in use, without downloading it"), &[("app", &st.name), ("version", &r.version.to_string())])
                     } else {
-                        format!("Download and install {} {}", st.name, r.version)
+                        fmt(tl!("Download and install {app} {version}"), &[("app", &st.name), ("version", &r.version.to_string())])
                     };
                     if ui.add_enabled(!busy, egui::Button::new(label)).on_hover_text(hover).clicked() {
                         clicked = Some(Clicked::UseVersion(r.version.clone()));
                     }
                 }
                 if r.notes.trim().is_empty() {
-                    ui.label(egui::RichText::new("No release notes.").color(t.text_dim));
+                    ui.label(egui::RichText::new(tl!("No release notes.")).color(t.text_dim));
                 } else {
                     egui_commonmark::CommonMarkViewer::new().show(ui, markdown, &autolink(&r.notes));
                 }
                 if let Some(url) = &r.page_url {
-                    ui.hyperlink_to("Open on GitHub", url);
+                    ui.hyperlink_to(tl!("Open on GitHub"), url);
                 }
             });
         });

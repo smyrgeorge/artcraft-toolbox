@@ -79,8 +79,15 @@ never copy their code, icons or assets).
 ## Tokens
 
 Colours and radii come from `theme::Tokens` (`Tokens::get(ctx)`), never hard-coded in a widget.
-One dark theme for now (`Tokens::DARK`): charcoal surfaces, PhotoCraft's Spectrum-blue accent
-`#378ef0`.
+Two themes: `Tokens::DARK` (charcoal surfaces, a Spectrum-blue accent) and `Tokens::LIGHT` (light
+grey surfaces, white cards, buttons outlined). The `theme` setting picks one; `system`, the
+default, follows the OS and switches with it. Both themes' visuals are installed at start
+(`set_visuals_of`), so `Tokens::get` follows whichever egui is drawing.
+
+**Contrast.** Every text colour meets WCAG AA (4.5:1) on each surface it is drawn on, in both
+themes (`text_meets_wcag_aa`). That is why the accent has two tokens: `accent` is a fill (white
+text on it), `accent_fg` the accent as text on `bg` and `card`. A new token or a new pairing gets
+a line in that test.
 
 | Token | Use |
 |---|---|
@@ -89,7 +96,8 @@ One dark theme for now (`Tokens::DARK`): charcoal surfaces, PhotoCraft's Spectru
 | `card`, `card_hover`, `border` | app rows |
 | `field` | inputs |
 | `text`, `text_dim`, `text_faint` | primary, secondary, tertiary text |
-| `accent`, `accent_text` | selection, primary actions, "update available" |
+| `accent`, `accent_text` | fills (selected tab, primary buttons, progress) and the text on them |
+| `accent_fg` | the accent as text: "update available", phases, links |
 | `success`, `warning`, `danger` | statuses and errors |
 | `radius_sm`, `radius` | widget and card corners |
 
@@ -100,11 +108,16 @@ One dark theme for now (`Tokens::DARK`): charcoal surfaces, PhotoCraft's Spectru
   logo is bundled.
 - `subhead`: a heading without a count (`SETTINGS FOR PHOTOCRAFT`).
 - `card`: a full-width rounded row.
-- `section`: `INSTALLED · 1` headings.
+- `section`: `INSTALLED · 1` headings. Headings are upper-cased with `widgets::caps`, which drops
+  Greek accents in capitals, as Greek typesetting does.
 
 ## Text
 
-- Product names exactly as the catalog spells them (`PhotoCraft`, `CADCraft`).
+- **Every user-facing string is translated** (docs/localization.md): `tl!("…")` for a literal,
+  `fmt` for placeholders, `tn` for counts, `wording` for statuses and engine messages. Leave room:
+  German and Russian labels are often a third longer than English, so check new layouts with
+  `--lang de` and `--lang ru` at 360 points.
+- Product names exactly as the catalog spells them (`PhotoCraft`, `CADCraft`), in every language.
 - **No missing glyphs.** egui's default fonts lack many symbols (`→ ✓ ⟳ ⬇`); they draw as boxes.
   Prefer words; draw a symbol with the painter if you need one. `status_text_has_no_missing_glyphs`
   checks status lines; add new user-facing strings with symbols to it.
@@ -114,8 +127,24 @@ One dark theme for now (`Tokens::DARK`): charcoal surfaces, PhotoCraft's Spectru
 - Text colour comes from the widget visuals, never `Visuals::override_text_color`: the override
   also forces link text (release notes) to the label colour.
 
+## Settings › Appearance
+
+Language (Automatic, naming the language it resolves to, then every language by its native name),
+Theme (Same as the system, Dark, Light) and Text size (90–150 %, egui's zoom factor). Cmd/Ctrl +,
+−, 0 step the text size and save it; egui's own zoom keys are off so the setting stays the truth.
+
+## Accessibility
+
+- egui publishes an AccessKit tree, which screen readers (VoiceOver, Narrator, Orca) read. A
+  row is one button named "{name}, {status}" ("PhotoCraft, 0.5.0 available"); its action is a
+  separate button. Tiles are decorative. The progress bar reports its value.
+- Keyboard: Tab reaches every control and row, Enter or Space activates it, Escape closes the
+  uninstall question. A focused row draws a 2-point ring in `accent`.
+- Text size and contrast as above. UI tests find widgets by the same names a screen reader reads
+  (`get_by_label`), so a missing name shows up as a failing test.
+
 ## Verify
 
 Every visual change: render with the snapshot example (`docs/development.md`), at the default
-size and a narrow one (`--size 360x600`), in each state you touched (`--feed`, `--installed`),
-and look at it. Attach before/after PNGs to the PR.
+size and a narrow one (`--size 360x600`), in each state you touched (`--feed`, `--installed`), in
+both themes (`--theme light`) and in a long-worded language (`--lang de`), and look at it. Attach before/after PNGs to the PR.

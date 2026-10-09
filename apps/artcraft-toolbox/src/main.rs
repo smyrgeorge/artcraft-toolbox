@@ -115,6 +115,8 @@ fn main() -> ExitCode {
         native_options(),
         Box::new(move |cc| {
             ToolboxApp::setup_context(&cc.egui_ctx);
+            // The tray's labels are made now: in the saved language.
+            artcraft_toolbox_ui_egui::i18n::set_current(artcraft_toolbox_ui_egui::i18n::Lang::from_pref(&session.settings().language));
             let ctx = cc.egui_ctx.clone();
             let tray = match Tray::new(move || ctx.request_repaint()) {
                 Ok(t) => {
@@ -170,6 +172,9 @@ impl eframe::App for Desktop {
             }
         }
         self.app.tick(ctx);
+        if let Some(tray) = &mut self.tray {
+            tray.relabel();
+        }
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {

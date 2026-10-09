@@ -1,0 +1,170 @@
+# Czech (cs) catalog for ArtCraft Toolbox. Columns, separated by a TAB:  context <TAB> source <TAB> translation
+#
+#   context  empty                a plain UI string; `source` is the English text in the code
+#            @plural              `source` is "one|other" (the English forms); the translation lists the
+#                                 language's forms separated by "|" (see `plural` in i18n/mod.rs)
+#            anything else        a disambiguating context passed to `tr_ctx`
+#   escapes  \n  \t  \\  inside a column. `{name}` placeholders must appear in both columns.
+#   lines starting with # and blank lines are ignored.
+#
+# Clean-room: entries are written from the plain meaning of the English text in ordinary computing
+# vocabulary, or taken from PhotoCraft's catalog for the same English string (MIT OR Apache-2.0,
+# like this project). No proprietary localisation resource was consulted or copied.
+# Product names (ArtCraft Toolbox, PhotoCraft, GitHub, macOS ...) stay as they are; the trailing "…"
+# of commands that ask before acting is kept.
+
+# == Interface
+	Downloading {percent}%	Stahování {percent} %
+	Cancel	Zrušit
+	Stop; installing again resumes the download	Zastavit; při další instalaci bude stahování pokračovat
+	Update {app} from {installed} to {latest}	Aktualizovat {app} z {installed} na {latest}
+	Update	Aktualizovat
+	Open	Otevřít
+	Open {app}	Otevřít {app}
+	Let the toolbox update and roll back the {app} found on this computer	Nechat Toolbox aktualizovat a vracet zpět aplikaci {app} nalezenou v tomto počítači
+	Adopt	Spravovat
+	Install {app} {version}	Nainstalovat {app} {version}
+	Install	Nainstalovat
+	Check for updates first	Nejprve zkontrolujte aktualizace
+	No app matches “{query}”	Výrazu „{query}“ neodpovídá žádná aplikace
+	Installed	Nainstalované
+	Update all ({n})	Aktualizovat vše ({n})
+	Update every app that has an update	Aktualizovat všechny aplikace, pro které je k dispozici aktualizace
+	Available	Dostupné
+	Checking {done} of {total}	Kontrola {done} z {total}
+	Check for updates	Zkontrolovat aktualizace
+	Look for new versions of every app now	Vyhledat nové verze všech aplikací hned teď
+	Search apps	Hledat aplikace
+	Couldn't check: {error}	Nelze zkontrolovat: {error}
+	{version} installed outside the toolbox	{version} nainstalovaná mimo Toolbox
+	{status} · pinned to {version}	{status} · připnuto na {version}
+	Last check failed: {error}	Poslední kontrola selhala: {error}
+	Back	Zpět
+	All apps	Všechny aplikace
+	The app is removed.	Aplikace bude odebrána.
+	Uninstall {app} {version}?	Odinstalovat {app} {version}?
+	Your documents and its settings are kept.	Vaše dokumenty a nastavení aplikace zůstanou zachovány.
+	Uninstall	Odinstalovat
+	{status} · checked {when}	{status} · zkontrolováno {when}
+	Releases	Vydání
+	Website	Web
+	Settings for {app}	Nastavení aplikace {app}
+	Channel	Kanál
+	Default ({value})	Výchozí ({value})
+	Stable	Stabilní
+	Pre-release	Předběžné vydání
+	Updates	Aktualizace
+	automatic	automaticky
+	ask first	nejdřív se zeptat
+	Automatic	Automaticky
+	Ask first	Nejdřív se zeptat
+	Version	Verze
+	Latest	Nejnovější
+	Pinned to {version}	Připnuto na {version}
+	Pin to {version}	Připnout na {version}
+	Versions	Verze
+	Not checked yet: check for updates to see versions and release notes.	Zatím nezkontrolováno: zkontrolujte aktualizace a uvidíte verze a poznámky k vydání.
+	pre-release	předběžné vydání
+	in use	používaná
+	kept	zachovaná
+	pinned	připnutá
+	no build for this computer	žádné sestavení pro tento počítač
+	Switch to this version	Přepnout na tuto verzi
+	Install this version	Nainstalovat tuto verzi
+	Make {app} {version} the version in use, without downloading it	Používat {app} {version} bez stahování
+	Download and install {app} {version}	Stáhnout a nainstalovat {app} {version}
+	No release notes.	Žádné poznámky k vydání.
+	Open on GitHub	Otevřít na GitHubu
+	Updated	Aktualizováno
+	An automatic update failed: {error}	Automatická aktualizace selhala: {error}
+	Update available	Je k dispozici aktualizace
+	Updates available	Jsou k dispozici aktualizace
+	Settings	Nastavení
+	Apps	Aplikace
+	Channel:	Kanál:
+	Install updates automatically	Instalovat aktualizace automaticky
+	Notify me when updates are found	Upozornit mě, když se najdou aktualizace
+	Notifications aren't available here	Oznámení zde nejsou k dispozici
+	Keep running in the menu bar when the window is closed	Po zavření okna běžet dál v řádku nabídek
+	Keep running in the system tray when the window is closed	Po zavření okna běžet dál v oznamovací oblasti
+	There is no menu bar or tray icon on this desktop	Na této ploše není řádek nabídek ani ikona v oznamovací oblasti
+	Check every	Kontrolovat každých
+	h	h
+	0: only when asked	0: jen na požádání
+	Keep previous versions:	Uchovávat předchozí verze:
+	Appearance	Vzhled
+	Language	Jazyk
+	Automatic ({language})	Automaticky ({language})
+	Theme	Motiv
+	Same as the system	Podle systému
+	Dark	Tmavý
+	Light	Světlý
+	Text size	Velikost textu
+	{n}%	{n} %
+	Also {keys}	Také {keys}
+	About	O aplikaci
+	unsupported platform	nepodporovaná platforma
+	This computer: {host}	Tento počítač: {host}
+	not saved (no data folder)	neukládá se (žádná složka dat)
+	Data folder: {path}	Složka dat: {path}
+	Open ArtCraft Toolbox	Otevřít ArtCraft Toolbox
+	Check for Updates	Zkontrolovat aktualizace
+	Quit ArtCraft Toolbox	Ukončit ArtCraft Toolbox
+	{version} installed	{version} nainstalována
+	Not installed	Nenainstalováno
+	{version} available	{version} k dispozici
+	{version} · up to date	{version} · aktuální
+	{latest} available · {installed} installed	{latest} k dispozici · {installed} nainstalována
+	No build for this computer	Žádné sestavení pro tento počítač
+	just now	právě teď
+	in under a minute	za méně než minutu
+	Checked {when}	Zkontrolováno {when}
+	Not checked yet	Zatím nezkontrolováno
+	GitHub's request limit for this computer is used up; checking can resume {when}. A GitHub token in {variable} raises the limit.	Limit požadavků na GitHub z tohoto počítače je vyčerpán; kontrolu lze obnovit {when}. Token GitHubu v proměnné {variable} limit zvýší.
+	Couldn't check {app}: {error}	Aplikaci {app} nelze zkontrolovat: {error}
+	Signed by {who}	Podepsáno: {who}
+	notarized	notarizováno
+	No platform signature	Bez podpisu platformy
+	Signature not checked: {reason}	Podpis nezkontrolován: {reason}
+
+# == Messages from the engine (shown by exact match)
+	this session has no network access	tato relace nemá přístup k síti
+	this session has no install location	tato relace nemá umístění pro instalaci
+	a check is already running	kontrola už probíhá
+	the icons are already being refreshed	ikony se už obnovují
+	the server took too long to answer	server odpovídal příliš dlouho
+	GitHub's request limit is used up	limit požadavků na GitHub je vyčerpán
+	too many redirects	příliš mnoho přesměrování
+	cancelled	zrušeno
+	the install stopped unexpectedly	instalace se nečekaně zastavila
+	Starting	Spouštění
+	Verifying the release	Ověřování vydání
+	Downloading	Stahování
+	Verifying	Ověřování
+	Installing	Instalace
+	Checking the signature	Kontrola podpisu
+
+# == App descriptions (crates/catalog/catalog.toml)
+	Image editing: layers, masks, type and real PSD files	Úprava obrázků: vrstvy, masky, text a skutečné soubory PSD
+	Vector illustration	Vektorová ilustrace
+	Video editing, color and sound	Střih videa, barvy a zvuk
+	Photo library and raw development	Knihovna fotografií a vyvolávání RAW
+	Reading, organizing and protecting PDFs	Čtení, uspořádání a ochrana PDF
+	Motion graphics and visual effects	Pohyblivá grafika a vizuální efekty
+	Page layout and publishing	Sazba stránek a publikování
+	Computer-aided design and drafting	Počítačem podporované navrhování a kreslení
+	Presentations and slide shows	Prezentace a promítání snímků
+	Spreadsheets	Tabulky
+	Audio recording, editing and mixing	Nahrávání, úprava a mixování zvuku
+	Word processing	Zpracování textu
+
+# == Plurals
+@plural	The app is removed, with {n} earlier version kept for rollback.|The app is removed, with {n} earlier versions kept for rollback.	Aplikace bude odebrána spolu s {n} předchozí verzí uchovanou pro návrat.|Aplikace bude odebrána spolu s {n} předchozími verzemi uchovanými pro návrat.|Aplikace bude odebrána spolu s {n} předchozími verzemi uchovanými pro návrat.
+@plural	{n} min ago|{n} min ago	před {n} minutou|před {n} minutami|před {n} minutami
+@plural	{n} h ago|{n} h ago	před {n} hodinou|před {n} hodinami|před {n} hodinami
+@plural	{n} day ago|{n} days ago	před {n} dnem|před {n} dny|před {n} dny
+@plural	in {n} min|in {n} min	za {n} minutu|za {n} minuty|za {n} minut
+@plural	in {n} h|in {n} h	za {n} hodinu|za {n} hodiny|za {n} hodin
+@plural	{n} app|{n} apps	{n} aplikace|{n} aplikace|{n} aplikací
+@plural	Couldn't check {n} app: {error}|Couldn't check {n} apps: {error}	Nelze zkontrolovat {n} aplikaci: {error}|Nelze zkontrolovat {n} aplikace: {error}|Nelze zkontrolovat {n} aplikací: {error}
+@plural	{first}, {second} and {n} more|{first}, {second} and {n} more	{first}, {second} a {n} další|{first}, {second} a {n} další|{first}, {second} a {n} dalších

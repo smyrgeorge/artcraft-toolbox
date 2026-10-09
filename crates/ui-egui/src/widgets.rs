@@ -40,6 +40,28 @@ pub fn tile_color(id: &str) -> Color32 {
     egui::ecolor::Hsva::new(hue, 0.55, 0.72, 1.0).into()
 }
 
+/// Text in capitals for a heading. Greek capitals drop their accents (`Εγκατεστημένες` →
+/// `ΕΓΚΑΤΕΣΤΗΜΕΝΕΣ`), as Greek typography writes them.
+pub fn caps(s: &str) -> String {
+    s.to_uppercase()
+        .chars()
+        .map(|c| match c {
+            'Ά' => 'Α',
+            'Έ' => 'Ε',
+            'Ή' => 'Η',
+            'Ί' => 'Ι',
+            'Ό' => 'Ο',
+            'Ύ' => 'Υ',
+            'Ώ' => 'Ω',
+            other => other,
+        })
+        .collect::<String>()
+        // The dieresis stays, without the accent: ΐ and ΰ (no capital of their own: they upper-case
+        // to a letter and two combining marks) → Ϊ, Ϋ.
+        .replace("\u{399}\u{308}\u{301}", "\u{3aa}")
+        .replace("\u{3a5}\u{308}\u{301}", "\u{3ab}")
+}
+
 /// A rounded, full-width card around `add`.
 pub fn card<R>(ui: &mut egui::Ui, t: &Tokens, add: impl FnOnce(&mut egui::Ui) -> R) -> egui::InnerResponse<R> {
     egui::Frame::NONE
@@ -62,7 +84,7 @@ pub fn section(ui: &mut egui::Ui, title: &str, count: usize, t: &Tokens) {
 pub fn section_with(ui: &mut egui::Ui, title: &str, count: usize, t: &Tokens, right: impl FnOnce(&mut egui::Ui)) {
     ui.add_space(6.0);
     ui.horizontal(|ui| {
-        ui.label(egui::RichText::new(format!("{title} · {count}").to_uppercase()).small().strong().color(t.text_dim));
+        ui.label(egui::RichText::new(caps(&format!("{title} · {count}"))).small().strong().color(t.text_dim));
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), right);
     });
 }
@@ -70,7 +92,7 @@ pub fn section_with(ui: &mut egui::Ui, title: &str, count: usize, t: &Tokens, ri
 /// A section heading: `SETTINGS FOR PHOTOCRAFT`.
 pub fn subhead(ui: &mut egui::Ui, title: &str, t: &Tokens) {
     ui.add_space(6.0);
-    ui.label(egui::RichText::new(title.to_uppercase()).small().strong().color(t.text_dim));
+    ui.label(egui::RichText::new(caps(title)).small().strong().color(t.text_dim));
 }
 
 #[cfg(test)]
@@ -79,6 +101,11 @@ mod tests {
 
     #[test]
     fn monograms() {
+        assert_eq!(caps("Εγκατεστημένες · 2"), "ΕΓΚΑΤΕΣΤΗΜΕΝΕΣ · 2");
+        assert_eq!(caps("Διαθέσιμες"), "ΔΙΑΘΕΣΙΜΕΣ");
+        assert_eq!(caps("Ρυθμίσεις για το PhotoCraft"), "ΡΥΘΜΙΣΕΙΣ ΓΙΑ ΤΟ PHOTOCRAFT");
+        assert_eq!(caps("Πρωτεΐνη"), "ΠΡΩΤΕΪΝΗ");
+        assert_eq!(caps("Installé · Größe"), "INSTALLÉ · GRÖSSE", "other languages keep their accents");
         assert_eq!(monogram("PhotoCraft"), "Ph");
         assert_eq!(monogram("CADCraft"), "CA");
         assert_eq!(monogram("PdfCraft"), "Pd");

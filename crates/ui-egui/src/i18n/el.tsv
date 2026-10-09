@@ -1,0 +1,170 @@
+# Greek (el) catalog for ArtCraft Toolbox. Columns, separated by a TAB:  context <TAB> source <TAB> translation
+#
+#   context  empty                a plain UI string; `source` is the English text in the code
+#            @plural              `source` is "one|other" (the English forms); the translation lists the
+#                                 language's forms separated by "|" (see `plural` in i18n/mod.rs)
+#            anything else        a disambiguating context passed to `tr_ctx`
+#   escapes  \n  \t  \\  inside a column. `{name}` placeholders must appear in both columns.
+#   lines starting with # and blank lines are ignored.
+#
+# Clean-room: entries are written from the plain meaning of the English text in ordinary computing
+# vocabulary, or taken from PhotoCraft's catalog for the same English string (MIT OR Apache-2.0,
+# like this project). No proprietary localisation resource was consulted or copied.
+# Product names (ArtCraft Toolbox, PhotoCraft, GitHub, macOS ...) stay as they are; the trailing "…"
+# of commands that ask before acting is kept.
+
+# == Interface
+	Downloading {percent}%	Λήψη {percent}%
+	Cancel	Ακύρωση
+	Stop; installing again resumes the download	Διακοπή· με νέα εγκατάσταση η λήψη συνεχίζεται
+	Update {app} from {installed} to {latest}	Ενημέρωση του {app} από {installed} σε {latest}
+	Update	Ενημέρωση
+	Open	Άνοιγμα
+	Open {app}	Άνοιγμα του {app}
+	Let the toolbox update and roll back the {app} found on this computer	Να μπορεί το Toolbox να ενημερώνει και να επαναφέρει το {app} που βρέθηκε σε αυτόν τον υπολογιστή
+	Adopt	Διαχείριση
+	Install {app} {version}	Εγκατάσταση του {app} {version}
+	Install	Εγκατάσταση
+	Check for updates first	Ελέγξτε πρώτα για ενημερώσεις
+	No app matches “{query}”	Καμία εφαρμογή δεν ταιριάζει με «{query}»
+	Installed	Εγκατεστημένες
+	Update all ({n})	Ενημέρωση όλων ({n})
+	Update every app that has an update	Ενημέρωση όλων των εφαρμογών που έχουν ενημέρωση
+	Available	Διαθέσιμες
+	Checking {done} of {total}	Έλεγχος {done} από {total}
+	Check for updates	Έλεγχος για ενημερώσεις
+	Look for new versions of every app now	Αναζήτηση νέων εκδόσεων όλων των εφαρμογών τώρα
+	Search apps	Αναζήτηση εφαρμογών
+	Couldn't check: {error}	Δεν ήταν δυνατός ο έλεγχος: {error}
+	{version} installed outside the toolbox	{version} εγκατεστημένη εκτός Toolbox
+	{status} · pinned to {version}	{status} · καρφιτσωμένη στην {version}
+	Last check failed: {error}	Ο τελευταίος έλεγχος απέτυχε: {error}
+	Back	Πίσω
+	All apps	Όλες οι εφαρμογές
+	The app is removed.	Η εφαρμογή θα αφαιρεθεί.
+	Uninstall {app} {version}?	Απεγκατάσταση του {app} {version};
+	Your documents and its settings are kept.	Τα έγγραφά σας και οι ρυθμίσεις της διατηρούνται.
+	Uninstall	Απεγκατάσταση
+	{status} · checked {when}	{status} · έλεγχος {when}
+	Releases	Εκδόσεις
+	Website	Ιστότοπος
+	Settings for {app}	Ρυθμίσεις για το {app}
+	Channel	Κανάλι
+	Default ({value})	Προεπιλογή ({value})
+	Stable	Σταθερή
+	Pre-release	Προέκδοση
+	Updates	Ενημερώσεις
+	automatic	αυτόματα
+	ask first	ερώτηση πρώτα
+	Automatic	Αυτόματα
+	Ask first	Ερώτηση πρώτα
+	Version	Έκδοση
+	Latest	Νεότερη
+	Pinned to {version}	Καρφιτσωμένη στην {version}
+	Pin to {version}	Καρφίτσωμα στην {version}
+	Versions	Εκδόσεις
+	Not checked yet: check for updates to see versions and release notes.	Δεν έχει γίνει έλεγχος: ελέγξτε για ενημερώσεις για να δείτε εκδόσεις και σημειώσεις έκδοσης.
+	pre-release	προέκδοση
+	in use	σε χρήση
+	kept	διατηρείται
+	pinned	καρφιτσωμένη
+	no build for this computer	καμία έκδοση για αυτόν τον υπολογιστή
+	Switch to this version	Μετάβαση σε αυτή την έκδοση
+	Install this version	Εγκατάσταση αυτής της έκδοσης
+	Make {app} {version} the version in use, without downloading it	Χρήση του {app} {version} χωρίς λήψη
+	Download and install {app} {version}	Λήψη και εγκατάσταση του {app} {version}
+	No release notes.	Δεν υπάρχουν σημειώσεις έκδοσης.
+	Open on GitHub	Άνοιγμα στο GitHub
+	Updated	Ενημερώθηκε
+	An automatic update failed: {error}	Μια αυτόματη ενημέρωση απέτυχε: {error}
+	Update available	Υπάρχει ενημέρωση
+	Updates available	Υπάρχουν ενημερώσεις
+	Settings	Ρυθμίσεις
+	Apps	Εφαρμογές
+	Channel:	Κανάλι:
+	Install updates automatically	Αυτόματη εγκατάσταση ενημερώσεων
+	Notify me when updates are found	Ειδοποίηση όταν βρεθούν ενημερώσεις
+	Notifications aren't available here	Οι ειδοποιήσεις δεν είναι διαθέσιμες εδώ
+	Keep running in the menu bar when the window is closed	Συνέχιση στη γραμμή μενού όταν κλείνει το παράθυρο
+	Keep running in the system tray when the window is closed	Συνέχιση στην περιοχή ειδοποιήσεων όταν κλείνει το παράθυρο
+	There is no menu bar or tray icon on this desktop	Αυτή η επιφάνεια εργασίας δεν έχει γραμμή μενού ούτε εικονίδιο στην περιοχή ειδοποιήσεων
+	Check every	Έλεγχος κάθε
+	h	ώρ.
+	0: only when asked	0: μόνο όταν ζητηθεί
+	Keep previous versions:	Διατήρηση προηγούμενων εκδόσεων:
+	Appearance	Εμφάνιση
+	Language	Γλώσσα
+	Automatic ({language})	Αυτόματα ({language})
+	Theme	Θέμα
+	Same as the system	Όπως το σύστημα
+	Dark	Σκούρο
+	Light	Ανοιχτό
+	Text size	Μέγεθος κειμένου
+	{n}%	{n}%
+	Also {keys}	Επίσης {keys}
+	About	Πληροφορίες
+	unsupported platform	μη υποστηριζόμενη πλατφόρμα
+	This computer: {host}	Αυτός ο υπολογιστής: {host}
+	not saved (no data folder)	δεν αποθηκεύεται (δεν υπάρχει φάκελος δεδομένων)
+	Data folder: {path}	Φάκελος δεδομένων: {path}
+	Open ArtCraft Toolbox	Άνοιγμα του ArtCraft Toolbox
+	Check for Updates	Έλεγχος για ενημερώσεις
+	Quit ArtCraft Toolbox	Έξοδος από το ArtCraft Toolbox
+	{version} installed	{version} εγκατεστημένη
+	Not installed	Δεν είναι εγκατεστημένη
+	{version} available	{version} διαθέσιμη
+	{version} · up to date	{version} · ενημερωμένη
+	{latest} available · {installed} installed	{latest} διαθέσιμη · {installed} εγκατεστημένη
+	No build for this computer	Δεν υπάρχει έκδοση για αυτόν τον υπολογιστή
+	just now	μόλις τώρα
+	in under a minute	σε λιγότερο από ένα λεπτό
+	Checked {when}	Έλεγχος {when}
+	Not checked yet	Δεν έχει γίνει έλεγχος
+	GitHub's request limit for this computer is used up; checking can resume {when}. A GitHub token in {variable} raises the limit.	Το όριο αιτημάτων προς το GitHub για αυτόν τον υπολογιστή εξαντλήθηκε· ο έλεγχος μπορεί να συνεχιστεί {when}. Ένα διακριτικό GitHub στο {variable} αυξάνει το όριο.
+	Couldn't check {app}: {error}	Δεν ήταν δυνατός ο έλεγχος του {app}: {error}
+	Signed by {who}	Υπογραφή από {who}
+	notarized	πιστοποιημένο
+	No platform signature	Χωρίς υπογραφή πλατφόρμας
+	Signature not checked: {reason}	Η υπογραφή δεν ελέγχθηκε: {reason}
+
+# == Messages from the engine (shown by exact match)
+	this session has no network access	αυτή η συνεδρία δεν έχει πρόσβαση στο δίκτυο
+	this session has no install location	αυτή η συνεδρία δεν έχει θέση εγκατάστασης
+	a check is already running	ένας έλεγχος εκτελείται ήδη
+	the icons are already being refreshed	τα εικονίδια ανανεώνονται ήδη
+	the server took too long to answer	ο διακομιστής άργησε πολύ να απαντήσει
+	GitHub's request limit is used up	το όριο αιτημάτων του GitHub εξαντλήθηκε
+	too many redirects	πάρα πολλές ανακατευθύνσεις
+	cancelled	ακυρώθηκε
+	the install stopped unexpectedly	η εγκατάσταση σταμάτησε απροσδόκητα
+	Starting	Έναρξη
+	Verifying the release	Επαλήθευση της έκδοσης
+	Downloading	Λήψη
+	Verifying	Επαλήθευση
+	Installing	Εγκατάσταση
+	Checking the signature	Έλεγχος της υπογραφής
+
+# == App descriptions (crates/catalog/catalog.toml)
+	Image editing: layers, masks, type and real PSD files	Επεξεργασία εικόνας: επίπεδα, μάσκες, κείμενο και πραγματικά αρχεία PSD
+	Vector illustration	Διανυσματική εικονογράφηση
+	Video editing, color and sound	Μοντάζ βίντεο, χρώμα και ήχος
+	Photo library and raw development	Βιβλιοθήκη φωτογραφιών και εμφάνιση RAW
+	Reading, organizing and protecting PDFs	Ανάγνωση, οργάνωση και προστασία PDF
+	Motion graphics and visual effects	Κινούμενα γραφικά και οπτικά εφέ
+	Page layout and publishing	Σελιδοποίηση και εκδόσεις
+	Computer-aided design and drafting	Σχεδίαση με τη βοήθεια υπολογιστή
+	Presentations and slide shows	Παρουσιάσεις και προβολές διαφανειών
+	Spreadsheets	Υπολογιστικά φύλλα
+	Audio recording, editing and mixing	Ηχογράφηση, επεξεργασία και μίξη ήχου
+	Word processing	Επεξεργασία κειμένου
+
+# == Plurals
+@plural	The app is removed, with {n} earlier version kept for rollback.|The app is removed, with {n} earlier versions kept for rollback.	Η εφαρμογή θα αφαιρεθεί, μαζί με {n} προηγούμενη έκδοση που κρατήθηκε για επαναφορά.|Η εφαρμογή θα αφαιρεθεί, μαζί με {n} προηγούμενες εκδόσεις που κρατήθηκαν για επαναφορά.
+@plural	{n} min ago|{n} min ago	πριν από {n} λεπτό|πριν από {n} λεπτά
+@plural	{n} h ago|{n} h ago	πριν από {n} ώρα|πριν από {n} ώρες
+@plural	{n} day ago|{n} days ago	πριν από {n} ημέρα|πριν από {n} ημέρες
+@plural	in {n} min|in {n} min	σε {n} λεπτό|σε {n} λεπτά
+@plural	in {n} h|in {n} h	σε {n} ώρα|σε {n} ώρες
+@plural	{n} app|{n} apps	{n} εφαρμογή|{n} εφαρμογές
+@plural	Couldn't check {n} app: {error}|Couldn't check {n} apps: {error}	Δεν ήταν δυνατός ο έλεγχος {n} εφαρμογής: {error}|Δεν ήταν δυνατός ο έλεγχος {n} εφαρμογών: {error}
+@plural	{first}, {second} and {n} more|{first}, {second} and {n} more	{first}, {second} και {n} ακόμη|{first}, {second} και {n} ακόμη

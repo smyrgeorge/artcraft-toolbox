@@ -8,13 +8,25 @@
 #![forbid(unsafe_code)]
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
+/// Translate a string literal into the current UI language: `tl!("Check for updates")`
+/// (PhotoCraft's pattern; see [`i18n`]).
+macro_rules! tl {
+    ($s:expr) => {
+        $crate::i18n::t($s)
+    };
+}
+
 pub mod actions;
 pub mod app_list;
+pub mod cjk;
+pub mod cjk_fonts;
 pub mod details;
+pub mod i18n;
 pub mod settings_ui;
 pub mod state;
 pub mod theme;
 pub mod widgets;
+pub mod wording;
 
 use std::collections::HashMap;
 use std::time::Duration;
@@ -22,7 +34,7 @@ use std::time::Duration;
 use artcraft_toolbox_engine::icons::REFRESH_ICONS;
 use artcraft_toolbox_engine::update_cmds::CHECK;
 use artcraft_toolbox_engine::versions_cmds::UPDATE_ALL;
-use artcraft_toolbox_engine::{JobId, Session, Started, time};
+use artcraft_toolbox_engine::{JobId, Session, Started};
 use serde_json::{Value, json};
 
 use state::{Tab, UiState};
@@ -56,6 +68,8 @@ pub struct ToolboxApp {
     textures: HashMap<String, (u64, egui::TextureHandle)>,
     /// Updates started automatically (`autoUpdate`): announced when they finish.
     auto_updates: std::collections::HashSet<JobId>,
+    /// The `textSize` setting last applied as the zoom factor.
+    applied_text_size: Option<u32>,
 }
 
 impl ToolboxApp {
@@ -73,6 +87,41 @@ impl ToolboxApp {
             markdown: egui_commonmark::CommonMarkCache::default(),
             textures: HashMap::new(),
             auto_updates: std::collections::HashSet::new(),
+            applied_text_size: None,
+        }
+    }
+
+    /// Follow the appearance settings: the language (also used for notifications, so it runs
+    /// while the window is hidden too), the theme and the text size.
+    pub fn sync_appearance(&mut self, ctx: &egui::Context) {
+        let s = self.session.settings();
+        i18n::sync_context(ctx, &s.language);
+        theme::set_preference(ctx, s.theme);
+        if self.applied_text_size != Some(s.text_size) {
+            self.applied_text_size = Some(s.text_size);
+            ctx.set_zoom_factor(s.text_size as f32 / 100.0);
+        }
+    }
+
+    /// Cmd/Ctrl with +, - and 0 step the `textSize` setting (saved, unlike egui's own zoom).
+    fn text_size_keys(&mut self, ctx: &egui::Context) {
+        use artcraft_toolbox_model::settings::TEXT_SIZES;
+        use egui::gui_zoom::kb_shortcuts::{ZOOM_IN, ZOOM_IN_SECONDARY, ZOOM_OUT, ZOOM_RESET};
+        let current = self.session.settings().text_size;
+        let at = TEXT_SIZES.iter().position(|n| *n == current).unwrap_or(1);
+        let wanted = ctx.input_mut(|i| {
+            if i.consume_shortcut(&ZOOM_IN) || i.consume_shortcut(&ZOOM_IN_SECONDARY) {
+                TEXT_SIZES.get(at + 1).copied()
+            } else if i.consume_shortcut(&ZOOM_OUT) {
+                at.checked_sub(1).and_then(|i| TEXT_SIZES.get(i)).copied()
+            } else if i.consume_shortcut(&ZOOM_RESET) {
+                Some(100)
+            } else {
+                None
+            }
+        });
+        if let Some(n) = wanted.filter(|n| *n != current) {
+            self.run("settings.set", json!({ "textSize": n }));
         }
     }
 
@@ -117,12 +166,14 @@ impl ToolboxApp {
             return;
         }
         let (Some(notify), Some(entry)) = (&self.services.notify, self.session.catalog().get(app)) else { return };
-        notify("Updated", &format!("{} {version}", entry.name));
+        notify(tl!("Updated"), &format!("{} {version}", entry.name));
     }
 
-    /// Theme and style; call once on the egui context before the first frame.
+    /// Themes, style and the built-in fonts; call once on the egui context before the first
+    /// frame. Text size has its own shortcuts ([`ToolboxApp::text_size_keys`]), not egui's zoom.
     pub fn setup_context(ctx: &egui::Context) {
         theme::apply(ctx);
+        ctx.options_mut(|o| o.zoom_with_keyboard = false);
     }
 
     /// Run a command from the UI. Errors go to the status bar, never to a panic.
@@ -169,19 +220,19 @@ impl ToolboxApp {
             if self.auto_updates.remove(&event.id) {
                 match &event.result {
                     Ok(v) => self.announce_updated(v["app"].as_str().unwrap_or_default(), v["version"].as_str().unwrap_or_default()),
-                    Err(e) => self.notice = Some(format!("An automatic update failed: {e}")),
+                    Err(e) => self.notice = Some(i18n::fmt(tl!("An automatic update failed: {error}"), &[("error", wording::engine(e))])),
                 }
                 continue;
             }
             match (&event.result, event.command.as_str()) {
                 (Ok(v), CHECK) => {
-                    self.notice = self.session.check_notice(v);
+                    self.notice = wording::check_notice(&self.session, v);
                     self.announce_updates();
                     self.update_all(true);
                 }
                 // Icons failing is not worth the status bar: the monogram stays.
                 (Ok(_), _) => {}
-                (Err(e), _) => self.notice = Some(e.clone()),
+                (Err(e), _) => self.notice = Some(wording::engine(e).to_string()),
             }
         }
         if self.session.has_jobs() {
@@ -197,8 +248,8 @@ impl ToolboxApp {
         }
         let Some(notify) = &self.services.notify else { return };
         let fresh = self.session.take_new_updates();
-        if let Some(text) = updates_text(&fresh) {
-            let title = if fresh.len() == 1 { "Update available" } else { "Updates available" };
+        if let Some(text) = wording::updates_text(&fresh) {
+            let title = if fresh.len() == 1 { tl!("Update available") } else { tl!("Updates available") };
             notify(title, &text);
         }
     }
@@ -215,6 +266,7 @@ impl ToolboxApp {
 
     /// Everything that isn't drawing: also runs while the window is hidden.
     pub fn tick(&mut self, ctx: &egui::Context) {
+        self.sync_appearance(ctx);
         self.poll(ctx);
         self.background();
         self.close_to_tray(ctx);
@@ -238,6 +290,8 @@ impl ToolboxApp {
 
     /// Draw one frame into `ui` (the eframe root, or a test harness).
     pub fn show(&mut self, ui: &mut egui::Ui) {
+        self.sync_appearance(ui.ctx());
+        self.text_size_keys(ui.ctx());
         self.poll(ui.ctx());
         let t = Tokens::get(ui.ctx());
         egui::Panel::top("header").frame(egui::Frame::NONE.fill(t.chrome).inner_margin(egui::Margin::symmetric(16, 12))).show(ui, |ui| self.header(ui, &t));
@@ -256,18 +310,20 @@ impl ToolboxApp {
     }
 
     fn header(&mut self, ui: &mut egui::Ui, t: &Tokens) {
-        ui.horizontal(|ui| {
-            ui.label(egui::RichText::new("ArtCraft Toolbox").heading().color(t.text));
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                for tab in [Tab::Settings, Tab::Apps] {
-                    if ui.selectable_label(self.ui.tab == tab, tab.label()).clicked() {
-                        // The Apps tab always leads back to the list.
-                        if tab == Tab::Apps {
-                            self.ui.selected = None;
-                        }
-                        self.ui.tab = tab;
+        // The tabs first, on the right; the title gets what is left (long tab names in some
+        // languages leave it less in a narrow window).
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            for (tab, label) in [(Tab::Settings, tl!("Settings")), (Tab::Apps, tl!("Apps"))] {
+                if ui.selectable_label(self.ui.tab == tab, label).clicked() {
+                    // The Apps tab always leads back to the list.
+                    if tab == Tab::Apps {
+                        self.ui.selected = None;
                     }
+                    self.ui.tab = tab;
                 }
+            }
+            ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                ui.add(egui::Label::new(egui::RichText::new("ArtCraft Toolbox").heading().color(t.text)).truncate());
             });
         });
     }
@@ -275,6 +331,7 @@ impl ToolboxApp {
     fn status_bar(&mut self, ui: &mut egui::Ui, t: &Tokens) {
         ui.horizontal(|ui| {
             if let Some(n) = &self.notice {
+                let n = wording::engine(n);
                 ui.add(egui::Label::new(egui::RichText::new(n).small().color(t.danger)).truncate()).on_hover_text(n);
                 return;
             }
@@ -283,31 +340,11 @@ impl ToolboxApp {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.label(egui::RichText::new(artcraft_toolbox_engine::build_info::long_version()).small().color(t.text_faint));
                 ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                    let line = status_line(&self.session);
+                    let line = wording::status_line(&self.session);
                     ui.add(egui::Label::new(egui::RichText::new(&line).small().color(t.text_dim)).truncate()).on_hover_text(line);
                 });
             });
         });
-    }
-}
-
-/// `Checked 5 min ago · 12 apps · macos-aarch64`.
-pub fn status_line(session: &Session) -> String {
-    let checked = match session.last_checked() {
-        Some(at) => format!("Checked {}", time::ago(session.now(), at)),
-        None => "Not checked yet".into(),
-    };
-    let host = session.host().map(|h| h.to_string()).unwrap_or_else(|| "unsupported platform".into());
-    format!("{checked} · {} apps · {host}", session.catalog().apps.len())
-}
-
-/// The notification text for new updates: `PhotoCraft 0.5.0, VectorCraft 0.7.0`.
-pub fn updates_text(updates: &[(String, artcraft_toolbox_engine::Version)]) -> Option<String> {
-    match updates {
-        [] => None,
-        list if list.len() <= 3 => Some(list.iter().map(|(name, v)| format!("{name} {v}")).collect::<Vec<_>>().join(", ")),
-        [first, second, rest @ ..] => Some(format!("{} {}, {} {} and {} more", first.0, first.1, second.0, second.1, rest.len())),
-        _ => None,
     }
 }
 
@@ -336,6 +373,7 @@ mod tests {
 
     #[test]
     fn notification_text() {
+        use wording::updates_text;
         let v = |n: &str, x| (n.to_string(), Version::new(0, x, 0));
         assert_eq!(updates_text(&[]), None);
         assert_eq!(updates_text(&[v("PhotoCraft", 5)]).as_deref(), Some("PhotoCraft 0.5.0"));

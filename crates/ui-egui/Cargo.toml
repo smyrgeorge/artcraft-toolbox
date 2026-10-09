@@ -20,6 +20,10 @@ serde_json = { workspace = true }
 log = { workspace = true }
 # Release notes (GitHub Markdown). Built on pulldown-cmark; no image loading or fetching.
 egui_commonmark = { version = "0.25", default-features = false, features = ["pulldown_cmark"] }
+# The system's preferred UI languages (PhotoCraft's pin): safe wrappers over the OS APIs.
+sys-locale = "=0.3.2"
+# Picks the right face of a system CJK font collection by family name (as PhotoCraft does).
+skrifa = "0.44"
 
 [dev-dependencies]
 egui_kittest = { workspace = true, features = ["wgpu", "snapshot", "eframe"] }

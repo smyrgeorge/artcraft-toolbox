@@ -18,7 +18,8 @@
 //! `--signed` draws them signed and notarized. `--found <app>=<version>` draws a copy installed
 //! outside the toolbox, offered for adoption (as a Linux AppImage: use `--host linux-x86_64`).
 //! `--online` draws the buttons that need the network enabled (requests fail at once; no
-//! automatic check runs).
+//! automatic check runs). `--lang <code>` (`de`, `ja`, `auto` …), `--theme light|dark` and
+//! `--text-size <percent>` set the appearance settings; without `--lang` it draws in English.
 
 use std::sync::Arc;
 
@@ -180,6 +181,14 @@ fn main() -> Result<(), String> {
         kept: scratch.join("kept"),
     }));
     app.session.rescan();
+    let language = arg(&args, "--lang").unwrap_or_else(|| "en".into());
+    app.session.execute("settings.set", serde_json::json!({ "language": language })).map_err(|e| e.to_string())?;
+    if let Some(theme) = arg(&args, "--theme") {
+        app.session.execute("settings.set", serde_json::json!({ "theme": theme })).map_err(|e| e.to_string())?;
+    }
+    if let Some(size) = arg(&args, "--text-size").and_then(|s| s.parse::<u32>().ok()) {
+        app.session.execute("settings.set", serde_json::json!({ "textSize": size })).map_err(|e| e.to_string())?;
+    }
     if online || installing.is_some() {
         app.session.execute("settings.set", serde_json::json!({ "checkIntervalHours": 0 })).map_err(|e| e.to_string())?;
     }
@@ -199,7 +208,8 @@ fn main() -> Result<(), String> {
         ToolboxApp::setup_context(&cc.egui_ctx);
         app
     });
-    harness.run_steps(4);
+    // A few frames more than layout needs: CJK fallback fonts load one per frame.
+    harness.run_steps(8);
     let img = harness.render().map_err(|e| format!("render: {e}"))?;
     if let Some(dir) = std::path::Path::new(&out).parent() {
         std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;

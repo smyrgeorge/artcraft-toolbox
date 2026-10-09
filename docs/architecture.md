@@ -48,7 +48,8 @@ artcraft-toolbox/
 │  ├─ jobs/       L4 planned     background work outside the engine (self-update); installs are
 │  │                             engine jobs today
 │  ├─ engine/     L5             Session (catalog, inventory, settings, feeds, host) + commands
-│  ├─ ui-egui/    L6             ToolboxApp: app list, settings; theme tokens, widgets
+│  ├─ ui-egui/    L6             ToolboxApp: app list, details, settings; theme tokens (dark,
+│  │                             light), widgets; i18n (catalogs, `tl!`), wording, CJK fonts
 │  ├─ automation/ L6 planned     JSON control channel + MCP server over the command registry
 │  └─ testkit/       planned     fake feeds, temp install roots, a local HTTPS fixture server
 ├─ apps/
@@ -57,11 +58,12 @@ artcraft-toolbox/
 └─ xtask/                        layers, ci, contract (live release check), version
 ```
 
-**What exists today** (M1–M4): `release`, `catalog`, `model`, `feed`, `net`, `store`,
+**What exists today** (M1–M4, M8): `release`, `catalog`, `model`, `feed`, `net`, `store`,
 `install`, `engine`, `ui-egui`, both apps and xtask. The toolbox checks GitHub for every app's
 releases in the background, caches them, persists its settings and inventory, shows what is
 available and what needs updating, and installs, updates (by hand or automatically), rolls back,
-adopts, uninstalls and opens any craft, checking platform signatures on the way.
+adopts, uninstalls and opens any craft, checking platform signatures on the way. Its window is in
+15 languages, in a dark or light theme, at a chosen text size.
 
 ## 3. Layers (enforced)
 
@@ -192,7 +194,7 @@ accessors (`statuses()`, `app_status()`) serve the UI; commands serve everyone e
 | `app.status` | `{"app":"<id>"}` | M0 |
 | `apps.status` | `{}` | M0 |
 | `settings.get` | `{}` | M0 |
-| `settings.set` | any subset of `channel`, `checkIntervalHours`, `autoUpdate`, `keepPrevious`, `installDir`, `notifications`, `closeToTray` | M0, M4 |
+| `settings.set` | any subset of `channel`, `checkIntervalHours`, `autoUpdate`, `keepPrevious`, `installDir`, `notifications`, `closeToTray`, `language`, `theme`, `textSize` | M0, M4, M8 |
 | `app.settings.get` | `{"app":"<id>"}` | M4 |
 | `app.settings.set` | `{"app":"<id>","channel"?:…\|null,"autoUpdate"?:bool\|null,"pinned"?:"x.y.z"\|null}` | M4 |
 | `app.releases` | `{"app":"<id>","limit"?:1..100}` | M4 |
@@ -259,3 +261,28 @@ whether a tray icon exists), so tests and the snapshot example run without them.
   tray, the `closeToTray` setting is on and the user didn't choose Quit.
 - **Notifications.** `notify-rust`, on a short-lived thread. `Session::take_new_updates` returns
   each installed app's new version once, remembered in `state.json` across restarts.
+
+## 10. Languages, themes and accessibility (M8)
+
+Translation happens only in `ui-egui`, at display. The engine, its errors and the CLI stay
+English (agents and logs read them), and the settings store codes, not words (`language: "de"`,
+`theme: "light"`). The UI translates three kinds of text:
+
+- its own literals, through `tl!` and the TSV catalogs in `ui-egui/src/i18n/` (PhotoCraft's
+  implementation, ported: embedded with `include_str!`, parsed once, looked up per frame);
+- what it builds from engine data, in `wording` (status lines, "5 min ago", the signature line,
+  rate-limit notices), which matches on the engine's typed values rather than its English text;
+- the engine's fixed messages (disabled reasons, job phases), translated by exact match from
+  `wording::ENGINE_STRINGS`; a test checks each still appears in the engine's source, so a reworded
+  engine message can't silently fall back to English.
+
+Each frame, `sync_appearance` sets the drawing language (thread-local, `i18n::set_current`), the
+theme preference and the zoom factor from the settings, so a `settings.set` from the UI, the CLI
+or an agent shows on the next frame. A language change also resets the CJK font loader
+(`cjk_fonts`), which loads the system's Chinese, Japanese or Korean fonts on demand, the UI
+language's script first. The desktop app rebuilds its tray menu labels on a language change
+(`Tray::relabel`).
+
+Themes are two `Tokens` sets and their egui visuals, both installed at start; egui picks one from
+the preference (`system` follows the OS). Accessibility comes from egui's AccessKit tree: widgets
+get names (`WidgetInfo`), and the UI tests query that same tree.

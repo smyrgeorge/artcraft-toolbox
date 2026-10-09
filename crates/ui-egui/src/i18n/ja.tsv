@@ -1,0 +1,170 @@
+# Japanese (ja) catalog for ArtCraft Toolbox. Columns, separated by a TAB:  context <TAB> source <TAB> translation
+#
+#   context  empty                a plain UI string; `source` is the English text in the code
+#            @plural              `source` is "one|other" (the English forms); the translation lists the
+#                                 language's forms separated by "|" (see `plural` in i18n/mod.rs)
+#            anything else        a disambiguating context passed to `tr_ctx`
+#   escapes  \n  \t  \\  inside a column. `{name}` placeholders must appear in both columns.
+#   lines starting with # and blank lines are ignored.
+#
+# Clean-room: entries are written from the plain meaning of the English text in ordinary computing
+# vocabulary, or taken from PhotoCraft's catalog for the same English string (MIT OR Apache-2.0,
+# like this project). No proprietary localisation resource was consulted or copied.
+# Product names (ArtCraft Toolbox, PhotoCraft, GitHub, macOS ...) stay as they are; the trailing "…"
+# of commands that ask before acting is kept.
+
+# == Interface
+	Downloading {percent}%	ダウンロード中 {percent}%
+	Cancel	キャンセル
+	Stop; installing again resumes the download	停止します。もう一度インストールするとダウンロードを再開します
+	Update {app} from {installed} to {latest}	{app} を {installed} から {latest} にアップデート
+	Update	アップデート
+	Open	開く
+	Open {app}	{app} を開く
+	Let the toolbox update and roll back the {app} found on this computer	このコンピュータで見つかった {app} を Toolbox でアップデート・ロールバックできるようにします
+	Adopt	管理に追加
+	Install {app} {version}	{app} {version} をインストール
+	Install	インストール
+	Check for updates first	先にアップデートを確認してください
+	No app matches “{query}”	「{query}」に一致するアプリはありません
+	Installed	インストール済み
+	Update all ({n})	すべてアップデート ({n})
+	Update every app that has an update	アップデートのあるアプリをすべてアップデート
+	Available	入手可能
+	Checking {done} of {total}	確認中 {done} / {total}
+	Check for updates	アップデートを確認
+	Look for new versions of every app now	すべてのアプリの新しいバージョンを今すぐ確認
+	Search apps	アプリを検索
+	Couldn't check: {error}	確認できませんでした: {error}
+	{version} installed outside the toolbox	{version} を Toolbox 以外でインストール済み
+	{status} · pinned to {version}	{status} · {version} に固定
+	Last check failed: {error}	前回の確認に失敗: {error}
+	Back	戻る
+	All apps	すべてのアプリ
+	The app is removed.	アプリを削除します。
+	Uninstall {app} {version}?	{app} {version} をアンインストールしますか?
+	Your documents and its settings are kept.	書類とアプリの設定は残ります。
+	Uninstall	アンインストール
+	{status} · checked {when}	{status} · 最終確認: {when}
+	Releases	リリース
+	Website	Webサイト
+	Settings for {app}	{app} の設定
+	Channel	チャンネル
+	Default ({value})	デフォルト ({value})
+	Stable	安定版
+	Pre-release	プレリリース
+	Updates	アップデート
+	automatic	自動
+	ask first	確認してから
+	Automatic	自動
+	Ask first	確認してから
+	Version	バージョン
+	Latest	最新
+	Pinned to {version}	{version} に固定
+	Pin to {version}	{version} に固定する
+	Versions	バージョン
+	Not checked yet: check for updates to see versions and release notes.	まだ確認していません。アップデートを確認すると、バージョンとリリースノートが表示されます。
+	pre-release	プレリリース
+	in use	使用中
+	kept	保持
+	pinned	固定
+	no build for this computer	このコンピュータ用のビルドなし
+	Switch to this version	このバージョンに切り替え
+	Install this version	このバージョンをインストール
+	Make {app} {version} the version in use, without downloading it	ダウンロードせずに {app} {version} を使用中のバージョンにします
+	Download and install {app} {version}	{app} {version} をダウンロードしてインストール
+	No release notes.	リリースノートはありません。
+	Open on GitHub	GitHub で開く
+	Updated	アップデートしました
+	An automatic update failed: {error}	自動アップデートに失敗しました: {error}
+	Update available	アップデートがあります
+	Updates available	アップデートがあります
+	Settings	設定
+	Apps	アプリ
+	Channel:	チャンネル:
+	Install updates automatically	アップデートを自動でインストール
+	Notify me when updates are found	アップデートが見つかったら通知
+	Notifications aren't available here	ここでは通知を使用できません
+	Keep running in the menu bar when the window is closed	ウィンドウを閉じてもメニューバーで実行し続ける
+	Keep running in the system tray when the window is closed	ウィンドウを閉じてもシステムトレイで実行し続ける
+	There is no menu bar or tray icon on this desktop	このデスクトップにはメニューバーやトレイのアイコンがありません
+	Check every	確認の間隔
+	h	時間
+	0: only when asked	0: 指示したときだけ
+	Keep previous versions:	以前のバージョンを保持:
+	Appearance	外観
+	Language	言語
+	Automatic ({language})	自動 ({language})
+	Theme	テーマ
+	Same as the system	システムに合わせる
+	Dark	ダーク
+	Light	ライト
+	Text size	文字サイズ
+	{n}%	{n}%
+	Also {keys}	{keys} でも変更できます
+	About	バージョン情報
+	unsupported platform	未対応のプラットフォーム
+	This computer: {host}	このコンピュータ: {host}
+	not saved (no data folder)	保存されません (データフォルダがありません)
+	Data folder: {path}	データフォルダ: {path}
+	Open ArtCraft Toolbox	ArtCraft Toolbox を開く
+	Check for Updates	アップデートを確認
+	Quit ArtCraft Toolbox	ArtCraft Toolbox を終了
+	{version} installed	{version} インストール済み
+	Not installed	未インストール
+	{version} available	{version} 入手可能
+	{version} · up to date	{version} · 最新
+	{latest} available · {installed} installed	{latest} 入手可能 · {installed} インストール済み
+	No build for this computer	このコンピュータ用のビルドがありません
+	just now	たった今
+	in under a minute	1 分以内に
+	Checked {when}	最終確認: {when}
+	Not checked yet	未確認
+	GitHub's request limit for this computer is used up; checking can resume {when}. A GitHub token in {variable} raises the limit.	このコンピュータからの GitHub へのリクエスト上限に達しました。確認は{when}再開できます。{variable} に GitHub トークンを設定すると上限が上がります。
+	Couldn't check {app}: {error}	{app} を確認できませんでした: {error}
+	Signed by {who}	署名: {who}
+	notarized	公証済み
+	No platform signature	プラットフォームの署名なし
+	Signature not checked: {reason}	署名は未確認: {reason}
+
+# == Messages from the engine (shown by exact match)
+	this session has no network access	このセッションはネットワークにアクセスできません
+	this session has no install location	このセッションにはインストール先がありません
+	a check is already running	確認はすでに実行中です
+	the icons are already being refreshed	アイコンはすでに更新中です
+	the server took too long to answer	サーバーの応答に時間がかかりすぎました
+	GitHub's request limit is used up	GitHub のリクエスト上限に達しました
+	too many redirects	リダイレクトが多すぎます
+	cancelled	キャンセルしました
+	the install stopped unexpectedly	インストールが予期せず停止しました
+	Starting	開始中
+	Verifying the release	リリースを検証中
+	Downloading	ダウンロード中
+	Verifying	検証中
+	Installing	インストール中
+	Checking the signature	署名を確認中
+
+# == App descriptions (crates/catalog/catalog.toml)
+	Image editing: layers, masks, type and real PSD files	画像編集: レイヤー、マスク、文字、本物の PSD ファイル
+	Vector illustration	ベクターイラスト
+	Video editing, color and sound	動画編集、カラー、サウンド
+	Photo library and raw development	写真ライブラリと RAW 現像
+	Reading, organizing and protecting PDFs	PDF の閲覧、整理、保護
+	Motion graphics and visual effects	モーショングラフィックスと視覚効果
+	Page layout and publishing	ページレイアウトと出版
+	Computer-aided design and drafting	CAD による設計と製図
+	Presentations and slide shows	プレゼンテーションとスライドショー
+	Spreadsheets	表計算
+	Audio recording, editing and mixing	音声の録音、編集、ミキシング
+	Word processing	文書作成
+
+# == Plurals
+@plural	The app is removed, with {n} earlier version kept for rollback.|The app is removed, with {n} earlier versions kept for rollback.	アプリと、ロールバック用に保持していた以前のバージョン {n} 個を削除します。
+@plural	{n} min ago|{n} min ago	{n} 分前
+@plural	{n} h ago|{n} h ago	{n} 時間前
+@plural	{n} day ago|{n} days ago	{n} 日前
+@plural	in {n} min|in {n} min	{n} 分後に
+@plural	in {n} h|in {n} h	{n} 時間後に
+@plural	{n} app|{n} apps	{n} 個のアプリ
+@plural	Couldn't check {n} app: {error}|Couldn't check {n} apps: {error}	{n} 個のアプリを確認できませんでした: {error}
+@plural	{first}, {second} and {n} more|{first}, {second} and {n} more	{first}、{second} ほか {n} 件

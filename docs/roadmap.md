@@ -12,7 +12,7 @@ Status legend: ✅ done · 🟡 in progress · ⬜ not started. Updated 2026-10-
 | M5 Distribution and self-update | ⬜ | Signed installers via PhotoCraft's release pipeline; the toolbox updates itself |
 | M6 Automation | ⬜ | Control channel and MCP over the command registry |
 | M7 Catalog from the network | ⬜ | A signed remote catalog; non-conforming apps (ArtCraft itself) |
-| M8 Polish | ⬜ | Localization (PhotoCraft's `tl!` pattern), accessibility, light theme |
+| M8 Polish | ✅ | Localization (PhotoCraft's `tl!` pattern), accessibility, light theme |
 
 ## Current focus: M5 Distribution and self-update
 
@@ -95,6 +95,18 @@ Authenticode and the Windows running-app check (CI runs their tests), Linux desk
 Still open from M4: macOS keeps its Dock icon while the window is hidden (an accessory activation
 policy needs AppKit calls; PhotoCraft's `mac_window.rs` shows the safe way), and a notification
 click doesn't open the toolbox yet. Install / Open went live in M2; Update stays disabled until M3.
+
+### M8 Polish ✅ (2026-10-09, ahead of M5–M7)
+
+- [x] Localization on PhotoCraft's pattern (`i18n`, `tl!`, TSV catalogs, plural rules): English plus ja, zh-hans, zh-hant, es, ru, cs, fr, id, ko, pl, de, pt-br, el, it; setting `language` (`auto` follows the system's UI languages, `ARTCRAFT_TOOLBOX_LOCALE` overrides), switched live with the tray menu and notifications (docs/localization.md)
+- [x] Chinese, Japanese and Korean from the system's fonts, loaded on demand (PhotoCraft's `cjk` loader; no bundled fonts)
+- [x] Light theme (`Tokens::LIGHT`), setting `theme` (system, dark, light); every text colour meets WCAG AA in both themes (tested)
+- [x] Text size (setting `textSize`, 90–150 %; Cmd/Ctrl +, −, 0)
+- [x] Accessibility: rows are buttons named "PhotoCraft, 0.5.0 available" for screen readers, reachable with Tab and opened with Enter, with a visible focus ring; the progress bar reports its value
+- [x] Settings › Appearance: Language (native names), Theme, Text size
+
+Every catalog covers every UI string, plural message, tagline and fixed engine message the UI
+shows (tests list what's missing). The CLI, command ids and logs stay English.
 
 ### M5 Distribution and self-update
 

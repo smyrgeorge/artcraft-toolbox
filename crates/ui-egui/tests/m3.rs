@@ -97,9 +97,16 @@ fn session(root: &Path, fetched: bool) -> Session {
     s
 }
 
+/// The UI in English whatever this computer's language (the tests read English labels).
+fn english(mut app: ToolboxApp) -> ToolboxApp {
+    app.session.execute("settings.set", serde_json::json!({ "language": "en" })).unwrap();
+    app
+}
+
 /// Draws the UI only: no background work starts by itself (icons, checks), so a frame count
 /// can't depend on the network's speed.
 fn harness(app: ToolboxApp) -> Harness<'static, ToolboxApp> {
+    let app = english(app);
     Harness::builder().with_size(egui::vec2(440.0, 2400.0)).build_ui_state(
         |ui, app: &mut ToolboxApp| {
             ToolboxApp::setup_context(ui.ctx());
@@ -111,6 +118,7 @@ fn harness(app: ToolboxApp) -> Harness<'static, ToolboxApp> {
 
 /// Draws with `tick` too, as eframe's `logic` does in the app: due checks start by themselves.
 fn ticking(app: ToolboxApp) -> Harness<'static, ToolboxApp> {
+    let app = english(app);
     Harness::builder().with_size(egui::vec2(440.0, 2400.0)).build_ui_state(
         |ui, app: &mut ToolboxApp| {
             ToolboxApp::setup_context(ui.ctx());

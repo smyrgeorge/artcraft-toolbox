@@ -1,0 +1,170 @@
+# Korean (ko) catalog for ArtCraft Toolbox. Columns, separated by a TAB:  context <TAB> source <TAB> translation
+#
+#   context  empty                a plain UI string; `source` is the English text in the code
+#            @plural              `source` is "one|other" (the English forms); the translation lists the
+#                                 language's forms separated by "|" (see `plural` in i18n/mod.rs)
+#            anything else        a disambiguating context passed to `tr_ctx`
+#   escapes  \n  \t  \\  inside a column. `{name}` placeholders must appear in both columns.
+#   lines starting with # and blank lines are ignored.
+#
+# Clean-room: entries are written from the plain meaning of the English text in ordinary computing
+# vocabulary, or taken from PhotoCraft's catalog for the same English string (MIT OR Apache-2.0,
+# like this project). No proprietary localisation resource was consulted or copied.
+# Product names (ArtCraft Toolbox, PhotoCraft, GitHub, macOS ...) stay as they are; the trailing "…"
+# of commands that ask before acting is kept.
+
+# == Interface
+	Downloading {percent}%	다운로드 중 {percent}%
+	Cancel	취소
+	Stop; installing again resumes the download	중지합니다. 다시 설치하면 다운로드를 이어서 합니다
+	Update {app} from {installed} to {latest}	{app}을(를) {installed}에서 {latest}(으)로 업데이트
+	Update	업데이트
+	Open	열기
+	Open {app}	{app} 열기
+	Let the toolbox update and roll back the {app} found on this computer	이 컴퓨터에서 찾은 {app}을(를) 툴박스에서 업데이트하고 롤백할 수 있게 합니다
+	Adopt	관리에 추가
+	Install {app} {version}	{app} {version} 설치
+	Install	설치
+	Check for updates first	먼저 업데이트를 확인하세요
+	No app matches “{query}”	‘{query}’와(과) 일치하는 앱이 없습니다
+	Installed	설치됨
+	Update all ({n})	모두 업데이트 ({n})
+	Update every app that has an update	업데이트가 있는 모든 앱 업데이트
+	Available	설치 가능
+	Checking {done} of {total}	확인 중 {done}/{total}
+	Check for updates	업데이트 확인
+	Look for new versions of every app now	지금 모든 앱의 새 버전 찾기
+	Search apps	앱 검색
+	Couldn't check: {error}	확인할 수 없음: {error}
+	{version} installed outside the toolbox	툴박스 밖에서 설치된 {version}
+	{status} · pinned to {version}	{status} · {version}(으)로 고정
+	Last check failed: {error}	마지막 확인 실패: {error}
+	Back	뒤로
+	All apps	모든 앱
+	The app is removed.	앱이 제거됩니다.
+	Uninstall {app} {version}?	{app} {version}을(를) 제거할까요?
+	Your documents and its settings are kept.	문서와 앱 설정은 유지됩니다.
+	Uninstall	제거
+	{status} · checked {when}	{status} · 마지막 확인: {when}
+	Releases	릴리스
+	Website	웹사이트
+	Settings for {app}	{app} 설정
+	Channel	채널
+	Default ({value})	기본값 ({value})
+	Stable	안정판
+	Pre-release	사전 릴리스
+	Updates	업데이트
+	automatic	자동
+	ask first	먼저 묻기
+	Automatic	자동
+	Ask first	먼저 묻기
+	Version	버전
+	Latest	최신
+	Pinned to {version}	{version}(으)로 고정됨
+	Pin to {version}	{version}(으)로 고정
+	Versions	버전
+	Not checked yet: check for updates to see versions and release notes.	아직 확인하지 않았습니다. 업데이트를 확인하면 버전과 릴리스 노트를 볼 수 있습니다.
+	pre-release	사전 릴리스
+	in use	사용 중
+	kept	보관됨
+	pinned	고정됨
+	no build for this computer	이 컴퓨터용 빌드 없음
+	Switch to this version	이 버전으로 전환
+	Install this version	이 버전 설치
+	Make {app} {version} the version in use, without downloading it	다운로드하지 않고 {app} {version}을(를) 사용 중인 버전으로 만듭니다
+	Download and install {app} {version}	{app} {version} 다운로드 및 설치
+	No release notes.	릴리스 노트가 없습니다.
+	Open on GitHub	GitHub에서 열기
+	Updated	업데이트됨
+	An automatic update failed: {error}	자동 업데이트 실패: {error}
+	Update available	업데이트 있음
+	Updates available	업데이트 있음
+	Settings	설정
+	Apps	앱
+	Channel:	채널:
+	Install updates automatically	업데이트 자동 설치
+	Notify me when updates are found	업데이트가 있으면 알림
+	Notifications aren't available here	여기서는 알림을 사용할 수 없습니다
+	Keep running in the menu bar when the window is closed	창을 닫아도 메뉴 막대에서 계속 실행
+	Keep running in the system tray when the window is closed	창을 닫아도 시스템 트레이에서 계속 실행
+	There is no menu bar or tray icon on this desktop	이 데스크톱에는 메뉴 막대나 트레이 아이콘이 없습니다
+	Check every	확인 간격
+	h	시간
+	0: only when asked	0: 요청할 때만
+	Keep previous versions:	이전 버전 보관:
+	Appearance	모양새
+	Language	언어
+	Automatic ({language})	자동 ({language})
+	Theme	테마
+	Same as the system	시스템 설정에 맞춤
+	Dark	어둡게
+	Light	밝게
+	Text size	텍스트 크기
+	{n}%	{n}%
+	Also {keys}	{keys}로도 바꿀 수 있습니다
+	About	정보
+	unsupported platform	지원되지 않는 플랫폼
+	This computer: {host}	이 컴퓨터: {host}
+	not saved (no data folder)	저장되지 않음 (데이터 폴더 없음)
+	Data folder: {path}	데이터 폴더: {path}
+	Open ArtCraft Toolbox	ArtCraft Toolbox 열기
+	Check for Updates	업데이트 확인
+	Quit ArtCraft Toolbox	ArtCraft Toolbox 종료
+	{version} installed	{version} 설치됨
+	Not installed	설치되지 않음
+	{version} available	{version} 설치 가능
+	{version} · up to date	{version} · 최신
+	{latest} available · {installed} installed	{latest} 설치 가능 · {installed} 설치됨
+	No build for this computer	이 컴퓨터용 빌드가 없습니다
+	just now	방금
+	in under a minute	1분 이내에
+	Checked {when}	마지막 확인: {when}
+	Not checked yet	아직 확인하지 않음
+	GitHub's request limit for this computer is used up; checking can resume {when}. A GitHub token in {variable} raises the limit.	이 컴퓨터의 GitHub 요청 한도를 모두 사용했습니다. {when} 다시 확인할 수 있습니다. {variable}에 GitHub 토큰을 넣으면 한도가 늘어납니다.
+	Couldn't check {app}: {error}	{app}을(를) 확인할 수 없음: {error}
+	Signed by {who}	서명: {who}
+	notarized	공증됨
+	No platform signature	플랫폼 서명 없음
+	Signature not checked: {reason}	서명 확인 안 됨: {reason}
+
+# == Messages from the engine (shown by exact match)
+	this session has no network access	이 세션은 네트워크에 접근할 수 없습니다
+	this session has no install location	이 세션에는 설치 위치가 없습니다
+	a check is already running	이미 확인 중입니다
+	the icons are already being refreshed	아이콘을 이미 새로 고치는 중입니다
+	the server took too long to answer	서버 응답이 너무 오래 걸렸습니다
+	GitHub's request limit is used up	GitHub 요청 한도를 모두 사용했습니다
+	too many redirects	리디렉션이 너무 많습니다
+	cancelled	취소됨
+	the install stopped unexpectedly	설치가 예기치 않게 중단되었습니다
+	Starting	시작 중
+	Verifying the release	릴리스 검증 중
+	Downloading	다운로드 중
+	Verifying	검증 중
+	Installing	설치 중
+	Checking the signature	서명 확인 중
+
+# == App descriptions (crates/catalog/catalog.toml)
+	Image editing: layers, masks, type and real PSD files	이미지 편집: 레이어, 마스크, 문자, 진짜 PSD 파일
+	Vector illustration	벡터 일러스트레이션
+	Video editing, color and sound	비디오 편집, 색 보정, 사운드
+	Photo library and raw development	사진 라이브러리와 RAW 현상
+	Reading, organizing and protecting PDFs	PDF 읽기, 정리, 보호
+	Motion graphics and visual effects	모션 그래픽과 시각 효과
+	Page layout and publishing	페이지 레이아웃과 출판
+	Computer-aided design and drafting	컴퓨터 지원 설계와 제도
+	Presentations and slide shows	프레젠테이션과 슬라이드 쇼
+	Spreadsheets	스프레드시트
+	Audio recording, editing and mixing	오디오 녹음, 편집, 믹싱
+	Word processing	문서 작성
+
+# == Plurals
+@plural	The app is removed, with {n} earlier version kept for rollback.|The app is removed, with {n} earlier versions kept for rollback.	앱과 롤백용으로 보관한 이전 버전 {n}개를 제거합니다.
+@plural	{n} min ago|{n} min ago	{n}분 전
+@plural	{n} h ago|{n} h ago	{n}시간 전
+@plural	{n} day ago|{n} days ago	{n}일 전
+@plural	in {n} min|in {n} min	{n}분 후에
+@plural	in {n} h|in {n} h	{n}시간 후에
+@plural	{n} app|{n} apps	앱 {n}개
+@plural	Couldn't check {n} app: {error}|Couldn't check {n} apps: {error}	앱 {n}개를 확인할 수 없음: {error}
+@plural	{first}, {second} and {n} more|{first}, {second} and {n} more	{first}, {second} 외 {n}개

@@ -1,0 +1,8 @@
+ArtCraft Toolbox's UI translation catalogs (*.tsv in this folder) are licensed under MIT OR
+Apache-2.0, at your option, like the rest of the project. The full license texts are in
+../../../../LICENSE-MIT and ../../../../LICENSE-APACHE.
+
+Translations: ArtCraft Toolbox contributors, original translations of the toolbox's English
+labels. Strings the toolbox shares with PhotoCraft reuse PhotoCraft's translations of the same
+English text (PhotoCraft contributors, MIT OR Apache-2.0). No proprietary translation resources
+were used.

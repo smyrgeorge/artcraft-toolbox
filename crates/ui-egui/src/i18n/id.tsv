@@ -1,0 +1,170 @@
+# Indonesian (id) catalog for ArtCraft Toolbox. Columns, separated by a TAB:  context <TAB> source <TAB> translation
+#
+#   context  empty                a plain UI string; `source` is the English text in the code
+#            @plural              `source` is "one|other" (the English forms); the translation lists the
+#                                 language's forms separated by "|" (see `plural` in i18n/mod.rs)
+#            anything else        a disambiguating context passed to `tr_ctx`
+#   escapes  \n  \t  \\  inside a column. `{name}` placeholders must appear in both columns.
+#   lines starting with # and blank lines are ignored.
+#
+# Clean-room: entries are written from the plain meaning of the English text in ordinary computing
+# vocabulary, or taken from PhotoCraft's catalog for the same English string (MIT OR Apache-2.0,
+# like this project). No proprietary localisation resource was consulted or copied.
+# Product names (ArtCraft Toolbox, PhotoCraft, GitHub, macOS ...) stay as they are; the trailing "…"
+# of commands that ask before acting is kept.
+
+# == Interface
+	Downloading {percent}%	Mengunduh {percent}%
+	Cancel	Batal
+	Stop; installing again resumes the download	Berhenti; memasang lagi akan melanjutkan unduhan
+	Update {app} from {installed} to {latest}	Perbarui {app} dari {installed} ke {latest}
+	Update	Perbarui
+	Open	Buka
+	Open {app}	Buka {app}
+	Let the toolbox update and roll back the {app} found on this computer	Biarkan Toolbox memperbarui dan mengembalikan {app} yang ditemukan di komputer ini
+	Adopt	Kelola
+	Install {app} {version}	Pasang {app} {version}
+	Install	Pasang
+	Check for updates first	Periksa pembaruan terlebih dahulu
+	No app matches “{query}”	Tidak ada aplikasi yang cocok dengan “{query}”
+	Installed	Terpasang
+	Update all ({n})	Perbarui semua ({n})
+	Update every app that has an update	Perbarui setiap aplikasi yang punya pembaruan
+	Available	Tersedia
+	Checking {done} of {total}	Memeriksa {done} dari {total}
+	Check for updates	Periksa pembaruan
+	Look for new versions of every app now	Cari versi baru semua aplikasi sekarang
+	Search apps	Cari aplikasi
+	Couldn't check: {error}	Tidak dapat memeriksa: {error}
+	{version} installed outside the toolbox	{version} terpasang di luar Toolbox
+	{status} · pinned to {version}	{status} · disematkan ke {version}
+	Last check failed: {error}	Pemeriksaan terakhir gagal: {error}
+	Back	Kembali
+	All apps	Semua aplikasi
+	The app is removed.	Aplikasi akan dihapus.
+	Uninstall {app} {version}?	Copot {app} {version}?
+	Your documents and its settings are kept.	Dokumen Anda dan pengaturan aplikasi tetap disimpan.
+	Uninstall	Copot
+	{status} · checked {when}	{status} · diperiksa {when}
+	Releases	Rilis
+	Website	Situs web
+	Settings for {app}	Pengaturan untuk {app}
+	Channel	Kanal
+	Default ({value})	Bawaan ({value})
+	Stable	Stabil
+	Pre-release	Pra-rilis
+	Updates	Pembaruan
+	automatic	otomatis
+	ask first	tanya dulu
+	Automatic	Otomatis
+	Ask first	Tanya dulu
+	Version	Versi
+	Latest	Terbaru
+	Pinned to {version}	Disematkan ke {version}
+	Pin to {version}	Sematkan ke {version}
+	Versions	Versi
+	Not checked yet: check for updates to see versions and release notes.	Belum diperiksa: periksa pembaruan untuk melihat versi dan catatan rilis.
+	pre-release	pra-rilis
+	in use	digunakan
+	kept	disimpan
+	pinned	disematkan
+	no build for this computer	tidak ada build untuk komputer ini
+	Switch to this version	Beralih ke versi ini
+	Install this version	Pasang versi ini
+	Make {app} {version} the version in use, without downloading it	Jadikan {app} {version} versi yang digunakan, tanpa mengunduhnya
+	Download and install {app} {version}	Unduh dan pasang {app} {version}
+	No release notes.	Tidak ada catatan rilis.
+	Open on GitHub	Buka di GitHub
+	Updated	Diperbarui
+	An automatic update failed: {error}	Pembaruan otomatis gagal: {error}
+	Update available	Pembaruan tersedia
+	Updates available	Pembaruan tersedia
+	Settings	Pengaturan
+	Apps	Aplikasi
+	Channel:	Kanal:
+	Install updates automatically	Pasang pembaruan secara otomatis
+	Notify me when updates are found	Beri tahu saya saat ada pembaruan
+	Notifications aren't available here	Notifikasi tidak tersedia di sini
+	Keep running in the menu bar when the window is closed	Tetap berjalan di bilah menu saat jendela ditutup
+	Keep running in the system tray when the window is closed	Tetap berjalan di baki sistem saat jendela ditutup
+	There is no menu bar or tray icon on this desktop	Tidak ada ikon bilah menu atau baki di desktop ini
+	Check every	Periksa setiap
+	h	jam
+	0: only when asked	0: hanya saat diminta
+	Keep previous versions:	Simpan versi sebelumnya:
+	Appearance	Tampilan
+	Language	Bahasa
+	Automatic ({language})	Otomatis ({language})
+	Theme	Tema
+	Same as the system	Sama dengan sistem
+	Dark	Gelap
+	Light	Terang
+	Text size	Ukuran teks
+	{n}%	{n}%
+	Also {keys}	Juga {keys}
+	About	Tentang
+	unsupported platform	platform tidak didukung
+	This computer: {host}	Komputer ini: {host}
+	not saved (no data folder)	tidak disimpan (tidak ada folder data)
+	Data folder: {path}	Folder data: {path}
+	Open ArtCraft Toolbox	Buka ArtCraft Toolbox
+	Check for Updates	Periksa Pembaruan
+	Quit ArtCraft Toolbox	Keluar dari ArtCraft Toolbox
+	{version} installed	{version} terpasang
+	Not installed	Tidak terpasang
+	{version} available	{version} tersedia
+	{version} · up to date	{version} · terbaru
+	{latest} available · {installed} installed	{latest} tersedia · {installed} terpasang
+	No build for this computer	Tidak ada build untuk komputer ini
+	just now	baru saja
+	in under a minute	dalam waktu kurang dari semenit
+	Checked {when}	Diperiksa {when}
+	Not checked yet	Belum diperiksa
+	GitHub's request limit for this computer is used up; checking can resume {when}. A GitHub token in {variable} raises the limit.	Batas permintaan GitHub untuk komputer ini sudah habis; pemeriksaan dapat dilanjutkan {when}. Token GitHub di {variable} menaikkan batasnya.
+	Couldn't check {app}: {error}	Tidak dapat memeriksa {app}: {error}
+	Signed by {who}	Ditandatangani oleh {who}
+	notarized	dinotarisasi
+	No platform signature	Tidak ada tanda tangan platform
+	Signature not checked: {reason}	Tanda tangan tidak diperiksa: {reason}
+
+# == Messages from the engine (shown by exact match)
+	this session has no network access	sesi ini tidak punya akses jaringan
+	this session has no install location	sesi ini tidak punya lokasi pemasangan
+	a check is already running	pemeriksaan sedang berjalan
+	the icons are already being refreshed	ikon sedang diperbarui
+	the server took too long to answer	server terlalu lama menjawab
+	GitHub's request limit is used up	batas permintaan GitHub sudah habis
+	too many redirects	terlalu banyak pengalihan
+	cancelled	dibatalkan
+	the install stopped unexpectedly	pemasangan berhenti tiba-tiba
+	Starting	Memulai
+	Verifying the release	Memverifikasi rilis
+	Downloading	Mengunduh
+	Verifying	Memverifikasi
+	Installing	Memasang
+	Checking the signature	Memeriksa tanda tangan
+
+# == App descriptions (crates/catalog/catalog.toml)
+	Image editing: layers, masks, type and real PSD files	Penyuntingan gambar: lapisan, masker, teks, dan berkas PSD asli
+	Vector illustration	Ilustrasi vektor
+	Video editing, color and sound	Penyuntingan video, warna, dan suara
+	Photo library and raw development	Pustaka foto dan pengembangan RAW
+	Reading, organizing and protecting PDFs	Membaca, menata, dan melindungi PDF
+	Motion graphics and visual effects	Grafis gerak dan efek visual
+	Page layout and publishing	Tata letak halaman dan penerbitan
+	Computer-aided design and drafting	Desain dan gambar teknik berbantuan komputer
+	Presentations and slide shows	Presentasi dan tayangan slide
+	Spreadsheets	Lembar kerja
+	Audio recording, editing and mixing	Perekaman, penyuntingan, dan pencampuran audio
+	Word processing	Pengolah kata
+
+# == Plurals
+@plural	The app is removed, with {n} earlier version kept for rollback.|The app is removed, with {n} earlier versions kept for rollback.	Aplikasi akan dihapus, beserta {n} versi sebelumnya yang disimpan untuk dikembalikan.
+@plural	{n} min ago|{n} min ago	{n} menit lalu
+@plural	{n} h ago|{n} h ago	{n} jam lalu
+@plural	{n} day ago|{n} days ago	{n} hari lalu
+@plural	in {n} min|in {n} min	dalam {n} menit
+@plural	in {n} h|in {n} h	dalam {n} jam
+@plural	{n} app|{n} apps	{n} aplikasi
+@plural	Couldn't check {n} app: {error}|Couldn't check {n} apps: {error}	Tidak dapat memeriksa {n} aplikasi: {error}
+@plural	{first}, {second} and {n} more|{first}, {second} and {n} more	{first}, {second}, dan {n} lainnya

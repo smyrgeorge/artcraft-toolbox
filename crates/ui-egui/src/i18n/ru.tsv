@@ -1,0 +1,170 @@
+# Russian (ru) catalog for ArtCraft Toolbox. Columns, separated by a TAB:  context <TAB> source <TAB> translation
+#
+#   context  empty                a plain UI string; `source` is the English text in the code
+#            @plural              `source` is "one|other" (the English forms); the translation lists the
+#                                 language's forms separated by "|" (see `plural` in i18n/mod.rs)
+#            anything else        a disambiguating context passed to `tr_ctx`
+#   escapes  \n  \t  \\  inside a column. `{name}` placeholders must appear in both columns.
+#   lines starting with # and blank lines are ignored.
+#
+# Clean-room: entries are written from the plain meaning of the English text in ordinary computing
+# vocabulary, or taken from PhotoCraft's catalog for the same English string (MIT OR Apache-2.0,
+# like this project). No proprietary localisation resource was consulted or copied.
+# Product names (ArtCraft Toolbox, PhotoCraft, GitHub, macOS ...) stay as they are; the trailing "…"
+# of commands that ask before acting is kept.
+
+# == Interface
+	Downloading {percent}%	Загрузка {percent}%
+	Cancel	Отмена
+	Stop; installing again resumes the download	Остановить; при повторной установке загрузка продолжится
+	Update {app} from {installed} to {latest}	Обновить {app} с {installed} до {latest}
+	Update	Обновить
+	Open	Открыть
+	Open {app}	Открыть {app}
+	Let the toolbox update and roll back the {app} found on this computer	Позволить Toolbox обновлять и откатывать приложение {app}, найденное на этом компьютере
+	Adopt	Управлять
+	Install {app} {version}	Установить {app} {version}
+	Install	Установить
+	Check for updates first	Сначала проверьте обновления
+	No app matches “{query}”	Нет приложений по запросу «{query}»
+	Installed	Установленные
+	Update all ({n})	Обновить все ({n})
+	Update every app that has an update	Обновить все приложения, для которых есть обновления
+	Available	Доступные
+	Checking {done} of {total}	Проверка: {done} из {total}
+	Check for updates	Проверить обновления
+	Look for new versions of every app now	Найти новые версии всех приложений сейчас
+	Search apps	Поиск приложений
+	Couldn't check: {error}	Не удалось проверить: {error}
+	{version} installed outside the toolbox	{version} установлена вне Toolbox
+	{status} · pinned to {version}	{status} · закреплено на {version}
+	Last check failed: {error}	Последняя проверка не удалась: {error}
+	Back	Назад
+	All apps	Все приложения
+	The app is removed.	Приложение будет удалено.
+	Uninstall {app} {version}?	Удалить {app} {version}?
+	Your documents and its settings are kept.	Ваши документы и настройки приложения сохранятся.
+	Uninstall	Удалить
+	{status} · checked {when}	{status} · проверено {when}
+	Releases	Выпуски
+	Website	Сайт
+	Settings for {app}	Настройки {app}
+	Channel	Канал
+	Default ({value})	По умолчанию ({value})
+	Stable	Стабильный
+	Pre-release	Предварительный
+	Updates	Обновления
+	automatic	автоматически
+	ask first	спрашивать
+	Automatic	Автоматически
+	Ask first	Спрашивать
+	Version	Версия
+	Latest	Последняя
+	Pinned to {version}	Закреплено на {version}
+	Pin to {version}	Закрепить на {version}
+	Versions	Версии
+	Not checked yet: check for updates to see versions and release notes.	Ещё не проверено: проверьте обновления, чтобы увидеть версии и примечания к выпускам.
+	pre-release	предварительный выпуск
+	in use	используется
+	kept	сохранена
+	pinned	закреплена
+	no build for this computer	нет сборки для этого компьютера
+	Switch to this version	Переключиться на эту версию
+	Install this version	Установить эту версию
+	Make {app} {version} the version in use, without downloading it	Сделать {app} {version} используемой версией без загрузки
+	Download and install {app} {version}	Загрузить и установить {app} {version}
+	No release notes.	Нет примечаний к выпуску.
+	Open on GitHub	Открыть на GitHub
+	Updated	Обновлено
+	An automatic update failed: {error}	Автоматическое обновление не удалось: {error}
+	Update available	Доступно обновление
+	Updates available	Доступны обновления
+	Settings	Настройки
+	Apps	Приложения
+	Channel:	Канал:
+	Install updates automatically	Устанавливать обновления автоматически
+	Notify me when updates are found	Уведомлять о найденных обновлениях
+	Notifications aren't available here	Уведомления здесь недоступны
+	Keep running in the menu bar when the window is closed	Продолжать работу в строке меню после закрытия окна
+	Keep running in the system tray when the window is closed	Продолжать работу в системном трее после закрытия окна
+	There is no menu bar or tray icon on this desktop	На этом рабочем столе нет строки меню или значка в трее
+	Check every	Проверять каждые
+	h	ч
+	0: only when asked	0: только по запросу
+	Keep previous versions:	Хранить предыдущие версии:
+	Appearance	Внешний вид
+	Language	Язык
+	Automatic ({language})	Автоматически ({language})
+	Theme	Тема
+	Same as the system	Как в системе
+	Dark	Тёмная
+	Light	Светлая
+	Text size	Размер текста
+	{n}%	{n}%
+	Also {keys}	Также {keys}
+	About	О программе
+	unsupported platform	неподдерживаемая платформа
+	This computer: {host}	Этот компьютер: {host}
+	not saved (no data folder)	не сохраняется (нет папки данных)
+	Data folder: {path}	Папка данных: {path}
+	Open ArtCraft Toolbox	Открыть ArtCraft Toolbox
+	Check for Updates	Проверить обновления
+	Quit ArtCraft Toolbox	Выйти из ArtCraft Toolbox
+	{version} installed	{version} установлена
+	Not installed	Не установлено
+	{version} available	Доступна {version}
+	{version} · up to date	{version} · последняя версия
+	{latest} available · {installed} installed	Доступна {latest} · установлена {installed}
+	No build for this computer	Нет сборки для этого компьютера
+	just now	только что
+	in under a minute	меньше чем через минуту
+	Checked {when}	Проверено {when}
+	Not checked yet	Ещё не проверено
+	GitHub's request limit for this computer is used up; checking can resume {when}. A GitHub token in {variable} raises the limit.	Лимит запросов к GitHub с этого компьютера исчерпан; проверку можно будет продолжить {when}. Токен GitHub в {variable} повышает лимит.
+	Couldn't check {app}: {error}	Не удалось проверить {app}: {error}
+	Signed by {who}	Подписано: {who}
+	notarized	нотаризовано
+	No platform signature	Нет подписи платформы
+	Signature not checked: {reason}	Подпись не проверена: {reason}
+
+# == Messages from the engine (shown by exact match)
+	this session has no network access	у этого сеанса нет доступа к сети
+	this session has no install location	у этого сеанса нет места установки
+	a check is already running	проверка уже идёт
+	the icons are already being refreshed	значки уже обновляются
+	the server took too long to answer	сервер слишком долго не отвечал
+	GitHub's request limit is used up	лимит запросов к GitHub исчерпан
+	too many redirects	слишком много перенаправлений
+	cancelled	отменено
+	the install stopped unexpectedly	установка неожиданно прервалась
+	Starting	Запуск
+	Verifying the release	Проверка выпуска
+	Downloading	Загрузка
+	Verifying	Проверка
+	Installing	Установка
+	Checking the signature	Проверка подписи
+
+# == App descriptions (crates/catalog/catalog.toml)
+	Image editing: layers, masks, type and real PSD files	Редактирование изображений: слои, маски, текст и настоящие файлы PSD
+	Vector illustration	Векторная иллюстрация
+	Video editing, color and sound	Монтаж видео, цвет и звук
+	Photo library and raw development	Фотобиблиотека и проявка RAW
+	Reading, organizing and protecting PDFs	Чтение, упорядочивание и защита PDF
+	Motion graphics and visual effects	Моушн-графика и визуальные эффекты
+	Page layout and publishing	Вёрстка и издательское дело
+	Computer-aided design and drafting	Автоматизированное проектирование и черчение
+	Presentations and slide shows	Презентации и слайд-шоу
+	Spreadsheets	Электронные таблицы
+	Audio recording, editing and mixing	Запись, редактирование и сведение звука
+	Word processing	Обработка текстов
+
+# == Plurals
+@plural	The app is removed, with {n} earlier version kept for rollback.|The app is removed, with {n} earlier versions kept for rollback.	Приложение будет удалено вместе с {n} предыдущей версией, сохранённой для отката.|Приложение будет удалено вместе с {n} предыдущими версиями, сохранёнными для отката.|Приложение будет удалено вместе с {n} предыдущими версиями, сохранёнными для отката.
+@plural	{n} min ago|{n} min ago	{n} минуту назад|{n} минуты назад|{n} минут назад
+@plural	{n} h ago|{n} h ago	{n} час назад|{n} часа назад|{n} часов назад
+@plural	{n} day ago|{n} days ago	{n} день назад|{n} дня назад|{n} дней назад
+@plural	in {n} min|in {n} min	через {n} минуту|через {n} минуты|через {n} минут
+@plural	in {n} h|in {n} h	через {n} час|через {n} часа|через {n} часов
+@plural	{n} app|{n} apps	{n} приложение|{n} приложения|{n} приложений
+@plural	Couldn't check {n} app: {error}|Couldn't check {n} apps: {error}	Не удалось проверить {n} приложение: {error}|Не удалось проверить {n} приложения: {error}|Не удалось проверить {n} приложений: {error}
+@plural	{first}, {second} and {n} more|{first}, {second} and {n} more	{first}, {second} и ещё {n}|{first}, {second} и ещё {n}|{first}, {second} и ещё {n}

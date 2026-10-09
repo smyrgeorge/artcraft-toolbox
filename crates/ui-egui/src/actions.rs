@@ -8,8 +8,9 @@ use artcraft_toolbox_engine::versions_cmds::{ADOPT, ROLLBACK};
 use artcraft_toolbox_engine::{AppStatus, JobId, JobInfo, Session, Status, Version};
 use serde_json::json;
 
-use crate::ToolboxApp;
+use crate::i18n::fmt;
 use crate::theme::Tokens;
+use crate::{ToolboxApp, wording};
 
 /// What the user clicked.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -41,17 +42,23 @@ pub const WIDTH: f32 = 84.0;
 
 /// `Downloading 45%`, while an install runs.
 pub fn progress_text(job: &JobInfo) -> String {
-    let phase = job.phase.clone().unwrap_or_else(|| "Installing".into());
+    let phase = job.phase.as_deref().unwrap_or("Installing");
     match job.fraction {
-        Some(f) if phase == "Downloading" => format!("{phase} {:.0}%", f * 100.0),
-        _ => phase,
+        Some(f) if phase == "Downloading" => fmt(tl!("Downloading {percent}%"), &[("percent", &format!("{:.0}", f * 100.0))]),
+        _ => wording::engine(phase).to_string(),
     }
 }
 
 /// A thin progress bar, `width` wide. Phases without a fraction (verifying, unpacking) slide a
 /// segment along it.
 pub fn bar(ui: &mut egui::Ui, job: &JobInfo, width: f32, t: &Tokens) {
-    let (rect, _) = ui.allocate_exact_size(egui::vec2(width, 4.0), egui::Sense::hover());
+    let (rect, response) = ui.allocate_exact_size(egui::vec2(width, 4.0), egui::Sense::hover());
+    // For screen readers: a progress indicator with its phase and, while downloading, its value.
+    response.widget_info(|| {
+        let mut info = egui::WidgetInfo::labeled(egui::WidgetType::ProgressIndicator, true, progress_text(job));
+        info.value = job.fraction.map(f64::from);
+        info
+    });
     ui.painter().rect_filled(rect, 2.0, t.border);
     let fill = match job.fraction {
         Some(f) => egui::Rect::from_min_size(rect.min, egui::vec2(rect.width() * f.clamp(0.0, 1.0), rect.height())),
@@ -71,7 +78,7 @@ pub fn command_button(ui: &mut egui::Ui, session: &Session, command: &str, label
     let reason = session.disabled_reason(command);
     let b = ui.add_enabled(reason.is_none(), egui::Button::new(label));
     let b = match &reason {
-        Some(why) => b.on_disabled_hover_text(why),
+        Some(why) => b.on_disabled_hover_text(wording::engine(why)),
         None => b.on_hover_text(hover),
     };
     b.clicked()
@@ -80,21 +87,28 @@ pub fn command_button(ui: &mut egui::Ui, session: &Session, command: &str, label
 /// Draw the action and return what was clicked.
 pub fn draw(ui: &mut egui::Ui, session: &Session, r: &AppStatus, _t: &Tokens) -> Option<Clicked> {
     if let Some(job) = installing(session, r) {
-        let cancel = ui.button("Cancel").on_hover_text("Stop; installing again resumes the download");
+        let cancel = ui.button(tl!("Cancel")).on_hover_text(tl!("Stop; installing again resumes the download"));
         return cancel.clicked().then_some(Clicked::Cancel(job.id));
     }
     match &r.status {
         Status::UpdateAvailable { installed, latest } => {
-            command_button(ui, session, UPDATE, "Update", format!("Update {} from {installed} to {latest}", r.name)).then_some(Clicked::Update)
+            let hover = fmt(
+                tl!("Update {app} from {installed} to {latest}"),
+                &[("app", &r.name), ("installed", &installed.to_string()), ("latest", &latest.to_string())],
+            );
+            command_button(ui, session, UPDATE, tl!("Update"), hover).then_some(Clicked::Update)
         }
-        _ if installed(r) => ui.button("Open").on_hover_text(format!("Open {}", r.name)).clicked().then_some(Clicked::Open),
+        _ if installed(r) => ui.button(tl!("Open")).on_hover_text(fmt(tl!("Open {app}"), &[("app", &r.name)])).clicked().then_some(Clicked::Open),
         _ if r.found.is_some() => {
-            command_button(ui, session, ADOPT, "Adopt", format!("Let the toolbox update and roll back the {} found on this computer", r.name))
-                .then_some(Clicked::Adopt)
+            let hover = fmt(tl!("Let the toolbox update and roll back the {app} found on this computer"), &[("app", &r.name)]);
+            command_button(ui, session, ADOPT, tl!("Adopt"), hover).then_some(Clicked::Adopt)
         }
-        Status::NotInstalled { latest } => command_button(ui, session, INSTALL, "Install", format!("Install {} {latest}", r.name)).then_some(Clicked::Install),
+        Status::NotInstalled { latest } => {
+            let hover = fmt(tl!("Install {app} {version}"), &[("app", &r.name), ("version", &latest.to_string())]);
+            command_button(ui, session, INSTALL, tl!("Install"), hover).then_some(Clicked::Install)
+        }
         Status::Unknown { installed: None } => {
-            ui.add_enabled(false, egui::Button::new("Install")).on_disabled_hover_text("Check for updates first");
+            ui.add_enabled(false, egui::Button::new(tl!("Install"))).on_disabled_hover_text(tl!("Check for updates first"));
             None
         }
         _ => None,

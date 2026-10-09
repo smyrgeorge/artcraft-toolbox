@@ -1,0 +1,170 @@
+# French (fr) catalog for ArtCraft Toolbox. Columns, separated by a TAB:  context <TAB> source <TAB> translation
+#
+#   context  empty                a plain UI string; `source` is the English text in the code
+#            @plural              `source` is "one|other" (the English forms); the translation lists the
+#                                 language's forms separated by "|" (see `plural` in i18n/mod.rs)
+#            anything else        a disambiguating context passed to `tr_ctx`
+#   escapes  \n  \t  \\  inside a column. `{name}` placeholders must appear in both columns.
+#   lines starting with # and blank lines are ignored.
+#
+# Clean-room: entries are written from the plain meaning of the English text in ordinary computing
+# vocabulary, or taken from PhotoCraft's catalog for the same English string (MIT OR Apache-2.0,
+# like this project). No proprietary localisation resource was consulted or copied.
+# Product names (ArtCraft Toolbox, PhotoCraft, GitHub, macOS ...) stay as they are; the trailing "…"
+# of commands that ask before acting is kept.
+
+# == Interface
+	Downloading {percent}%	Téléchargement {percent} %
+	Cancel	Annuler
+	Stop; installing again resumes the download	Arrêter ; une nouvelle installation reprendra le téléchargement
+	Update {app} from {installed} to {latest}	Mettre à jour {app} de {installed} vers {latest}
+	Update	Mettre à jour
+	Open	Ouvrir
+	Open {app}	Ouvrir {app}
+	Let the toolbox update and roll back the {app} found on this computer	Laisser Toolbox mettre à jour et restaurer {app}, trouvé sur cet ordinateur
+	Adopt	Prendre en charge
+	Install {app} {version}	Installer {app} {version}
+	Install	Installer
+	Check for updates first	Recherchez d’abord les mises à jour
+	No app matches “{query}”	Aucune app ne correspond à « {query} »
+	Installed	Installées
+	Update all ({n})	Tout mettre à jour ({n})
+	Update every app that has an update	Mettre à jour toutes les apps qui ont une mise à jour
+	Available	Disponibles
+	Checking {done} of {total}	Vérification {done} sur {total}
+	Check for updates	Rechercher des mises à jour
+	Look for new versions of every app now	Rechercher maintenant les nouvelles versions de toutes les apps
+	Search apps	Rechercher des apps
+	Couldn't check: {error}	Vérification impossible : {error}
+	{version} installed outside the toolbox	{version} installée hors de Toolbox
+	{status} · pinned to {version}	{status} · épinglée à {version}
+	Last check failed: {error}	Échec de la dernière vérification : {error}
+	Back	Retour
+	All apps	Toutes les apps
+	The app is removed.	L’app sera supprimée.
+	Uninstall {app} {version}?	Désinstaller {app} {version} ?
+	Your documents and its settings are kept.	Vos documents et ses réglages sont conservés.
+	Uninstall	Désinstaller
+	{status} · checked {when}	{status} · vérifié {when}
+	Releases	Versions publiées
+	Website	Site web
+	Settings for {app}	Réglages de {app}
+	Channel	Canal
+	Default ({value})	Par défaut ({value})
+	Stable	Stable
+	Pre-release	Préversion
+	Updates	Mises à jour
+	automatic	automatiques
+	ask first	demander d’abord
+	Automatic	Automatiques
+	Ask first	Demander d’abord
+	Version	Version
+	Latest	La plus récente
+	Pinned to {version}	Épinglée à {version}
+	Pin to {version}	Épingler à {version}
+	Versions	Versions
+	Not checked yet: check for updates to see versions and release notes.	Pas encore vérifié : recherchez des mises à jour pour voir les versions et les notes de version.
+	pre-release	préversion
+	in use	utilisée
+	kept	conservée
+	pinned	épinglée
+	no build for this computer	aucune version pour cet ordinateur
+	Switch to this version	Passer à cette version
+	Install this version	Installer cette version
+	Make {app} {version} the version in use, without downloading it	Utiliser {app} {version} sans le télécharger
+	Download and install {app} {version}	Télécharger et installer {app} {version}
+	No release notes.	Pas de notes de version.
+	Open on GitHub	Ouvrir sur GitHub
+	Updated	Mise à jour effectuée
+	An automatic update failed: {error}	Une mise à jour automatique a échoué : {error}
+	Update available	Mise à jour disponible
+	Updates available	Mises à jour disponibles
+	Settings	Réglages
+	Apps	Apps
+	Channel:	Canal :
+	Install updates automatically	Installer les mises à jour automatiquement
+	Notify me when updates are found	M’avertir quand des mises à jour sont trouvées
+	Notifications aren't available here	Les notifications ne sont pas disponibles ici
+	Keep running in the menu bar when the window is closed	Continuer dans la barre des menus quand la fenêtre est fermée
+	Keep running in the system tray when the window is closed	Continuer dans la zone de notification quand la fenêtre est fermée
+	There is no menu bar or tray icon on this desktop	Ce bureau n’a ni barre des menus ni icône dans la zone de notification
+	Check every	Vérifier toutes les
+	h	h
+	0: only when asked	0 : seulement sur demande
+	Keep previous versions:	Conserver les versions précédentes :
+	Appearance	Apparence
+	Language	Langue
+	Automatic ({language})	Automatique ({language})
+	Theme	Thème
+	Same as the system	Comme le système
+	Dark	Sombre
+	Light	Clair
+	Text size	Taille du texte
+	{n}%	{n} %
+	Also {keys}	Aussi {keys}
+	About	À propos
+	unsupported platform	plateforme non prise en charge
+	This computer: {host}	Cet ordinateur : {host}
+	not saved (no data folder)	non enregistré (pas de dossier de données)
+	Data folder: {path}	Dossier de données : {path}
+	Open ArtCraft Toolbox	Ouvrir ArtCraft Toolbox
+	Check for Updates	Rechercher des mises à jour
+	Quit ArtCraft Toolbox	Quitter ArtCraft Toolbox
+	{version} installed	{version} installée
+	Not installed	Non installée
+	{version} available	{version} disponible
+	{version} · up to date	{version} · à jour
+	{latest} available · {installed} installed	{latest} disponible · {installed} installée
+	No build for this computer	Aucune version pour cet ordinateur
+	just now	à l’instant
+	in under a minute	dans moins d’une minute
+	Checked {when}	Vérifié {when}
+	Not checked yet	Pas encore vérifié
+	GitHub's request limit for this computer is used up; checking can resume {when}. A GitHub token in {variable} raises the limit.	La limite de requêtes GitHub de cet ordinateur est atteinte ; la vérification pourra reprendre {when}. Un jeton GitHub dans {variable} relève la limite.
+	Couldn't check {app}: {error}	Vérification de {app} impossible : {error}
+	Signed by {who}	Signé par {who}
+	notarized	notarié
+	No platform signature	Aucune signature de la plateforme
+	Signature not checked: {reason}	Signature non vérifiée : {reason}
+
+# == Messages from the engine (shown by exact match)
+	this session has no network access	cette session n’a pas accès au réseau
+	this session has no install location	cette session n’a pas d’emplacement d’installation
+	a check is already running	une vérification est déjà en cours
+	the icons are already being refreshed	les icônes sont déjà en cours d’actualisation
+	the server took too long to answer	le serveur a mis trop de temps à répondre
+	GitHub's request limit is used up	la limite de requêtes GitHub est atteinte
+	too many redirects	trop de redirections
+	cancelled	annulé
+	the install stopped unexpectedly	l’installation s’est arrêtée de façon inattendue
+	Starting	Démarrage
+	Verifying the release	Vérification de la version publiée
+	Downloading	Téléchargement
+	Verifying	Vérification
+	Installing	Installation
+	Checking the signature	Vérification de la signature
+
+# == App descriptions (crates/catalog/catalog.toml)
+	Image editing: layers, masks, type and real PSD files	Retouche d’images : calques, masques, texte et vrais fichiers PSD
+	Vector illustration	Illustration vectorielle
+	Video editing, color and sound	Montage vidéo, couleur et son
+	Photo library and raw development	Photothèque et développement RAW
+	Reading, organizing and protecting PDFs	Lire, organiser et protéger des PDF
+	Motion graphics and visual effects	Animation graphique et effets visuels
+	Page layout and publishing	Mise en page et publication
+	Computer-aided design and drafting	Conception et dessin assistés par ordinateur
+	Presentations and slide shows	Présentations et diaporamas
+	Spreadsheets	Tableurs
+	Audio recording, editing and mixing	Enregistrement, montage et mixage audio
+	Word processing	Traitement de texte
+
+# == Plurals
+@plural	The app is removed, with {n} earlier version kept for rollback.|The app is removed, with {n} earlier versions kept for rollback.	L’app sera supprimée, avec {n} version précédente conservée pour revenir en arrière.|L’app sera supprimée, avec {n} versions précédentes conservées pour revenir en arrière.
+@plural	{n} min ago|{n} min ago	il y a {n} min|il y a {n} min
+@plural	{n} h ago|{n} h ago	il y a {n} h|il y a {n} h
+@plural	{n} day ago|{n} days ago	il y a {n} jour|il y a {n} jours
+@plural	in {n} min|in {n} min	dans {n} min|dans {n} min
+@plural	in {n} h|in {n} h	dans {n} h|dans {n} h
+@plural	{n} app|{n} apps	{n} app|{n} apps
+@plural	Couldn't check {n} app: {error}|Couldn't check {n} apps: {error}	Vérification impossible pour {n} app : {error}|Vérification impossible pour {n} apps : {error}
+@plural	{first}, {second} and {n} more|{first}, {second} and {n} more	{first}, {second} et {n} autre|{first}, {second} et {n} autres

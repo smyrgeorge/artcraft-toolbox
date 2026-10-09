@@ -8,6 +8,7 @@
 
 use std::sync::mpsc::{Receiver, channel};
 
+use artcraft_toolbox_ui_egui::{i18n, wording};
 use tray_icon::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem};
 use tray_icon::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
 
@@ -27,6 +28,9 @@ pub struct Tray {
     /// Removed from the menu bar when dropped.
     _icon: TrayIcon,
     actions: Receiver<TrayAction>,
+    /// Open, Check for Updates, Quit: relabelled when the UI language changes.
+    items: [MenuItem; 3],
+    labelled_in: Option<&'static str>,
 }
 
 impl Tray {
@@ -34,9 +38,10 @@ impl Tray {
     /// (eframe's app-creation callback).
     pub fn new(wake: impl Fn() + Send + Sync + 'static) -> Result<Tray, String> {
         let (tx, actions) = channel();
-        let open = MenuItem::new("Open ArtCraft Toolbox", true, None);
-        let check = MenuItem::new("Check for Updates", true, None);
-        let quit = MenuItem::new("Quit ArtCraft Toolbox", true, None);
+        let [open_label, check_label, quit_label] = wording::tray_labels();
+        let open = MenuItem::new(open_label, true, None);
+        let check = MenuItem::new(check_label, true, None);
+        let quit = MenuItem::new(quit_label, true, None);
         let menu = Menu::new();
         menu.append_items(&[&open, &check, &PredefinedMenuItem::separator(), &quit]).map_err(|e| e.to_string())?;
         let ids = [(open.id().clone(), TrayAction::Open), (check.id().clone(), TrayAction::Check), (quit.id().clone(), TrayAction::Quit)];
@@ -69,7 +74,19 @@ impl Tray {
         #[cfg(not(target_os = "macos"))]
         let builder = builder.with_icon(image);
         let icon = builder.build().map_err(|e| e.to_string())?;
-        Ok(Tray { _icon: icon, actions })
+        Ok(Tray { _icon: icon, actions, items: [open, check, quit], labelled_in: Some(i18n::current().code()) })
+    }
+
+    /// Follow the UI language (cheap when it hasn't changed).
+    pub fn relabel(&mut self) {
+        let lang = i18n::current().code();
+        if self.labelled_in == Some(lang) {
+            return;
+        }
+        for (item, label) in self.items.iter().zip(wording::tray_labels()) {
+            item.set_text(label);
+        }
+        self.labelled_in = Some(lang);
     }
 
     /// The actions clicked since the last call.

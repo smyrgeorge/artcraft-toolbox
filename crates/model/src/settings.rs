@@ -42,6 +42,51 @@ pub const MAX_CHECK_INTERVAL_HOURS: u32 = 24 * 7;
 pub const MAX_KEEP_PREVIOUS: u32 = 5;
 /// Most per-app override entries kept (the catalog has a dozen apps).
 pub const MAX_APP_OVERRIDES: usize = 256;
+/// The text sizes offered, in percent of the normal size.
+pub const TEXT_SIZES: [u32; 5] = [90, 100, 110, 125, 150];
+
+/// Light or dark: the system's, or one chosen.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ThemePref {
+    #[default]
+    System,
+    Dark,
+    Light,
+}
+
+impl ThemePref {
+    pub fn parse(s: &str) -> Option<ThemePref> {
+        match s {
+            "system" => Some(ThemePref::System),
+            "dark" => Some(ThemePref::Dark),
+            "light" => Some(ThemePref::Light),
+            _ => None,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            ThemePref::System => "system",
+            ThemePref::Dark => "dark",
+            ThemePref::Light => "light",
+        }
+    }
+}
+
+fn lenient_theme<'de, D: serde::Deserializer<'de>>(d: D) -> std::result::Result<ThemePref, D::Error> {
+    let v = serde_json::Value::deserialize(d)?;
+    Ok(v.as_str().and_then(ThemePref::parse).unwrap_or_default())
+}
+
+/// Is `s` the `language` setting's `auto` or a language code (`ja`, `zh-hant`, `pt-br`)? Which
+/// codes exist is the UI's business; an unknown one shows English.
+pub fn valid_language(s: &str) -> bool {
+    s == "auto"
+        || ((2..=16).contains(&s.len())
+            && s.split('-').all(|p| !p.is_empty() && p.len() <= 8 && p.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit()))
+            && s.as_bytes().first().is_some_and(u8::is_ascii_lowercase))
+}
 
 /// One app's overrides of the global settings. `None` follows the global value.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -83,6 +128,13 @@ pub struct Settings {
     pub notifications: bool,
     /// Closing the window keeps the toolbox running in the menu bar or system tray (when there is one).
     pub close_to_tray: bool,
+    /// The UI language: `auto` (the system's) or a language code (`ja`, `zh-hant`, `pt-br`).
+    pub language: String,
+    /// An unknown value (a newer version's theme) reads as `system`, not as a corrupt file.
+    #[serde(deserialize_with = "lenient_theme")]
+    pub theme: ThemePref,
+    /// Text and controls, in percent of the normal size (one of [`TEXT_SIZES`]).
+    pub text_size: u32,
     /// Per-app overrides, by catalog id.
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub apps: BTreeMap<String, AppSettings>,
@@ -98,6 +150,9 @@ impl Default for Settings {
             install_dir: None,
             notifications: true,
             close_to_tray: true,
+            language: "auto".into(),
+            theme: ThemePref::System,
+            text_size: 100,
             apps: BTreeMap::new(),
         }
     }
@@ -118,6 +173,12 @@ impl Settings {
     fn clamped(mut self) -> Settings {
         self.check_interval_hours = self.check_interval_hours.min(MAX_CHECK_INTERVAL_HOURS);
         self.keep_previous = self.keep_previous.min(MAX_KEEP_PREVIOUS);
+        if !valid_language(&self.language) {
+            self.language = "auto".into();
+        }
+        if !TEXT_SIZES.contains(&self.text_size) {
+            self.text_size = 100;
+        }
         self.apps.retain(|id, a| valid_app_key(id) && !a.is_default());
         while self.apps.len() > MAX_APP_OVERRIDES {
             self.apps.pop_last();
@@ -208,6 +269,18 @@ impl Settings {
                 Some(b) => self.close_to_tray = b,
                 None => return bad("closeToTray must be true or false".into()),
             },
+            "language" => match value.as_str() {
+                Some(l) if valid_language(l) => self.language = l.to_string(),
+                _ => return bad("language must be \"auto\" or a language code such as \"en\" or \"ja\"".into()),
+            },
+            "theme" => match value.as_str().and_then(ThemePref::parse) {
+                Some(t) => self.theme = t,
+                None => return bad("theme must be \"system\", \"dark\" or \"light\"".into()),
+            },
+            "textSize" => match value.as_u64().and_then(|n| u32::try_from(n).ok()).filter(|n| TEXT_SIZES.contains(n)) {
+                Some(n) => self.text_size = n,
+                None => return bad(format!("textSize must be one of {TEXT_SIZES:?} (percent)")),
+            },
             "installDir" => match value {
                 serde_json::Value::Null => self.install_dir = None,
                 serde_json::Value::String(s) if !s.trim().is_empty() && s.len() <= 4096 && !s.contains('\0') => self.install_dir = Some(s.clone()),
@@ -223,6 +296,32 @@ impl Settings {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn language_theme_and_text_size() {
+        let mut s = Settings::default();
+        assert_eq!((s.language.as_str(), s.theme, s.text_size), ("auto", ThemePref::System, 100));
+        for (key, good, bad) in [
+            (
+                "language",
+                vec![json!("ja"), json!("zh-hant"), json!("pt-br"), json!("auto")],
+                vec![json!("JA"), json!(""), json!("../x"), json!("a"), json!(1), json!("x".repeat(20))],
+            ),
+            ("theme", vec![json!("light"), json!("dark"), json!("system")], vec![json!("Light"), json!("blue"), json!(true)]),
+            ("textSize", vec![json!(90), json!(150), json!(100)], vec![json!(101), json!(0), json!("100"), json!(-1)]),
+        ] {
+            for v in good {
+                s.set(key, &v).unwrap_or_else(|e| panic!("{key} = {v}: {e}"));
+            }
+            for v in bad {
+                assert!(s.set(key, &v).is_err(), "{key} = {v}");
+            }
+        }
+        // Files from elsewhere: bad values fall back, missing ones take defaults.
+        let loaded = Settings::from_json(r#"{"language":"<script>","textSize":7,"theme":"light"}"#).unwrap();
+        assert_eq!((loaded.language.as_str(), loaded.theme, loaded.text_size), ("auto", ThemePref::Light, 100));
+        assert_eq!(Settings::from_json(r#"{"theme":"purple"}"#).unwrap().theme, ThemePref::System, "a newer version's theme isn't a corrupt file");
+    }
 
     #[test]
     fn channels() {
