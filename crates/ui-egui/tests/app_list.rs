@@ -81,10 +81,15 @@ fn check_for_updates_fills_in_the_rows() {
     let mut h = harness_with(session);
     h.get_by_label("Not checked yet · 12 apps · linux-x86_64");
     h.get_by_label("Check for updates").click();
-    // By a deadline, not a frame count: CI machines differ.
+    // A frame first: the click only starts the check when the next frame handles it. Then frames
+    // until it is done, by a deadline, not a frame count: CI machines differ.
     let deadline = std::time::Instant::now() + Duration::from_secs(20);
-    while h.state().session.has_jobs() && std::time::Instant::now() < deadline {
+    loop {
         h.step();
+        if !h.state().session.has_jobs() {
+            break;
+        }
+        assert!(std::time::Instant::now() < deadline, "the check still runs after 20 s");
         std::thread::sleep(Duration::from_millis(5));
     }
     h.run();
