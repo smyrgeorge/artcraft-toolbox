@@ -25,6 +25,7 @@ mod settings_cmds;
 pub mod setup;
 mod status_cmds;
 pub mod time;
+pub mod toolbox_cmds;
 pub mod update_cmds;
 pub mod versions_cmds;
 
@@ -52,6 +53,7 @@ pub use artcraft_toolbox_release::{Target, Version};
 pub use commands::{CommandSpec, command_specs, find};
 pub use icons::IconImage;
 pub use jobs::{JobEvent, JobId, JobInfo, Started};
+pub use toolbox_cmds::{Applied, SelfInstall, SelfStatus};
 
 #[derive(Debug, thiserror::Error)]
 pub enum EngineError {
@@ -154,6 +156,9 @@ pub struct Session {
     /// Versions on disk that the toolbox didn't install, per app it hasn't installed, newest
     /// first ([`Session::rescan`]).
     pub(crate) found: BTreeMap<String, Vec<(Version, PathBuf)>>,
+    /// The toolbox installation this process runs from, when it can update itself
+    /// (`toolbox_cmds`); `None`: a development build, or a session that isn't the toolbox's.
+    self_install: Option<SelfInstall>,
 }
 
 /// After a check, an automatic one waits at least this long, whatever the outcome (an offline
@@ -189,6 +194,7 @@ impl Session {
             layout: None,
             platform_layout: false,
             found: BTreeMap::new(),
+            self_install: None,
         }
     }
 
@@ -230,7 +236,8 @@ impl Session {
                 Err(e) => log::warn!("{e}; starting afresh"),
             }
             s.load_cached_icons(store);
-            let apps: Vec<(String, Vec<String>)> = s.catalog.apps.iter().map(|a| (a.id.clone(), a.slugs().iter().map(|x| x.to_string()).collect())).collect();
+            let apps: Vec<(String, Vec<String>)> =
+                s.catalog.apps.iter().chain(&s.catalog.toolbox).map(|a| (a.id.clone(), a.slugs().iter().map(|x| x.to_string()).collect())).collect();
             for (id, slugs) in apps {
                 let slugs: Vec<&str> = slugs.iter().map(String::as_str).collect();
                 match store.load_feed(&id) {
@@ -345,9 +352,16 @@ impl Session {
         self.feeds.get(app)
     }
 
-    /// Take a GitHub "list releases" response for `app`. Returns how many releases it held.
+    /// An app of the catalog, or the toolbox itself (`artcraft-toolbox`): everything that has a
+    /// release feed.
+    pub fn feed_app(&self, id: &str) -> Option<&artcraft_toolbox_catalog::App> {
+        self.catalog.feed_app(id)
+    }
+
+    /// Take a GitHub "list releases" response for `app` (an app, or the toolbox itself). Returns
+    /// how many releases it held.
     pub fn ingest_releases(&mut self, app: &str, json: &str, fetched_at: u64) -> Result<usize> {
-        let entry = self.catalog.get(app).ok_or_else(|| EngineError::UnknownApp(echo(app)))?;
+        let entry = self.catalog.feed_app(app).ok_or_else(|| EngineError::UnknownApp(echo(app)))?;
         let releases = artcraft_toolbox_feed::parse_releases(json, &entry.slugs())?;
         let n = releases.len();
         self.feeds.insert(app.to_string(), Feed { releases, fetched_at, etag: None });
@@ -456,13 +470,13 @@ impl Session {
         if self.last_check_started.is_some_and(|t| now.saturating_sub(t) < AUTO_RETRY_SECS) {
             return false;
         }
-        let oldest = self.catalog.apps.iter().map(|a| self.feeds.get(&a.id).map_or(0, |f| f.fetched_at)).min().unwrap_or(0);
+        let oldest = self.catalog.apps.iter().chain(&self.catalog.toolbox).map(|a| self.feeds.get(&a.id).map_or(0, |f| f.fetched_at)).min().unwrap_or(0);
         now.saturating_sub(oldest) >= hours.saturating_mul(3600)
     }
 
-    /// Updates the user hasn't been told about: installed apps with an update whose version is
-    /// newer than the last one notified. Returns `(name, version)` pairs and remembers them (in
-    /// `state.json`), so each version is announced once.
+    /// Updates the user hasn't been told about: installed apps (and the toolbox itself) with an
+    /// update whose version is newer than the last one notified. Returns `(name, version)` pairs
+    /// and remembers them (in `state.json`), so each version is announced once.
     pub fn take_new_updates(&mut self) -> Vec<(String, Version)> {
         let mut fresh = Vec::new();
         // Apps that update automatically are announced when they have updated instead.
@@ -476,6 +490,18 @@ impl Session {
                 if !quiet {
                     fresh.push((st.name, latest));
                 }
+            }
+        }
+        // The toolbox itself: quiet when it will download the update by itself (announced when
+        // that is ready instead).
+        if let Some(st) = self.self_status()
+            && let Status::UpdateAvailable { latest, .. } = st.status
+            && self.state.notified.get(&st.id).is_none_or(|v| *v < latest)
+        {
+            let quiet = self.settings.auto_update && self.disabled_reason(toolbox_cmds::UPDATE).is_none();
+            self.state.notified.insert(st.id, latest.clone());
+            if !quiet {
+                fresh.push((st.name, latest));
             }
         }
         if !fresh.is_empty()
@@ -586,11 +612,15 @@ mod tests {
         let (mut s, _) = Session::open(Catalog::builtin().unwrap(), None, Some(Arc::new(Never)));
         s.set_clock(t0);
         assert!(s.check_due(), "never checked");
-        let ids: Vec<String> = s.catalog().apps.iter().map(|a| a.id.clone()).collect();
+        // Every feed, the toolbox's own included: one never fetched keeps a check due.
+        let ids: Vec<String> = s.catalog().apps.iter().chain(&s.catalog().toolbox).map(|a| a.id.clone()).collect();
         for id in &ids {
             s.feeds.insert(id.clone(), Feed { releases: Vec::new(), fetched_at: t0() - 3600, etag: None });
         }
         assert!(!s.check_due(), "checked an hour ago, interval 6 h");
+        s.feeds.remove("artcraft-toolbox");
+        assert!(s.check_due(), "the toolbox's own feed counts");
+        s.feeds.insert("artcraft-toolbox".into(), Feed { releases: Vec::new(), fetched_at: t0() - 3600, etag: None });
         if let Some(f) = s.feeds.get_mut("photocraft") {
             f.fetched_at = t0() - 7 * 3600;
         }

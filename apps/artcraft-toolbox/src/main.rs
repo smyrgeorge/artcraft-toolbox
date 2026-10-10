@@ -48,7 +48,7 @@ fn parse_args(args: &[OsString]) -> Result<Action, String> {
     Ok(action)
 }
 
-/// The window icon (placeholder art until M5's real icon).
+/// The window icon (`assets/app-icon/`, rendered by `packaging/icons.sh`).
 const WINDOW_ICON_PNG: &[u8] = include_bytes!("../../../assets/app-icon/artcraft-toolbox-256.png");
 
 fn window_icon() -> Option<std::sync::Arc<egui::IconData>> {
@@ -132,7 +132,7 @@ fn main() -> ExitCode {
     let logger = logging::install();
     crash_guard::install_hook();
     log::info!("ArtCraft Toolbox {} starting", build_info::long_version());
-    let opened = match setup::open_user_session() {
+    let mut opened = match setup::open_user_session() {
         Ok(o) => o,
         Err(e) => {
             log::error!("{e}");
@@ -140,6 +140,25 @@ fn main() -> ExitCode {
             return ExitCode::FAILURE;
         }
     };
+    // A newer toolbox downloaded earlier (`toolbox.update`): put it in place and start it
+    // instead of this version (docs/architecture.md § 7).
+    match opened.session.apply_staged_update(true) {
+        Ok(Some(applied)) => match applied.relaunch() {
+            Ok(()) => {
+                log::info!("ArtCraft Toolbox {} starts in place of this version", applied.version);
+                return ExitCode::SUCCESS;
+            }
+            Err(e) => {
+                log::error!("ArtCraft Toolbox {} is in place but couldn't be started: {e}", applied.version);
+                opened.warnings.push(format!("ArtCraft Toolbox {} is installed; start it again to use it ({e})", applied.version));
+            }
+        },
+        Ok(None) => opened.session.clean_previous_self(),
+        Err(e) => {
+            log::warn!("the downloaded toolbox update wasn't applied: {e}");
+            opened.warnings.push(e.to_string());
+        }
+    }
     if let (Some(logger), Some(store)) = (logger, opened.session.store()) {
         match logger.attach_dir(&store.logs_dir()) {
             Ok(path) => log::info!("logging to {}", path.display()),
@@ -211,6 +230,24 @@ impl Desktop {
         ctx.send_viewport_cmd(egui::ViewportCommand::Close);
     }
 
+    /// `Restart to update`: swap the downloaded toolbox version in, start it, and quit.
+    fn restart_into_update(&mut self, ctx: &egui::Context) {
+        if !std::mem::take(&mut self.app.restart_wanted) {
+            return;
+        }
+        match self.app.session.apply_staged_update(true) {
+            Ok(Some(applied)) => match applied.relaunch() {
+                Ok(()) => {
+                    log::info!("ArtCraft Toolbox {} starts; quitting this version", applied.version);
+                    self.quit(ctx);
+                }
+                Err(e) => self.app.notice = Some(format!("ArtCraft Toolbox {} is installed; start it again to use it ({e})", applied.version)),
+            },
+            Ok(None) => self.app.notice = Some("no ArtCraft Toolbox update is waiting".into()),
+            Err(e) => self.app.notice = Some(e.to_string()),
+        }
+    }
+
     /// A popover hides on losing the focus and on Escape (unless Escape is for something in it:
     /// the search, a dialog, an open menu); Cmd+Q quits (a menu-bar app has no app menu).
     fn popover_keys_and_focus(&mut self, ctx: &egui::Context) {
@@ -254,6 +291,7 @@ impl eframe::App for Desktop {
         }
         self.popover_keys_and_focus(ctx);
         self.app.tick(ctx);
+        self.restart_into_update(ctx);
         if let Some(tray) = &mut self.tray {
             tray.relabel();
         }

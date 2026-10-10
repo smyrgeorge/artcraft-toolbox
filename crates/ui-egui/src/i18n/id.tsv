@@ -171,3 +171,15 @@
 @plural	{n} app|{n} apps	{n} aplikasi
 @plural	Couldn't check {n} app: {error}|Couldn't check {n} apps: {error}	Tidak dapat memeriksa {n} aplikasi: {error}
 @plural	{first}, {second} and {n} more|{first}, {second} and {n} more	{first}, {second}, dan {n} lainnya
+
+# == The toolbox updating itself (M5)
+	This copy can't update itself: {reason}	Salinan ini tidak dapat memperbarui dirinya sendiri: {reason}
+	Quit ArtCraft Toolbox and start version {version}	Keluar dari ArtCraft Toolbox dan mulai versi {version}
+	Restart to update	Mulai ulang untuk memperbarui
+	Update ArtCraft Toolbox to {version}	Perbarui ArtCraft Toolbox ke {version}
+	Update ready	Pembaruan siap
+	ArtCraft Toolbox {version} will be used after a restart	ArtCraft Toolbox {version} akan digunakan setelah dimulai ulang
+	{version} is downloaded · restart to update	{version} sudah diunduh · mulai ulang untuk memperbarui
+	{version} is available	{version} tersedia
+	Up to date	Sudah terbaru
+	the toolbox is already updating	toolbox sedang diperbarui

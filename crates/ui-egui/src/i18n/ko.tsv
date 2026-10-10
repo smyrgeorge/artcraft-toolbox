@@ -171,3 +171,15 @@
 @plural	{n} app|{n} apps	앱 {n}개
 @plural	Couldn't check {n} app: {error}|Couldn't check {n} apps: {error}	앱 {n}개를 확인할 수 없음: {error}
 @plural	{first}, {second} and {n} more|{first}, {second} and {n} more	{first}, {second} 외 {n}개
+
+# == The toolbox updating itself (M5)
+	This copy can't update itself: {reason}	이 복사본은 스스로 업데이트할 수 없습니다: {reason}
+	Quit ArtCraft Toolbox and start version {version}	ArtCraft Toolbox를 종료하고 버전 {version} 시작
+	Restart to update	다시 시작하여 업데이트
+	Update ArtCraft Toolbox to {version}	ArtCraft Toolbox를 {version}(으)로 업데이트
+	Update ready	업데이트 준비됨
+	ArtCraft Toolbox {version} will be used after a restart	ArtCraft Toolbox {version}은(는) 다시 시작한 후 사용됩니다
+	{version} is downloaded · restart to update	{version} 다운로드됨 · 다시 시작하여 업데이트
+	{version} is available	{version}을(를) 사용할 수 있습니다
+	Up to date	최신 상태
+	the toolbox is already updating	toolbox가 이미 업데이트 중입니다

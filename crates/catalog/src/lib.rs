@@ -91,6 +91,11 @@ impl App {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Catalog {
     pub schema: u32,
+    /// The toolbox itself, as the app whose releases it updates itself from (the same contract
+    /// as the apps; docs/architecture.md § 7). Not listed among [`Catalog::apps`]. A catalog
+    /// without it leaves self-update off.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub toolbox: Option<App>,
     #[serde(rename = "app", default)]
     pub apps: Vec<App>,
 }
@@ -115,6 +120,11 @@ impl Catalog {
         self.apps.iter().find(|a| a.id == id)
     }
 
+    /// An app of the list, or the toolbox itself: everything with a release feed.
+    pub fn feed_app(&self, id: &str) -> Option<&App> {
+        self.get(id).or_else(|| self.toolbox.as_ref().filter(|t| t.id == id))
+    }
+
     fn validate(&self) -> Result<()> {
         let bad = |m: String| Err(Error::Invalid(m));
         if self.schema != SCHEMA {
@@ -127,7 +137,7 @@ impl Catalog {
             return bad(format!("{} apps (limit {MAX_APPS})", self.apps.len()));
         }
         let mut slugs: Vec<&str> = Vec::new();
-        for app in &self.apps {
+        for app in self.apps.iter().chain(&self.toolbox) {
             for slug in app.slugs() {
                 if !valid_slug(slug) {
                     return bad(format!("`{}` is not a valid slug (a-z, 0-9 and -, starting with a letter, at most 32)", short(slug)));
@@ -192,6 +202,16 @@ mod tests {
     fn builtin_catalog_is_valid() {
         let c = Catalog::builtin().unwrap();
         assert_eq!(c.apps.len(), 12);
+        // The toolbox itself follows the contract under its own slug and app id.
+        let toolbox = c.toolbox.as_ref().unwrap();
+        assert_eq!(
+            (toolbox.id.as_str(), toolbox.name.as_str(), toolbox.bundle_id().as_str()),
+            ("artcraft-toolbox", "ArtCraft Toolbox", "ai.storyteller.toolbox")
+        );
+        assert!(c.get("artcraft-toolbox").is_none(), "not an app of the list");
+        assert_eq!(c.feed_app("artcraft-toolbox").map(|a| a.name.as_str()), Some("ArtCraft Toolbox"));
+        assert_eq!(c.feed_app("photocraft").map(|a| a.name.as_str()), Some("PhotoCraft"));
+        assert!(c.feed_app("nope").is_none());
         let ids: Vec<&str> = c.apps.iter().map(|a| a.id.as_str()).collect();
         for id in ["photocraft", "vectorcraft", "filmcraft", "lightcraft", "pdfcraft", "effectcraft", "designcraft"] {
             assert!(ids.contains(&id), "{id}");
@@ -239,11 +259,17 @@ mod tests {
             (one(&format!("{ok}\nbundle_id = \"a..b\"")), "reverse-DNS"),
             (one(&format!("{ok}\nicon = \"http://x/i.png\"")), "icon"),
             (format!("{}{}", one(ok), "[[app]]\nid=\"x\"\nname=\"X2\"\ntagline=\"\"\nrepo=\"o/y\""), "twice"),
+            // The toolbox entry is validated like an app, and can't reuse an app's slug.
+            (format!("schema = 1\n[toolbox]\nid = \"x\"\nname = \"T\"\ntagline = \"\"\nrepo = \"o/t\"\n[[app]]\n{ok}\n"), "twice"),
+            (format!("schema = 1\n[toolbox]\nid = \"T\"\nname = \"T\"\ntagline = \"\"\nrepo = \"o/t\"\n[[app]]\n{ok}\n"), "slug"),
+            (format!("schema = 1\n[toolbox]\nid = \"t\"\nname = \"T\"\ntagline = \"\"\nrepo = \"o\"\n[[app]]\n{ok}\n"), "repo"),
         ];
         for (text, want) in cases {
             let e = Catalog::parse(&text).unwrap_err().to_string();
             assert!(e.contains(want), "{text:?}: {e}");
         }
         assert!(matches!(Catalog::parse(&" ".repeat(MAX_BYTES + 1)), Err(Error::TooLarge(_))));
+        // A catalog without a toolbox entry is fine (self-update is then off).
+        assert_eq!(Catalog::parse(&one(ok)).unwrap().toolbox, None);
     }
 }

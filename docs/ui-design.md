@@ -6,6 +6,17 @@ action for each app one click away. We study other app managers for *behaviour a
 grammar* by observation only (clean-room: never copy their code, icons, colours or assets). The
 look is PhotoCraft's Studio theme, adapted, so the suite reads as one family.
 
+## The toolbox's own update (M5)
+
+A panel at the top of the app list, only while a newer ArtCraft Toolbox is published (or already
+downloaded): the toolbox's mark, its name, the status line (`0.2.0 is available`, then
+`0.2.0 is downloaded · restart to update`) and one primary action: `Update` (download, verify,
+stage; a progress bar under the line while it runs, with `Cancel`), then `Restart to update`.
+The same line and action sit on Settings › About under the version. A copy that can't update
+itself (a `cargo run` build, a package-manager install) shows why under the line instead of the
+button. Rendered by `self_update.rs`; `--toolbox-update <v>` and `--toolbox-ready <v>` draw it
+in the snapshot example.
+
 ## Layout
 
 ```text

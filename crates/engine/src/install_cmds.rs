@@ -27,7 +27,7 @@ use artcraft_toolbox_catalog::App;
 use artcraft_toolbox_install::{AppInfo, Current, Layout};
 use artcraft_toolbox_model::{Installation, Trust};
 use artcraft_toolbox_net::{NetError, Request, Transport};
-use artcraft_toolbox_release::{Checksums, Os, PackageKind, Version, asset};
+use artcraft_toolbox_release::{Checksums, Os, PackageKind, Sha256, Version, asset};
 use serde_json::{Value, json};
 
 use crate::commands::{CommandSpec, always};
@@ -143,13 +143,43 @@ pub(crate) enum InstallMsg {
     Failed(String),
 }
 
-/// An install job's bookkeeping.
+/// An install job's bookkeeping (also a toolbox update's, `toolbox_cmds`).
 pub(crate) struct InstallState {
     pub(crate) phase: String,
-    done: u64,
-    total: Option<u64>,
+    pub(crate) done: u64,
+    pub(crate) total: Option<u64>,
     /// Set once the job reported its end.
     pub(crate) outcome: Option<std::result::Result<Value, String>>,
+}
+
+/// What to download: an asset and the size its release lists.
+pub(crate) struct Fetch<'a> {
+    pub(crate) url: &'a str,
+    pub(crate) file: &'a str,
+    pub(crate) size: u64,
+}
+
+/// The digest `SHA256SUMS.txt` at `sums_url` lists for `file`. No entry, no install.
+pub(crate) fn fetch_checksum(transport: &dyn Transport, sums_url: &str, file: &str, what: &str) -> std::result::Result<Sha256, String> {
+    let sums = transport
+        .get(&Request { url: sums_url, accept: "text/plain", etag: None, max_bytes: MAX_SUMS_BYTES })
+        .map_err(|e| format!("couldn't get {what}'s checksums: {e}"))
+        .and_then(|r| match r {
+            artcraft_toolbox_net::Response::Ok { body, .. } => String::from_utf8(body).map_err(|_| "SHA256SUMS.txt is not text".to_string()),
+            artcraft_toolbox_net::Response::NotModified { .. } => Err("SHA256SUMS.txt: unexpected 304".to_string()),
+        })?;
+    let sums = Checksums::parse(&sums).map_err(|e| e.to_string())?;
+    sums.get(file).ok_or_else(|| format!("SHA256SUMS.txt doesn't list {file}; not installing it"))
+}
+
+/// The downloaded `package` must hash to `expected`, or it is deleted.
+pub(crate) fn verify_download(package: &Path, expected: Sha256, file: &str) -> std::result::Result<(), String> {
+    let actual = artcraft_toolbox_install::sha256_file(package).map_err(|e| e.to_string())?;
+    if actual != expected {
+        let _ = std::fs::remove_file(package);
+        return Err(format!("{file} doesn't match its checksum (expected {expected}, got {actual}); it was deleted"));
+    }
+    Ok(())
 }
 
 impl InstallState {
@@ -315,23 +345,12 @@ fn install_worker(
 ) -> std::result::Result<Done, String> {
     let what = plan.what();
     send(tx, "Verifying the release", 0, Some(plan.size));
-    let sums = transport
-        .get(&Request { url: &plan.sums_url, accept: "text/plain", etag: None, max_bytes: MAX_SUMS_BYTES })
-        .map_err(|e| format!("couldn't get {what}'s checksums: {e}"))
-        .and_then(|r| match r {
-            artcraft_toolbox_net::Response::Ok { body, .. } => String::from_utf8(body).map_err(|_| "SHA256SUMS.txt is not text".to_string()),
-            artcraft_toolbox_net::Response::NotModified { .. } => Err("SHA256SUMS.txt: unexpected 304".to_string()),
-        })?;
-    let sums = Checksums::parse(&sums).map_err(|e| e.to_string())?;
-    let expected = sums.get(&plan.file).ok_or_else(|| format!("SHA256SUMS.txt doesn't list {}; not installing it", plan.file))?;
+    let expected = fetch_checksum(transport, &plan.sums_url, &plan.file, &what)?;
 
-    let package = download(plan, transport, &layout.downloads, cancel, tx)?;
+    let fetch = Fetch { url: &plan.url, file: &plan.file, size: plan.size };
+    let package = download(&fetch, transport, &layout.downloads, cancel, &|done| send(tx, "Downloading", done, Some(plan.size)))?;
     send(tx, "Verifying", plan.size, Some(plan.size));
-    let actual = artcraft_toolbox_install::sha256_file(&package).map_err(|e| e.to_string())?;
-    if actual != expected {
-        let _ = std::fs::remove_file(&package);
-        return Err(format!("{} doesn't match its checksum (expected {expected}, got {actual}); it was deleted", plan.file));
-    }
+    verify_download(&package, expected, &plan.file)?;
     if cancel.load(Ordering::Relaxed) {
         return Err("cancelled".into());
     }
@@ -389,18 +408,24 @@ fn install_worker(
 }
 
 /// Stream the asset into `<dir>/<file>.part`, resuming what an earlier attempt left, and rename
-/// it to `<file>` once it has exactly the listed size.
-fn download(plan: &Plan, transport: &dyn Transport, dir: &Path, cancel: &AtomicBool, tx: &Sender<JobMsg>) -> std::result::Result<PathBuf, String> {
+/// it to `<file>` once it has exactly the listed size. `progress` hears the bytes so far.
+pub(crate) fn download(
+    plan: &Fetch,
+    transport: &dyn Transport,
+    dir: &Path,
+    cancel: &AtomicBool,
+    progress: &dyn Fn(u64),
+) -> std::result::Result<PathBuf, String> {
     std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
     let part = dir.join(format!("{}.part", plan.file));
-    let done = dir.join(&plan.file);
+    let done = dir.join(plan.file);
     let _ = std::fs::remove_file(&done);
     let mut have = std::fs::metadata(&part).map(|m| m.len()).unwrap_or(0);
     if have > plan.size {
         have = 0;
     }
     for _ in 0..2 {
-        let d = match transport.download(&plan.url, have) {
+        let d = match transport.download(plan.url, have) {
             Err(NetError::Status { status: 416, .. }) if have > 0 => {
                 // What we kept doesn't fit the file any more: start over.
                 have = 0;
@@ -420,7 +445,7 @@ fn download(plan: &Plan, transport: &dyn Transport, dir: &Path, cancel: &AtomicB
         if !resuming {
             have = 0;
         }
-        send(tx, "Downloading", have, Some(plan.size));
+        progress(have);
         let mut reader = d.reader;
         let mut buf = vec![0u8; 64 * 1024];
         let mut reported = have;
@@ -442,7 +467,7 @@ fn download(plan: &Plan, transport: &dyn Transport, dir: &Path, cancel: &AtomicB
             file.write_all(chunk).map_err(|e| format!("{}: {e}", part.display()))?;
             if have - reported >= PROGRESS_STEP {
                 reported = have;
-                send(tx, "Downloading", have, Some(plan.size));
+                progress(have);
             }
         }
         file.sync_all().map_err(|e| format!("{}: {e}", part.display()))?;

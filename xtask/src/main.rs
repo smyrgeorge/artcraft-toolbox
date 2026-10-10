@@ -4,6 +4,7 @@
 //! are invoked through `std::process::Command`.
 
 mod contract;
+mod ico;
 mod layers;
 mod version;
 
@@ -16,11 +17,15 @@ usage: cargo xtask <command>
 commands:
   layers          enforce the crate dependency layering (docs/architecture.md › Layers)
   ci              fmt --check, clippy -D warnings, test, layers (stops at first failure)
-  contract [--app <id>]...
+  contract [--app <id>]... | --dir <artifacts>
                   check every catalog app's latest live release against docs/release-contract.md
-                  (network: GitHub API via curl; set GITHUB_TOKEN to avoid the anonymous rate limit)
+                  (network: GitHub API via curl; set GITHUB_TOKEN to avoid the anonymous rate limit);
+                  --app artcraft-toolbox checks the toolbox's own releases, --dir a folder of built
+                  release artifacts, offline (the release workflow runs it before uploading)
   version [set X.Y.Z[-pre]]
                   print the workspace version, or set it (Cargo.toml + Cargo.lock)
+  ico <out.ico> <in.png>...
+                  pack square PNGs (<= 256 px) into a Windows .ico (see packaging/icons.sh)
 ";
 
 fn main() -> ExitCode {
@@ -31,6 +36,7 @@ fn main() -> ExitCode {
         Some("ci") => cmd_ci(),
         Some("contract") => contract::run(&rest),
         Some("version") => version::run(&root(), &rest),
+        Some("ico") => ico::run(&rest),
         Some("-h" | "--help" | "help") | None => {
             print!("{USAGE}");
             Ok(())

@@ -21,7 +21,9 @@
 //! automatic check runs). `--lang <code>` (`de`, `ja`, `auto` …), `--theme light|dark` and
 //! `--text-size <percent>` set the appearance settings; without `--lang` it draws in English.
 //! `--popover` draws the popover's rounded edge (the desktop app's window under the menu-bar or
-//! tray icon); `--fold` folds the "Available apps" panel.
+//! tray icon); `--fold` folds the "Available apps" panel. `--toolbox-update <version>` draws the
+//! toolbox's own update offer (a newer ArtCraft Toolbox published, this copy installed as a
+//! package), and `--toolbox-ready <version>` that update downloaded, waiting for a restart.
 
 use std::sync::Arc;
 
@@ -30,9 +32,9 @@ use std::io::Read;
 
 use artcraft_toolbox_engine::install_cmds::INSTALL;
 use artcraft_toolbox_engine::net::{Download, NetError, RateLimit, Request, Response, Transport};
-use artcraft_toolbox_engine::{Catalog, Layout, Session};
-use artcraft_toolbox_model::{Installation, Inventory, Trust};
-use artcraft_toolbox_release::{PackageKind, Target, Version};
+use artcraft_toolbox_engine::{Catalog, Layout, SelfInstall, Session};
+use artcraft_toolbox_model::{Installation, Inventory, StagedUpdate, Trust};
+use artcraft_toolbox_release::{Os, PackageKind, Target, Version};
 use artcraft_toolbox_ui_egui::ToolboxApp;
 use artcraft_toolbox_ui_egui::state::Tab;
 
@@ -90,6 +92,23 @@ fn asset_sizes(json: &str) -> HashMap<String, (String, u64)> {
     assets.filter_map(|a| Some((a["browser_download_url"].as_str()?.to_string(), (a["name"].as_str()?.to_string(), a["size"].as_u64()?)))).collect()
 }
 
+/// A GitHub "list releases" response publishing ArtCraft Toolbox `version` for every host.
+fn toolbox_feed(version: &str) -> String {
+    let files = [
+        format!("artcraft-toolbox-{version}-macos-universal.dmg"),
+        format!("artcraft-toolbox-{version}-windows-x64-portable.zip"),
+        format!("artcraft-toolbox-{version}-windows-arm64-portable.zip"),
+        format!("artcraft-toolbox-{version}-linux-x86_64.AppImage"),
+        format!("artcraft-toolbox-{version}-linux-aarch64.AppImage"),
+        "SHA256SUMS.txt".to_string(),
+    ];
+    let assets: Vec<serde_json::Value> = files
+        .iter()
+        .map(|f| serde_json::json!({"name": f, "size": 1 << 20, "browser_download_url": format!("https://github.com/smyrgeorge/artcraft-toolbox/releases/download/v{version}/{f}")}))
+        .collect();
+    serde_json::json!([{"tag_name": format!("v{version}"), "assets": assets}]).to_string()
+}
+
 fn arg(args: &[String], name: &str) -> Option<String> {
     args.iter().position(|a| a == name).and_then(|i| args.get(i + 1).cloned())
 }
@@ -123,11 +142,14 @@ fn main() -> Result<(), String> {
     };
     // A copy of the data folder's files, so drawing never writes to it (removed at the end).
     let copy = std::env::temp_dir().join(format!("artcraft-toolbox-snapshot-{}", std::process::id()));
+    let toolbox_flags = arg(&args, "--toolbox-update").is_some() || arg(&args, "--toolbox-ready").is_some();
     let store = match arg(&args, "--data-dir") {
         Some(dir) => {
             copy_dir(std::path::Path::new(&dir), &copy).map_err(|e| format!("{dir}: {e}"))?;
             Some(artcraft_toolbox_store::Store::open(&copy).map_err(|e| e.to_string())?)
         }
+        // The toolbox's own update needs a data folder to download into: an empty scratch one.
+        None if toolbox_flags => Some(artcraft_toolbox_store::Store::open(copy.join("data")).map_err(|e| e.to_string())?),
         None => None,
     };
     let (mut session, warnings) = Session::open(Catalog::builtin().map_err(|e| e.to_string())?, store, transport);
@@ -199,6 +221,25 @@ fn main() -> Result<(), String> {
         app.session.start(INSTALL, serde_json::json!({ "app": id })).map_err(|e| e.to_string())?;
         // Let the download reach its stopping point.
         std::thread::sleep(std::time::Duration::from_millis(500));
+    }
+    // The toolbox's own update: this copy as a packaged install of this build's version, and a
+    // newer version published (`--toolbox-update`), downloaded already (`--toolbox-ready`).
+    let ready = arg(&args, "--toolbox-ready");
+    if let Some(v) = arg(&args, "--toolbox-update").or_else(|| ready.clone()) {
+        let host = app.session.host().ok_or("no host")?;
+        let kind = match host.os {
+            Os::Macos => PackageKind::Dmg,
+            Os::Windows => PackageKind::PortableZip,
+            _ => PackageKind::AppImage,
+        };
+        let running = artcraft_toolbox_engine::toolbox_cmds::running_version();
+        app.session.set_self_install(Some(SelfInstall { kind, path: scratch.join("ArtCraft Toolbox.app"), version: running }));
+        app.session.ingest_releases("artcraft-toolbox", &toolbox_feed(&v), artcraft_toolbox_engine::time::now_unix()).map_err(|e| e.to_string())?;
+        if let Some(v) = &ready {
+            let version = Version::parse(v).map_err(|e| e.to_string())?;
+            let path = scratch.join("self-update").join("x").to_string_lossy().into_owned();
+            app.session.set_staged_update(Some(StagedUpdate { version, kind, path, staged_at: 0, trust: Some(Trust::Unsigned) }));
+        }
     }
     app.ui.tab = if arg(&args, "--tab").as_deref() == Some("settings") { Tab::Settings } else { Tab::Apps };
     app.ui.search = arg(&args, "--search").unwrap_or_default();

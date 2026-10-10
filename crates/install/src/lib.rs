@@ -27,6 +27,7 @@ mod dmg;
 pub mod layout;
 mod portable;
 mod process;
+pub mod selfupdate;
 pub mod trust;
 
 use std::io::Read;

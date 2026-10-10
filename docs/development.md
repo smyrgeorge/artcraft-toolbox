@@ -37,6 +37,8 @@ artcraft-toolbox-cli versions <app> [--json]                      # installed, k
 artcraft-toolbox-cli adopt <app> [--json]                         # take over a copy installed by hand
 artcraft-toolbox-cli uninstall <app> [--json]
 artcraft-toolbox-cli open <app>
+artcraft-toolbox-cli self-update [--json]                # download and verify a newer toolbox; used at the next start
+artcraft-toolbox-cli run toolbox.apply                   # swap it in now (while the toolbox isn't running)
 artcraft-toolbox-cli commands [--json]                   # every engine command and its params
 artcraft-toolbox-cli run <command-id> [<json-params>]    # e.g. run app.status '{"app":"photocraft"}'
 ```
@@ -94,7 +96,9 @@ signed and notarized; `--found <app>=<version>` draws a copy installed outside t
 `--host linux-x86_64`); `--online` draws the network-dependent buttons enabled (requests fail at
 once, no automatic check). `--lang <code>` draws it in another language (default `en`, whatever the
 machine's), `--theme light|dark` in a theme and `--text-size 90..150` at a text size. `--popover` draws the popover's edge (rounded, as on
-macOS) and `--fold` folds the available apps. The example draws
+macOS) and `--fold` folds the available apps. `--toolbox-update <version>` draws the toolbox's
+own update offer (docs/architecture.md § 7), `--toolbox-ready <version>` that update downloaded
+and waiting for a restart (also on the Settings tab's About card). The example draws
 what the desktop app shows, with notifications and a tray icon available. Fill a scratch data
 folder for it with `ARTCRAFT_TOOLBOX_CONFIG_DIR=<dir> artcraft-toolbox-cli check` and
 `… run icons.refresh`.
@@ -158,6 +162,10 @@ CLI's `Env` a `layout`. Only the apps' startup (`setup::open_in`) uses the platf
 | `RUST_LOG` | The toolbox's own log level (`debug`, `trace`, `off`); other crates log warnings only |
 | `ARTCRAFT_TOOLBOX_BUILD_SHA` | Commit baked into `--version` and About (set by CI and packaging) |
 | `ARTCRAFT_TOOLBOX_BUILD_DATE` | Build date baked into `--version` and About |
+| `ARTCRAFT_TOOLBOX_VERSION` | Packaging scripts only: the version to build as, instead of `Cargo.toml`'s |
+| `ARTCRAFT_TOOLBOX_REQUIRE_WINRES` | Windows builds: a missing resource compiler fails the build instead of warning (the packaging script sets it) |
+| `ARTCRAFT_TOOLBOX_NO_DESKTOP_INTEGRATION` | Linux AppImage: `1` skips installing the desktop entry and icons on launch |
+| `APPIMAGE` | Set by the AppImage runtime; how the toolbox finds its own AppImage to update it |
 | `ARTCRAFT_TOOLBOX_CONFIG_DIR` | Data folder override (settings, inventory, feed cache, logs); tests and agents use a temp folder |
 | `ARTCRAFT_TOOLBOX_LOCALE` | A language tag (`ja`, `pt-BR`) used instead of the system's languages when the `language` setting is `auto` (docs/localization.md) |
 | `ARTCRAFT_TOOLBOX_GITHUB_TOKEN` | GitHub token for the apps' checks: 5,000 requests/hour instead of 60; sent only to `api.github.com` |
@@ -179,3 +187,17 @@ The version lives in one place, `[workspace.package] version` in the root `Cargo
 cargo xtask version              # print it
 cargo xtask version set 0.2.0    # set it (Cargo.toml + Cargo.lock)
 ```
+
+## Packaging and the self-update
+
+`docs/releasing.md` describes the release pipeline (`packaging/`, `.github/workflows/release.yml`).
+To try the self-update without a published release: build a package (`packaging/macos/package.sh
+--arch aarch64` on a Mac; ad-hoc signed), install it, and point a scratch data folder at a fake
+release with the CLI's test fakes as a model (`apps/artcraft-toolbox-cli/tests/cli.rs`,
+`self_update_stages_the_new_toolbox_and_apply_swaps_it_in`): `self-update` stages the new version
+under `<data>/self-update/`, and the next start of the desktop app (or `run toolbox.apply` while
+it isn't running) swaps it in, keeping the old one in `self-update/previous/`. A `cargo run`
+build isn't a packaged copy and says so in Settings › About.
+
+`packaging/icons.sh` regenerates every icon from `assets/app-icon/artcraft-toolbox.svg` (needs
+`resvg`; `brew install resvg`).

@@ -171,3 +171,15 @@
 @plural	{n} app|{n} apps	{n} aplikace|{n} aplikace|{n} aplikací
 @plural	Couldn't check {n} app: {error}|Couldn't check {n} apps: {error}	Nelze zkontrolovat {n} aplikaci: {error}|Nelze zkontrolovat {n} aplikace: {error}|Nelze zkontrolovat {n} aplikací: {error}
 @plural	{first}, {second} and {n} more|{first}, {second} and {n} more	{first}, {second} a {n} další|{first}, {second} a {n} další|{first}, {second} a {n} dalších
+
+# == The toolbox updating itself (M5)
+	This copy can't update itself: {reason}	Tato kopie se nemůže aktualizovat sama: {reason}
+	Quit ArtCraft Toolbox and start version {version}	Ukončit ArtCraft Toolbox a spustit verzi {version}
+	Restart to update	Restartovat a aktualizovat
+	Update ArtCraft Toolbox to {version}	Aktualizovat ArtCraft Toolbox na {version}
+	Update ready	Aktualizace připravena
+	ArtCraft Toolbox {version} will be used after a restart	ArtCraft Toolbox {version} se použije po restartu
+	{version} is downloaded · restart to update	{version} je stažen · restartujte pro aktualizaci
+	{version} is available	{version} je k dispozici
+	Up to date	Aktuální
+	the toolbox is already updating	toolbox se již aktualizuje

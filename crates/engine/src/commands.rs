@@ -42,6 +42,7 @@ pub fn command_specs() -> &'static [CommandSpec] {
         v.extend(crate::app_settings_cmds::specs());
         v.extend(crate::install_cmds::specs());
         v.extend(crate::versions_cmds::specs());
+        v.extend(crate::toolbox_cmds::specs());
         v
     })
 }

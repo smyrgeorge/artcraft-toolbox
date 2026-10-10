@@ -52,7 +52,7 @@ pub fn launch(kind: PackageKind, path: &Path) -> Result<()> {
 }
 
 #[cfg(windows)]
-fn detach(c: &mut Command) {
+pub(crate) fn detach(c: &mut Command) {
     use std::os::windows::process::CommandExt;
     const DETACHED_PROCESS: u32 = 0x0000_0008;
     const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
@@ -60,7 +60,7 @@ fn detach(c: &mut Command) {
 }
 
 #[cfg(not(windows))]
-fn detach(_c: &mut Command) {}
+pub(crate) fn detach(_c: &mut Command) {}
 
 /// Is a process running from `path` (a file, or a folder such as an `.app` bundle)? Best effort:
 /// `pgrep -f` on macOS and Linux, the processes' image paths through PowerShell on Windows.

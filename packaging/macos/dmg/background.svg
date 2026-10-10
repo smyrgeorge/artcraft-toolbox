@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 660 400" width="660" height="400">
+  <!-- The DMG's Finder window background (660 x 400 pt; README.md here). Finder draws the icon
+       labels in black, so the field under both icons (ArtCraft Toolbox.app at 326,205 and
+       Applications at 574,205, 128 pt boxes) stays light. No text: nothing here needs a font, so
+       every machine renders the same pixels. Original work, MIT OR Apache-2.0. -->
+  <rect width="660" height="400" fill="#efe9dc"/>
+  <!-- the Studio dark band on the left, with the toolbox mark -->
+  <rect width="190" height="400" fill="#1c1c21"/>
+  <rect x="186" width="4" height="400" fill="#8b7cf6"/>
+  <g transform="translate(26 110) scale(0.27)">
+    <rect width="512" height="512" rx="112" fill="#2c2c33"/>
+    <path d="M190 182 V152 a66 66 0 0 1 132 0 V182" fill="none" stroke="#e8e6f6" stroke-width="28" stroke-linecap="round"/>
+    <rect x="88" y="168" width="336" height="92" rx="32" fill="#b4a8ff"/>
+    <rect x="88" y="244" width="336" height="170" rx="36" fill="#8577f2"/>
+    <rect x="88" y="244" width="336" height="16" fill="#131316" opacity="0.38"/>
+    <rect x="224" y="226" width="64" height="60" rx="16" fill="#e8e6f6"/>
+    <rect x="244" y="252" width="24" height="20" rx="6" fill="#7363ea"/>
+    <rect x="124" y="406" width="52" height="18" rx="9" fill="#5b4dd6"/>
+    <rect x="336" y="406" width="52" height="18" rx="9" fill="#5b4dd6"/>
+  </g>
+  <!-- the arrow from the app to Applications, between the two icon boxes (clear of both) -->
+  <path d="M412 205 H480" fill="none" stroke="#8b7cf6" stroke-width="10" stroke-linecap="round"/>
+  <path d="M470 180 L500 205 L470 230" fill="none" stroke="#8b7cf6" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

@@ -14,9 +14,10 @@ use std::sync::Arc;
 
 use artcraft_toolbox_engine::install_cmds::{INSTALL, LAUNCH, UNINSTALL, UPDATE};
 use artcraft_toolbox_engine::net::Transport;
+use artcraft_toolbox_engine::toolbox_cmds::UPDATE as TOOLBOX_UPDATE;
 use artcraft_toolbox_engine::update_cmds::{CHECK, CheckSummary};
 use artcraft_toolbox_engine::versions_cmds::{ADOPT, ROLLBACK, UPDATE_ALL, VERSIONS};
-use artcraft_toolbox_engine::{Layout, Session, Started, Target, build_info, command_specs, setup, time};
+use artcraft_toolbox_engine::{Layout, SelfInstall, Session, Started, Status, Target, build_info, command_specs, setup, time};
 use serde_json::{Value, json};
 
 pub const USAGE: &str = "\
@@ -43,6 +44,9 @@ commands:
   adopt <app> [--json]               take over a copy installed outside the toolbox
   uninstall <app> [--json]           remove an app and its kept versions (its documents stay)
   open <app>                         open an installed app
+  self-update [--json]               download and verify a newer ArtCraft Toolbox; it is used
+                                     the next time the toolbox starts (`run toolbox.apply` swaps
+                                     it in now, while the toolbox isn't running)
   commands [--json]                  every engine command with its params
   run <command-id> [<json-params>]   run one engine command and print its JSON result
   --version                          print the version
@@ -67,13 +71,16 @@ pub struct Env {
     /// The computer to pick releases for; `None`: this one. Tests use it to install a Linux
     /// AppImage on any OS.
     pub host: Option<Target>,
+    /// The toolbox installation to update (`self-update`); `None`: the one this process runs
+    /// from, if any. Tests point it at a temp file.
+    pub self_install: Option<SelfInstall>,
 }
 
 impl Env {
     pub fn from_process() -> Env {
         let data_dir = artcraft_toolbox_engine::setup::data_dir().map_err(|e| e.to_string());
         let token = std::env::var(setup::ENV_GITHUB_TOKEN).ok();
-        Env { data_dir, transport: Some(Arc::new(setup::github_client(token))), layout: None, host: None }
+        Env { data_dir, transport: Some(Arc::new(setup::github_client(token))), layout: None, host: None, self_install: None }
     }
 }
 
@@ -113,7 +120,7 @@ pub fn run(args: &[&str], out: &mut dyn Write, err: &mut dyn Write, env: impl Fn
         return report(commands(json, out), err);
     }
     let env = env();
-    let (layout, host) = (env.layout, env.host);
+    let (layout, host, self_install) = (env.layout, env.host, env.self_install);
     let mut opened = match setup::open_in(env.data_dir, env.transport) {
         Ok(o) => o,
         Err(e) => {
@@ -134,6 +141,9 @@ pub fn run(args: &[&str], out: &mut dyn Write, err: &mut dyn Write, env: impl Fn
     if host.is_some() {
         s.set_host(host);
     }
+    if self_install.is_some() {
+        s.set_self_install(self_install);
+    }
     if s.layout().is_some() {
         // Where apps are may have changed above: look again (apps installed by hand, for adopt).
         for change in s.rescan() {
@@ -145,6 +155,7 @@ pub fn run(args: &[&str], out: &mut dyn Write, err: &mut dyn Write, env: impl Fn
         Cmd::Status { json, feeds } => status(s, json, &feeds, out),
         Cmd::Check { json, app, force } => check(s, json, app, force, out, err),
         Cmd::Install { command, app, version, json } => install(s, command, &app, version, json, out, err),
+        Cmd::SelfUpdate { json } => self_update(s, json, out, err),
         Cmd::UpdateAll { json } => update_all(s, json, out, err),
         Cmd::Rollback { app, version, json } => {
             let mut params = json!({ "app": app });
@@ -231,6 +242,9 @@ enum Cmd {
     Open {
         app: String,
     },
+    SelfUpdate {
+        json: bool,
+    },
     Commands {
         json: bool,
     },
@@ -260,6 +274,15 @@ fn parse(args: &[&str]) -> Result<Parsed, String> {
     let mut force = false;
     let flag = |seen: &mut bool, name: &str| if std::mem::replace(seen, true) { Err(format!("`{name}` given twice")) } else { Ok(()) };
     let cmd = match cmd {
+        "self-update" => {
+            for a in rest {
+                match *a {
+                    "--json" => flag(&mut json, "--json")?,
+                    other => return Err(format!("unexpected argument `{}`", short(other))),
+                }
+            }
+            Cmd::SelfUpdate { json }
+        }
         "list" | "commands" | "status" | "check" => {
             let mut it = rest.iter();
             while let Some(a) = it.next() {
@@ -372,6 +395,17 @@ fn print_statuses(s: &Session, json: bool, out: &mut dyn Write) -> Result<(), St
         let failed = r.error.map(|e| format!("  (last check failed: {e})")).unwrap_or_default();
         let _ = writeln!(out, "{:<12} {:<12} {}{pinned}{failed}", r.id, r.name, r.status.label());
     }
+    // The toolbox itself, last.
+    if let Some(st) = s.self_status() {
+        let line = match (&st.staged, &st.status) {
+            (Some(v), _) => format!("{} running · {v} downloaded, used at the next start", st.installed),
+            (None, Status::UpdateAvailable { latest, .. }) => format!("{latest} available · {} running", st.installed),
+            (None, Status::UpToDate { .. }) => format!("{} · up to date", st.installed),
+            (None, _) => format!("{} running", st.installed),
+        };
+        let failed = st.error.map(|e| format!("  (last check failed: {e})")).unwrap_or_default();
+        let _ = writeln!(out, "{:<12} {:<12} {line}{failed}", "toolbox", st.name);
+    }
     let _ = match s.last_checked() {
         Some(at) => writeln!(out, "\nChecked {}.", time::ago(s.now(), at)),
         None => writeln!(out, "\nNot checked yet: run `artcraft-toolbox-cli check`."),
@@ -433,15 +467,37 @@ fn install(s: &mut Session, command: &str, app: &str, version: Option<String>, j
         params["version"] = Value::String(v);
     }
     let done = if command == UPDATE { "updated" } else { "installed" };
+    let v = follow(s, command, app, params, err)?;
+    report_change(out, json, &v, done)
+}
+
+/// Download and stage a newer toolbox (`toolbox.update`), with the same progress on stderr.
+fn self_update(s: &mut Session, json: bool, out: &mut dyn Write, err: &mut dyn Write) -> Result<(), String> {
+    let id = s.toolbox().map(|t| t.id.clone()).ok_or("the catalog names no release feed for the toolbox")?;
+    let v = follow(s, TOOLBOX_UPDATE, &id, json!({}), err)?;
+    if json {
+        return print_json(out, &v);
+    }
+    let _ = writeln!(
+        out,
+        "ArtCraft Toolbox {} downloaded and verified: {}\nIt is used the next time ArtCraft Toolbox starts (or run `artcraft-toolbox-cli run toolbox.apply` while it isn't running).",
+        v["version"].as_str().unwrap_or(""),
+        v["path"].as_str().unwrap_or("")
+    );
+    Ok(())
+}
+
+/// Start a background command for `item` and wait for it, printing its phases to stderr.
+fn follow(s: &mut Session, command: &str, item: &str, params: Value, err: &mut dyn Write) -> Result<Value, String> {
     let id = match s.start(command, params).map_err(|e| e.to_string())? {
         Started::Job(id) => id,
-        Started::Done(v) => return report_change(out, json, &v, done),
+        Started::Done(v) => return Ok(v),
     };
     let mut last = String::new();
     loop {
         // The phase before polling: the job's state only moves when `poll_jobs` applies the
         // worker's messages, so the first line is always "Starting", however fast the worker.
-        if let Some(job) = s.job_for(command, app) {
+        if let Some(job) = s.job_for(command, item) {
             let line = match (job.phase.as_deref(), job.fraction) {
                 (Some("Downloading"), Some(f)) => format!("Downloading {:.0}%", f * 100.0),
                 (Some(p), _) => p.to_string(),
@@ -458,7 +514,7 @@ fn install(s: &mut Session, command: &str, app: &str, version: Option<String>, j
                 if !last.is_empty() {
                     let _ = writeln!(err);
                 }
-                return event.result.and_then(|v| report_change(out, json, &v, done));
+                return event.result;
             }
         }
         if !s.has_jobs() {

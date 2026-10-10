@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- AppStream metadata (software centres). Template: package.sh substitutes @VERSION@ and @DATE@
+     from Cargo.toml and the build date. -->
+<component type="desktop-application">
+  <id>ai.storyteller.toolbox</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT OR Apache-2.0</project_license>
+  <name>ArtCraft Toolbox</name>
+  <summary>Install, update and launch the Crafting Apps</summary>
+  <developer id="ai.storyteller">
+    <name>ArtCraft Toolbox contributors</name>
+  </developer>
+  <description>
+    <p>
+      ArtCraft Toolbox is one native app that installs, updates, rolls back and launches every
+      Crafting App (PhotoCraft, VectorCraft, FilmCraft and the rest) from a menu-bar or tray
+      window.
+    </p>
+    <ul>
+      <li>Reads each app's GitHub releases and installs the right build for this computer</li>
+      <li>Verifies every download against the release's SHA-256 checksums before it is opened</li>
+      <li>Keeps previous versions side by side, so rolling back is a switch</li>
+      <li>Updates itself the same way, and every action is a command for scripts and agents</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">ai.storyteller.toolbox.desktop</launchable>
+  <icon type="stock">ai.storyteller.toolbox</icon>
+  <!-- Only url types known to appstream 0.15 (Ubuntu 22.04, where CI validates): no vcs-browser. -->
+  <url type="homepage">https://github.com/smyrgeorge/artcraft-toolbox</url>
+  <url type="bugtracker">https://github.com/smyrgeorge/artcraft-toolbox/issues</url>
+  <url type="help">https://github.com/smyrgeorge/artcraft-toolbox</url>
+  <categories>
+    <category>Utility</category>
+    <category>System</category>
+    <category>PackageManager</category>
+  </categories>
+  <keywords>
+    <keyword>artcraft</keyword>
+    <keyword>crafting apps</keyword>
+    <keyword>installer</keyword>
+    <keyword>updates</keyword>
+  </keywords>
+  <screenshots>
+    <screenshot type="default">
+      <caption>The app list: PhotoCraft installed and up to date, the other Crafting Apps ready to install</caption>
+      <image>https://raw.githubusercontent.com/smyrgeorge/artcraft-toolbox/main/docs/images/toolbox-apps-dark.png</image>
+    </screenshot>
+  </screenshots>
+  <branding>
+    <color type="primary" scheme_preference="light">#c6bdff</color>
+    <color type="primary" scheme_preference="dark">#5b4dd6</color>
+  </branding>
+  <requires>
+    <display_length compare="ge">360</display_length>
+  </requires>
+  <supports>
+    <control>keyboard</control>
+    <control>pointing</control>
+  </supports>
+  <provides>
+    <binary>artcraft-toolbox</binary>
+    <binary>artcraft-toolbox-cli</binary>
+  </provides>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="@VERSION@" date="@DATE@"/>
+  </releases>
+</component>

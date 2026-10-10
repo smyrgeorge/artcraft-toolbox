@@ -1,0 +1,15 @@
+[Desktop Entry]
+Type=Application
+Name=ArtCraft Toolbox
+GenericName=App Manager
+Comment=Install, update and launch the Crafting Apps
+Exec=artcraft-toolbox
+TryExec=artcraft-toolbox
+Icon=ai.storyteller.toolbox
+Terminal=false
+# The native runner does not complete desktop startup-notification handshakes.
+StartupNotify=false
+# The window's app id (apps/artcraft-toolbox/src/main.rs, APP_ID), so docks match it to this entry.
+StartupWMClass=ai.storyteller.toolbox
+Categories=Utility;System;PackageManager;
+Keywords=artcraft;crafting;apps;install;update;photocraft;vectorcraft;

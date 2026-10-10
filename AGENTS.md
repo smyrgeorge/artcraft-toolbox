@@ -11,6 +11,7 @@ ArtCraft Toolbox installs, updates, rolls back and launches the **Crafting Apps*
 | `docs/architecture.md` | Crate map, layers, data flow (catalog → feed → plan → download → verify → install → inventory), install layout per OS |
 | `docs/release-contract.md` | What every craft publishes, what the toolbox relies on, measured state, known gotchas |
 | `docs/development.md` | Build, run, test, offline feeds, offscreen UI snapshots, env vars |
+| `docs/releasing.md` | The release pipeline (`packaging/`, `release.yml`), signing, icons; how the toolbox's own releases feed its self-update |
 | `docs/contributing.md` | Rules, and the "add a command" checklist |
 | `docs/roadmap.md` | Milestones M0–M8 and the **current focus** |
 | `docs/ui-design.md` | Layout, tokens (dark and light), widgets, accessibility, and the planned behaviour |
@@ -36,7 +37,8 @@ crates/
 apps/
   artcraft-toolbox            desktop app (eframe/wgpu): window, menu-bar/tray icon, OS notifications, logger
   artcraft-toolbox-cli        headless CLI: list / status / check / install / update / rollback / versions / adopt / uninstall / open / commands / run
-xtask/                        cargo xtask layers | ci | contract | version
+xtask/                        cargo xtask layers | ci | contract [--dir] | version | ico
+packaging/                    the release pipeline (PhotoCraft's, ported): icons.sh, env.sh, macos/, windows/, linux/
 ```
 
 **Layering is enforced** by `cargo xtask layers`. A crate may depend only on lower layers. `release` and `catalog` depend on nothing in the workspace. Nothing below `ui-egui` may use egui, eframe, winit or rfd. **Nothing below L3 may use network, async or archive crates** (ureq, reqwest, tokio, zip, ...): L0–L2 are pure and are tested from bytes. A new crate must be registered in `xtask/src/layers.rs`; the planned ones above are already there, with their layer.
@@ -95,6 +97,8 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo xtask layers
 cargo xtask ci                 # all of the above in one go (fmt check, clippy, test, layers)
 cargo xtask contract           # if you touched release/feed/catalog parsing or catalog.toml (needs network)
+packaging/icons.sh             # if you touched assets/app-icon/artcraft-toolbox.svg (needs resvg); commit the renders
+shellcheck packaging/*.sh packaging/*/*.sh packaging/linux/AppRun   # if you touched packaging/ (CI: packaging-lint.yml)
 cargo run -p artcraft-toolbox-ui-egui --example snapshot -- --out target/snapshots/x.png   # if you touched the UI: look at it
 ```
 

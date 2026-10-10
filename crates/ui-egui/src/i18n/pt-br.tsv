@@ -171,3 +171,15 @@
 @plural	{n} app|{n} apps	{n} app|{n} apps
 @plural	Couldn't check {n} app: {error}|Couldn't check {n} apps: {error}	Não foi possível verificar {n} app: {error}|Não foi possível verificar {n} apps: {error}
 @plural	{first}, {second} and {n} more|{first}, {second} and {n} more	{first}, {second} e mais {n}|{first}, {second} e mais {n}
+
+# == The toolbox updating itself (M5)
+	This copy can't update itself: {reason}	Esta cópia não consegue se atualizar sozinha: {reason}
+	Quit ArtCraft Toolbox and start version {version}	Fechar o ArtCraft Toolbox e iniciar a versão {version}
+	Restart to update	Reiniciar para atualizar
+	Update ArtCraft Toolbox to {version}	Atualizar o ArtCraft Toolbox para {version}
+	Update ready	Atualização pronta
+	ArtCraft Toolbox {version} will be used after a restart	O ArtCraft Toolbox {version} será usado após reiniciar
+	{version} is downloaded · restart to update	{version} baixado · reinicie para atualizar
+	{version} is available	{version} está disponível
+	Up to date	Atualizado
+	the toolbox is already updating	a toolbox já está sendo atualizada

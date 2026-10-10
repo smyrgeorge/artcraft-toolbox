@@ -8,6 +8,13 @@ playbook in `../craftrules/release/playbook.md`), so one parser serves all of th
 using the toolbox's own parsers; `.github/workflows/contract.yml` runs it every day. If it fails,
 a craft changed how it publishes: update this page, the parser and a fixture in one change.
 
+**The toolbox itself follows this contract** (`docs/releasing.md`): its releases are
+`artcraft-toolbox-<version>-<os>-<arch>.<ext>` with `SHA256SUMS.txt`, tagged `v<version>`, at the
+`[toolbox]` repo of `catalog.toml`, minus the Flatpak, FreeBSD and web assets. That is how it
+updates itself (docs/architecture.md § 7). `cargo xtask contract --app artcraft-toolbox` checks
+its published releases, `--dir <folder>` a folder of freshly built ones (the release workflow
+runs it before uploading).
+
 ## Where
 
 - GitHub Releases of `github.com/<repo>` (`repo` in `crates/catalog/catalog.toml`; today
@@ -151,8 +158,11 @@ installable, every asset listed in `SHA256SUMS.txt`).
 8. **The apps in the DMGs carry Finder information on some files** (`com.apple.FinderInfo` on 15
    files of PhotoCraft 0.3.0 and 0.5.0, inside the image already). `codesign --verify --strict`
    rejects that as "detritus" although the signature is intact and Gatekeeper accepts the app, so
-   the toolbox verifies without `--strict` (a changed file or executable still fails). Fixing the
-   crafts' packaging would let it use `--strict`.
+   the toolbox verifies without `--strict` (a changed file or executable still fails). The cause
+   (found 2026-10-10 on the toolbox's own DMG, built the same way): `hdiutil makehybrid -hfs`
+   gives files HFS type and creator codes by extension (`.icns`, `.txt`, …), stored as that
+   xattr; the staged folder has none. `makehybrid` has no option to turn that off, so fixing it
+   means another DMG builder; until then `--strict` can't be used on any craft's bundle.
 
 ## Refreshing the fixtures
 

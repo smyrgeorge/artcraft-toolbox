@@ -171,3 +171,15 @@
 @plural	{n} app|{n} apps	{n} 个应用
 @plural	Couldn't check {n} app: {error}|Couldn't check {n} apps: {error}	无法检查 {n} 个应用：{error}
 @plural	{first}, {second} and {n} more|{first}, {second} and {n} more	{first}、{second} 等另外 {n} 个
+
+# == The toolbox updating itself (M5)
+	This copy can't update itself: {reason}	此副本无法自行更新：{reason}
+	Quit ArtCraft Toolbox and start version {version}	退出 ArtCraft Toolbox 并启动版本 {version}
+	Restart to update	重新启动以更新
+	Update ArtCraft Toolbox to {version}	将 ArtCraft Toolbox 更新到 {version}
+	Update ready	更新已就绪
+	ArtCraft Toolbox {version} will be used after a restart	ArtCraft Toolbox {version} 将在重新启动后使用
+	{version} is downloaded · restart to update	{version} 已下载 · 重新启动以更新
+	{version} is available	{version} 可用
+	Up to date	已是最新
+	the toolbox is already updating	toolbox 已在更新中

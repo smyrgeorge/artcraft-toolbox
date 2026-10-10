@@ -171,3 +171,15 @@
 @plural	{n} app|{n} apps	{n} 個のアプリ
 @plural	Couldn't check {n} app: {error}|Couldn't check {n} apps: {error}	{n} 個のアプリを確認できませんでした: {error}
 @plural	{first}, {second} and {n} more|{first}, {second} and {n} more	{first}、{second} ほか {n} 件
+
+# == The toolbox updating itself (M5)
+	This copy can't update itself: {reason}	このコピーは自己更新できません: {reason}
+	Quit ArtCraft Toolbox and start version {version}	ArtCraft Toolbox を終了してバージョン {version} を起動
+	Restart to update	再起動して更新
+	Update ArtCraft Toolbox to {version}	ArtCraft Toolbox を {version} に更新
+	Update ready	更新の準備完了
+	ArtCraft Toolbox {version} will be used after a restart	ArtCraft Toolbox {version} は再起動後に使用されます
+	{version} is downloaded · restart to update	{version} をダウンロード済み · 再起動して更新
+	{version} is available	{version} が利用可能です
+	Up to date	最新です
+	the toolbox is already updating	toolbox はすでに更新中です

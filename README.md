@@ -13,11 +13,13 @@
 </p>
 
 > [!NOTE]
-> **Pre-alpha.** Milestones M0 to M4 and M8 are done: the toolbox lives in the menu bar or tray,
+> **Pre-alpha.** Milestones M0 to M5 and M8 are done: the toolbox lives in the menu bar or tray,
 > checks GitHub for every app's releases in the background, and installs, updates (on request or
 > automatically), rolls back, opens and uninstalls any craft, checking each version's checksum and
 > platform signature first. It opens as a popover from the menu bar or tray, in 15 languages and a
-> dark or light theme. It isn't packaged for download yet (M5); see [the roadmap](docs/roadmap.md).
+> dark or light theme. It is packaged the way the crafts are (a signed DMG, MSI and portable zip,
+> AppImage, deb and rpm; [docs/releasing.md](docs/releasing.md)) and updates itself from its own
+> releases; the first release hasn't been published yet. See [the roadmap](docs/roadmap.md).
 
 ## Screenshots
 
@@ -77,6 +79,15 @@ so you can roll back, and keeps it up to date. `cargo xtask contract` checks eve
 release against that contract; on 2026-10-09 all twelve pass.
 
 ## Get started
+
+Once a release is published, download the package for your computer from
+[Releases](https://github.com/smyrgeorge/artcraft-toolbox/releases): the DMG on macOS (drag
+ArtCraft Toolbox to Applications), the portable zip or the MSI on Windows, the AppImage, deb or
+rpm on Linux. Every download has its SHA-256 in `SHA256SUMS.txt`. The DMG, the portable zip and
+the AppImage update themselves from then on (the toolbox checks its own releases together with
+the apps'); an MSI, deb or rpm install is updated the way it was installed.
+
+From source:
 
 ```sh
 cargo run --release -p artcraft-toolbox            # the desktop app

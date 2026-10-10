@@ -1,6 +1,6 @@
 # Roadmap
 
-Status legend: ✅ done · 🟡 in progress · ⬜ not started. Updated 2026-10-09.
+Status legend: ✅ done · 🟡 in progress · ⬜ not started. Updated 2026-10-10.
 
 | M | Status | Goal |
 |---|---|---|
@@ -9,12 +9,12 @@ Status legend: ✅ done · 🟡 in progress · ⬜ not started. Updated 2026-10-
 | M2 Install and launch | ✅ | Install, uninstall and open any craft on macOS, Windows and Linux |
 | M3 Updates, rollback, trust | ✅ | Update one or all, keep and switch versions, verify signatures, adopt existing installs |
 | M4 Toolbox UX parity | ✅ | Menu-bar/tray app, background checks, notifications, release notes, per-app settings |
-| M5 Distribution and self-update | ⬜ | Signed installers via PhotoCraft's release pipeline; the toolbox updates itself |
+| M5 Distribution and self-update | ✅ | Signed installers via PhotoCraft's release pipeline; the toolbox updates itself |
 | M6 Automation | ⬜ | Control channel and MCP over the command registry |
 | M7 Catalog from the network | ⬜ | A signed remote catalog; non-conforming apps (ArtCraft itself) |
 | M8 Polish | ✅ | Localization (PhotoCraft's `tl!` pattern), accessibility, light theme |
 
-## Current focus: M5 Distribution and self-update
+## Current focus: M6 Automation
 
 Agents: pick the first unchecked item of the current milestone. Tick it in the same change that
 lands it.
@@ -108,12 +108,21 @@ with the popover: the toolbox is a macOS accessory app since the 2026-10-09 poli
 Every catalog covers every UI string, plural message, tagline and fixed engine message the UI
 shows (tests list what's missing). The CLI, command ids and logs stay English.
 
-### M5 Distribution and self-update
+### M5 Distribution and self-update ✅ (2026-10-10)
 
-- [ ] Port PhotoCraft's `packaging/` and `release.yml` (macOS universal DMG signed and notarized, Windows MSI + portable, Linux AppImage/deb/rpm)
-- [ ] App icon (replace the placeholder), Windows resources (`build.rs`), Linux desktop file and AppStream metadata
-- [ ] The toolbox follows its own release contract and updates itself (swap on next start)
-- [ ] `packaging-lint.yml` as in PhotoCraft
+- [x] Port PhotoCraft's `packaging/` and `release.yml` (macOS universal DMG signed and notarized, Windows MSI + portable, Linux AppImage/deb/rpm); `docs/releasing.md`; the `release` job checks the artifacts against the contract (`cargo xtask contract --dir`)
+- [x] App icon (replace the placeholder: `assets/app-icon/artcraft-toolbox.svg`, every size from `packaging/icons.sh` and `cargo xtask ico`), Windows resources (`build.rs`), Linux desktop file and AppStream metadata, the DMG's Finder window
+- [x] The toolbox follows its own release contract (`[toolbox]` in `catalog.toml`, its feed in every check) and updates itself: `toolbox.status`, `toolbox.update` (download, verify, same signer, stage), swap on next start or `Restart to update` (`toolbox.apply` for the CLI); the previous version kept
+- [x] `packaging-lint.yml` as in PhotoCraft
+
+Verified on macOS: `packaging/macos/package.sh --arch aarch64` builds an ad-hoc signed
+`ArtCraft Toolbox.app`, its DMG (with the Finder window layout) and the CLI zip, and
+`verify.sh` accepts them. The self-update is exercised end to end in tests with a fake GitHub
+and an AppImage (engine, UI and CLI); a real published release doesn't exist yet, so
+`cargo xtask contract --app artcraft-toolbox` fails with "no stable release" until the first
+one is cut. No signing secrets are configured. Still open: a `toolbox.rollback` to the kept
+previous version; the Windows rename-and-copy swap and the Linux AppImage exec have only run in
+tests.
 
 ### M6 Automation
 
@@ -133,4 +142,5 @@ shows (tests list what's missing). The CLI, command ids and logs stay English.
 - Do crafts' file associations (`.pcraft`, PSD) need registering when the toolbox installs from a portable zip?
 - Should the catalog pin each craft's signing team (DJ6XS33FX8 for PhotoCraft) so even the first install is checked against it? Today the first install's signer is trusted and later updates must match it.
 - Will the crafts honour `ARTCRAFT_TOOLBOX_MANAGED=1` (PdfCraft's in-app update check), and should the crafts' DMGs drop the Finder information that makes `codesign --strict` fail?
-- Publishing: does the toolbox live in `storytold/` with the other crafts? Its name and app id (`ai.storyteller.toolbox`) should be confirmed with the ArtCraft team.
+- Publishing: does the toolbox live in `storytold/` with the other crafts? Its name and app id (`ai.storyteller.toolbox`) should be confirmed with the ArtCraft team. Today the `[toolbox]` entry of `catalog.toml` points at `smyrgeorge/artcraft-toolbox` (this repository); moving it is a data change, but every installed toolbox keeps looking at the repo its build names until it is updated once from there.
+- Should the toolbox's own signing identity be pinned in the catalog, like a craft's could be? Today the first installed copy's signer is the reference for later updates.

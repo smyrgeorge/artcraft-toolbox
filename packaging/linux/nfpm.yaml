@@ -1,0 +1,78 @@
+# .deb and .rpm packages (nfpm: https://nfpm.goreleaser.com). Run by package.sh, which stages
+# the file tree, substitutes its path for ${STAGE} (nfpm doesn't expand env vars in `src`) and
+# exports VERSION and NFPM_ARCH.
+#
+#   nfpm package -f packaging/linux/nfpm.yaml -p deb -t dist/release/
+name: artcraft-toolbox
+arch: ${NFPM_ARCH}
+platform: linux
+version: ${VERSION}
+# semver: 0.2.0-rc.1 becomes 0.2.0~rc.1 in deb/rpm, so pre-releases sort before the release.
+version_schema: semver
+release: 1
+section: utils
+priority: optional
+maintainer: ${ARTCRAFT_TOOLBOX_MAINTAINER}
+vendor: ArtCraft Toolbox contributors
+homepage: https://github.com/smyrgeorge/artcraft-toolbox
+license: MIT OR Apache-2.0
+description: |-
+  Installs, updates, rolls back and launches the ArtCraft Crafting Apps
+  (PhotoCraft, VectorCraft, FilmCraft, ...) from one menu-bar or tray window.
+  Every download is verified against its release's SHA-256 checksums.
+  Includes artcraft-toolbox-cli, a headless command runner for scripts and agents.
+  A package-manager install doesn't update itself: upgrade it through the package manager.
+
+# The binaries link only glibc and libgcc_s directly. Windowing (X11/Wayland, xkbcommon) and the
+# GPU (Vulkan, EGL/GL) are loaded at runtime with dlopen, so they aren't ELF NEEDED entries and
+# the package tools can't find them: list them here (the same set PhotoCraft needs for winit 0.30
+# and wgpu, docs/releasing.md). The tray icon speaks StatusNotifierItem over D-Bus (no GTK).
+overrides:
+  deb:
+    depends:
+      - libc6 (>= 2.35)
+      - libgcc-s1
+      - libxkbcommon0
+      - libxkbcommon-x11-0
+      - libwayland-client0
+      - libx11-6
+      - libx11-xcb1
+      - libxcb1
+      - libxcursor1
+      - libxi6
+      - libvulkan1 | libegl1
+    recommends:
+      - mesa-vulkan-drivers
+      - libegl-mesa0
+      - libfuse2t64 | libfuse2
+  rpm:
+    # Soname provides rather than package names, so the same requirements resolve on Fedora/RHEL
+    # (libxkbcommon-x11, libX11-xcb, ...) and openSUSE (libxkbcommon-x11-0, libX11-xcb1, ...).
+    depends:
+      - libxkbcommon.so.0()(64bit)
+      - libxkbcommon-x11.so.0()(64bit)
+      - libwayland-client.so.0()(64bit)
+      - libX11.so.6()(64bit)
+      - libX11-xcb.so.1()(64bit)
+      - libxcb.so.1()(64bit)
+      - libXcursor.so.1()(64bit)
+      - libXi.so.6()(64bit)
+      - (libvulkan.so.1()(64bit) or libEGL.so.1()(64bit))
+    recommends:
+      - mesa-vulkan-drivers
+      - fuse-libs
+
+contents:
+  - src: ${STAGE}/usr/bin/artcraft-toolbox
+    dst: /usr/bin/artcraft-toolbox
+    file_info: { mode: 0755 }
+  - src: ${STAGE}/usr/bin/artcraft-toolbox-cli
+    dst: /usr/bin/artcraft-toolbox-cli
+    file_info: { mode: 0755 }
+  - src: ${STAGE}/usr/share/
+    dst: /usr/share/
+    type: tree
+
+scripts:
+  postinstall: packaging/linux/postinst.sh
+  postremove: packaging/linux/postinst.sh

@@ -8,7 +8,8 @@ use std::sync::{Arc, Mutex};
 
 use artcraft_toolbox_cli::{Env, run};
 use artcraft_toolbox_engine::net::{Download, NetError, RateLimit, Request, Response, Transport};
-use artcraft_toolbox_engine::{Layout, Target};
+use artcraft_toolbox_engine::{Layout, SelfInstall, Target};
+use artcraft_toolbox_release::{PackageKind, Version};
 use sha2::Digest;
 
 const PHOTOCRAFT: &str = include_str!("../../../crates/feed/tests/fixtures/photocraft-releases.json");
@@ -49,7 +50,7 @@ fn cli_in(dir: &Path, fake: &Arc<Fake>, args: &[&str]) -> Run {
     let (dir, fake) = (dir.to_path_buf(), Arc::clone(fake));
     let layout =
         Layout { apps: dir.join("apps"), desktop_entries: None, icons: None, start_menu: None, downloads: dir.join("downloads"), kept: dir.join("kept") };
-    let code = run(args, &mut out, &mut err, move || Env { data_dir: Ok(dir), transport: Some(fake), layout: Some(layout), host: None });
+    let code = run(args, &mut out, &mut err, move || Env { data_dir: Ok(dir), transport: Some(fake), layout: Some(layout), host: None, self_install: None });
     Run { code, out: String::from_utf8(out).unwrap(), err: String::from_utf8(err).unwrap() }
 }
 
@@ -97,7 +98,8 @@ fn check_then_status_reads_the_cache() {
     let r = cli_in(&dir, &net, &["check"]);
     assert_eq!(r.code, 0, "{}", r.err);
     assert!(r.out.contains("Checked just now."), "{}", r.out);
-    assert_eq!(*net.requests.lock().unwrap(), 12);
+    assert!(r.out.lines().any(|l| l.starts_with("toolbox") && l.contains("ArtCraft Toolbox") && l.contains("running")), "the toolbox's own line: {}", r.out);
+    assert_eq!(*net.requests.lock().unwrap(), 13, "12 apps and the toolbox's own feed");
     assert!(dir.join("feeds/photocraft.json").exists());
 
     // A later run (a new process, in effect) reads the cached feeds without the network.
@@ -207,7 +209,7 @@ fn usage_errors_exit_2_and_touch_nothing() {
 #[test]
 fn no_data_folder_is_a_warning() {
     let (mut out, mut err) = (Vec::new(), Vec::new());
-    let code = run(&["list"], &mut out, &mut err, || Env { data_dir: Err("no HOME".into()), transport: None, layout: None, host: None });
+    let code = run(&["list"], &mut out, &mut err, || Env { data_dir: Err("no HOME".into()), transport: None, layout: None, host: None, self_install: None });
     assert_eq!(code, 0);
     assert!(String::from_utf8(err).unwrap().contains("warning: no HOME; nothing will be saved"));
 }
@@ -265,6 +267,7 @@ fn cli_installable(dir: &Path, args: &[&str]) -> Run {
         transport: Some(Arc::new(Installable)),
         layout: Some(layout),
         host: Target::from_consts("linux", "x86_64"),
+        self_install: None,
     });
     Run { code, out: String::from_utf8(out).unwrap(), err: String::from_utf8(err).unwrap() }
 }
@@ -351,6 +354,7 @@ fn cli_two(dir: &Path, args: &[&str]) -> Run {
         transport: Some(Arc::new(TwoReleases)),
         layout: Some(layout),
         host: Target::from_consts("linux", "x86_64"),
+        self_install: None,
     });
     Run { code, out: String::from_utf8(out).unwrap(), err: String::from_utf8(err).unwrap() }
 }
@@ -400,5 +404,91 @@ fn a_copy_installed_by_hand_is_adopted() {
     assert_eq!((r.code, r.out.as_str()), (0, "photocraft adopted: 8.0.0\n"), "{}", r.err);
     let r = cli_two(&dir, &["adopt", "photocraft"]);
     assert!(r.code == 1 && r.err.contains("already managed"), "{}", r.err);
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A GitHub with ArtCraft Toolbox 0.2.0 for Linux (its feed, checksums and AppImage), nothing
+/// for the apps.
+struct ToolboxRelease;
+
+const TB_FILE: &str = "artcraft-toolbox-0.2.0-linux-x86_64.AppImage";
+const TB_URL: &str = "https://github.com/smyrgeorge/artcraft-toolbox/releases/download/v0.2.0/artcraft-toolbox-0.2.0-linux-x86_64.AppImage";
+const TB_SUMS: &str = "https://github.com/smyrgeorge/artcraft-toolbox/releases/download/v0.2.0/SHA256SUMS.txt";
+
+fn toolbox_appimage(tag: &[u8]) -> Vec<u8> {
+    let mut b = b"\x7fELF\x02\x01\x01\x00AI\x02\x00\x00\x00\x00\x00".to_vec();
+    b.extend((0..50_000u32).map(|i| (i % 241) as u8));
+    b.extend_from_slice(tag);
+    b
+}
+
+impl Transport for ToolboxRelease {
+    fn get(&self, req: &Request<'_>) -> Result<Response, NetError> {
+        let body = if req.url == TB_SUMS {
+            let digest: String = sha2::Sha256::digest(toolbox_appimage(b"0.2.0")).iter().map(|b| format!("{b:02x}")).collect();
+            format!("{digest}  {TB_FILE}\n")
+        } else if req.url.contains("/artcraft-toolbox/releases") {
+            serde_json::json!([{"tag_name": "v0.2.0", "assets": [
+                {"name": TB_FILE, "size": toolbox_appimage(b"0.2.0").len(), "browser_download_url": TB_URL},
+                {"name": "SHA256SUMS.txt", "size": 100, "browser_download_url": TB_SUMS},
+            ]}])
+            .to_string()
+        } else {
+            "[]".into()
+        };
+        Ok(Response::Ok { body: body.into_bytes(), etag: None, rate: RateLimit::default() })
+    }
+    fn download(&self, url: &str, from: u64) -> Result<Download, NetError> {
+        assert_eq!(url, TB_URL);
+        let body = toolbox_appimage(b"0.2.0");
+        let rest = body.get(from as usize..).unwrap_or_default().to_vec();
+        Ok(Download { reader: Box::new(std::io::Cursor::new(rest)), offset: from, total: Some(body.len() as u64) })
+    }
+}
+
+#[test]
+fn self_update_stages_the_new_toolbox_and_apply_swaps_it_in() {
+    let dir = temp();
+    let current = dir.join("bin").join("artcraft-toolbox.AppImage");
+    std::fs::create_dir_all(current.parent().unwrap()).unwrap();
+    std::fs::write(&current, toolbox_appimage(b"0.1.0")).unwrap();
+    let run_cli = |args: &[&str]| {
+        let (mut out, mut err) = (Vec::new(), Vec::new());
+        let (data, current) = (dir.clone(), current.clone());
+        let code = run(args, &mut out, &mut err, move || Env {
+            data_dir: Ok(data),
+            transport: Some(Arc::new(ToolboxRelease)),
+            layout: None,
+            host: Target::from_consts("linux", "x86_64"),
+            self_install: Some(SelfInstall { kind: PackageKind::AppImage, path: current, version: Version::new(0, 1, 0) }),
+        });
+        Run { code, out: String::from_utf8(out).unwrap(), err: String::from_utf8(err).unwrap() }
+    };
+    // Nothing known yet.
+    let r = run_cli(&["self-update"]);
+    assert_eq!(r.code, 1);
+    assert!(r.err.contains("check for updates first"), "{}", r.err);
+    assert_eq!(run_cli(&["check"]).code, 0);
+    let r = run_cli(&["status"]);
+    assert!(r.out.contains("toolbox      ArtCraft Toolbox 0.2.0 available · 0.1.0 running"), "{}", r.out);
+    let r = run_cli(&["self-update"]);
+    assert_eq!(r.code, 0, "{}", r.err);
+    assert!(r.out.contains("ArtCraft Toolbox 0.2.0 downloaded and verified") && r.out.contains("toolbox.apply"), "{}", r.out);
+    // The phases print as they arrive; a fake network is done before the first poll sees more.
+    assert!(r.err.contains("Starting"), "{}", r.err);
+    let staged = dir.join("self-update/artcraft-toolbox/0.2.0/artcraft-toolbox.AppImage");
+    assert_eq!(std::fs::read(&staged).unwrap(), toolbox_appimage(b"0.2.0"));
+    let r = run_cli(&["status"]);
+    assert!(r.out.contains("0.1.0 running · 0.2.0 downloaded, used at the next start"), "{}", r.out);
+    let r = run_cli(&["self-update", "--json"]);
+    assert_eq!(r.code, 1);
+    assert!(r.err.contains("already downloaded"), "{}", r.err);
+    // The toolbox isn't running here: the CLI can swap it in.
+    let r = run_cli(&["run", "toolbox.apply"]);
+    assert_eq!(r.code, 0, "{}", r.err);
+    assert_eq!(std::fs::read(&current).unwrap(), toolbox_appimage(b"0.2.0"));
+    assert_eq!(std::fs::read(dir.join("self-update/previous/artcraft-toolbox.AppImage")).unwrap(), toolbox_appimage(b"0.1.0"));
+    assert!(!staged.exists());
+    assert_eq!(run_cli(&["self-update", "--nope"]).code, 2);
     let _ = std::fs::remove_dir_all(&dir);
 }

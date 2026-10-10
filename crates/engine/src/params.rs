@@ -56,3 +56,9 @@ pub(crate) fn app<'a>(s: &'a Session, p: &Value) -> Result<&'a App> {
     let id = str(p, "app")?;
     s.catalog().get(id).ok_or_else(|| EngineError::UnknownApp(echo(id)))
 }
+
+/// The catalog app named by `app`, or the toolbox itself: everything with a release feed.
+pub(crate) fn feed_app<'a>(s: &'a Session, p: &Value) -> Result<&'a App> {
+    let id = str(p, "app")?;
+    s.feed_app(id).ok_or_else(|| EngineError::UnknownApp(echo(id)))
+}

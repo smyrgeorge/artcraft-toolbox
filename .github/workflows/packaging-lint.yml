@@ -1,0 +1,65 @@
+# Quick static checks for the release pipeline (seconds, no Rust build): workflow syntax,
+# packaging shell/PowerShell scripts, and the Linux desktop/AppStream metadata (PhotoCraft's
+# packaging-lint.yml, ported).
+name: Packaging lint
+
+on:
+  push:
+    branches: [main, release]
+    paths: [".github/workflows/**", "packaging/**", "assets/app-icon/**"]
+  pull_request:
+    paths: [".github/workflows/**", "packaging/**", "assets/app-icon/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: packaging-lint-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    env:
+      ACTIONLINT_VERSION: 1.7.12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends shellcheck desktop-file-utils appstream libxml2-utils
+          curl -fsSL "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz" \
+            | tar -xz -C "$RUNNER_TEMP" actionlint
+      - name: actionlint
+        run: |
+          "$RUNNER_TEMP/actionlint" -color
+      - name: shellcheck
+        run: shellcheck packaging/*.sh packaging/*/*.sh packaging/linux/AppRun
+      - name: AppImage AppRun desktop integration
+        run: bash packaging/linux/apprun-test.sh
+      - name: PowerShell
+        shell: pwsh
+        run: |
+          foreach ($f in Get-ChildItem packaging/windows/*.ps1) {
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($f.FullName, [ref]$null, [ref]$errors) | Out-Null
+            if ($errors) { $errors | ForEach-Object { Write-Output "::error file=$($f.Name)::$_" }; exit 1 }
+            Write-Output "ok $($f.Name)"
+          }
+          ./packaging/windows/check-icons.ps1
+      - name: XML, desktop entry, AppStream
+        run: |
+          xmllint --noout packaging/windows/artcraft-toolbox.wxs packaging/windows/artcraft-toolbox.en-us.wxl packaging/macos/*.plist* packaging/linux/*.xml*
+          desktop-file-validate packaging/linux/ai.storyteller.toolbox.desktop
+          sed -e 's/@VERSION@/0.0.0/' -e 's/@DATE@/2026-01-01/' packaging/linux/ai.storyteller.toolbox.metainfo.xml.in >"$RUNNER_TEMP/ai.storyteller.toolbox.metainfo.xml"
+          appstreamcli validate --no-net --explain "$RUNNER_TEMP/ai.storyteller.toolbox.metainfo.xml"
+      # The committed icon renders are up to date with the SVG master (packaging/icons.sh): the
+      # hicolor 128 px icon is what the release contract publishes (docs/release-contract.md ›
+      # Icons), so a stale render would ship.
+      - name: Icon renders match the master
+        run: |
+          test -s assets/app-icon/artcraft-toolbox.ico
+          test -s assets/app-icon/artcraft-toolbox.icns
+          for s in 16 24 32 48 64 128 256 512; do test -s "assets/app-icon/hicolor/${s}x${s}/apps/ai.storyteller.toolbox.png"; done
+          cmp assets/app-icon/artcraft-toolbox.svg assets/app-icon/hicolor/scalable/apps/ai.storyteller.toolbox.svg

@@ -5,6 +5,7 @@ edition.workspace = true
 license.workspace = true
 default-run = "artcraft-toolbox"
 description = "ArtCraft Toolbox: install, update and launch the Crafting Apps"
+build = "build.rs"
 
 [lints]
 workspace = true
@@ -26,3 +27,7 @@ notify-rust = "4.18"
 # without a Dock icon (`ActivationPolicy::Accessory`, set through eframe's `event_loop_builder`).
 [target.'cfg(target_os = "macos")'.dependencies]
 winit = { version = "0.30", default-features = false }
+
+[build-dependencies]
+# Icon + VERSIONINFO for artcraft-toolbox.exe; build.rs only uses it when targeting Windows.
+winresource = "0.1"

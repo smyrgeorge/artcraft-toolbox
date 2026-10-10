@@ -53,6 +53,7 @@ pub fn open_in(dir: std::result::Result<PathBuf, String>, transport: Option<Arc<
     }
     let (mut session, mut more) = Session::open(catalog, store, transport);
     session.use_platform_layout();
+    session.use_process_install();
     let changes = session.rescan();
     warnings.append(&mut more);
     Ok(Opened { session, warnings, changes })

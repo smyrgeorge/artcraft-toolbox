@@ -11,13 +11,17 @@ use crate::actions::{self, Clicked};
 use crate::i18n::fmt;
 use crate::theme::Tokens;
 use crate::widgets::{self, TILE, app_tile, panel, panel_title, panel_title_with};
-use crate::{ToolboxApp, icons, wording};
+use crate::{ToolboxApp, icons, self_update, wording};
 
 pub fn show(app: &mut ToolboxApp, ui: &mut egui::Ui, t: &Tokens) {
     let query = app.ui.search.trim().to_lowercase();
     let (installed, available): (Vec<AppStatus>, Vec<AppStatus>) =
         app.session.statuses().into_iter().filter(|r| matches(r, &query)).partition(|r| installed_version(&r.status).is_some() || r.found.is_some());
     egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+        // The toolbox's own update comes first: nothing else is as easy to miss.
+        if query.is_empty() {
+            self_update::offer(app, ui, t);
+        }
         if installed.is_empty() && available.is_empty() {
             ui.add_space(24.0);
             ui.vertical_centered(|ui| {

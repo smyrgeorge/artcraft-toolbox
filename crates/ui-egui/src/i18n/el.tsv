@@ -171,3 +171,15 @@
 @plural	{n} app|{n} apps	{n} εφαρμογή|{n} εφαρμογές
 @plural	Couldn't check {n} app: {error}|Couldn't check {n} apps: {error}	Δεν ήταν δυνατός ο έλεγχος {n} εφαρμογής: {error}|Δεν ήταν δυνατός ο έλεγχος {n} εφαρμογών: {error}
 @plural	{first}, {second} and {n} more|{first}, {second} and {n} more	{first}, {second} και {n} ακόμη|{first}, {second} και {n} ακόμη
+
+# == The toolbox updating itself (M5)
+	This copy can't update itself: {reason}	Αυτό το αντίγραφο δεν μπορεί να ενημερωθεί μόνο του: {reason}
+	Quit ArtCraft Toolbox and start version {version}	Έξοδος από το ArtCraft Toolbox και εκκίνηση της έκδοσης {version}
+	Restart to update	Επανεκκίνηση για ενημέρωση
+	Update ArtCraft Toolbox to {version}	Ενημέρωση του ArtCraft Toolbox σε {version}
+	Update ready	Η ενημέρωση είναι έτοιμη
+	ArtCraft Toolbox {version} will be used after a restart	Το ArtCraft Toolbox {version} θα χρησιμοποιηθεί μετά από επανεκκίνηση
+	{version} is downloaded · restart to update	Η έκδοση {version} έχει ληφθεί · επανεκκίνηση για ενημέρωση
+	{version} is available	Η έκδοση {version} είναι διαθέσιμη
+	Up to date	Ενημερωμένο
+	the toolbox is already updating	το toolbox ενημερώνεται ήδη

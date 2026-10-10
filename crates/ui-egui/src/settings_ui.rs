@@ -4,10 +4,10 @@ use artcraft_toolbox_model::settings::{MAX_CHECK_INTERVAL_HOURS, MAX_KEEP_PREVIO
 use artcraft_toolbox_model::{Channel, ThemePref};
 use serde_json::json;
 
-use crate::ToolboxApp;
 use crate::i18n::{self, Lang, fmt};
 use crate::theme::Tokens;
 use crate::widgets::{card, panel_title, toggle_row};
+use crate::{ToolboxApp, self_update};
 
 pub fn show(app: &mut ToolboxApp, ui: &mut egui::Ui, t: &Tokens) {
     let s = app.session.settings().clone();
@@ -132,6 +132,17 @@ pub fn show(app: &mut ToolboxApp, ui: &mut egui::Ui, t: &Tokens) {
             panel_title(ui, tl!("About"), t);
             ui.add_space(2.0);
             ui.label(format!("ArtCraft Toolbox {}", artcraft_toolbox_engine::build_info::long_version()));
+            // The toolbox's own update: its state and the action, as at the top of the app list.
+            if let Some(st) = app.session.self_status() {
+                ui.horizontal(|ui| {
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        self_update::action(app, ui, &st, t);
+                        ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                            ui.vertical(|ui| self_update::status_line(app, ui, &st, t));
+                        });
+                    });
+                });
+            }
             let host = app.session.host().map(|h| h.to_string()).unwrap_or_else(|| tl!("unsupported platform").to_string());
             ui.label(egui::RichText::new(fmt(tl!("This computer: {host}"), &[("host", &host)])).color(t.text_dim));
             let data = app.session.store().map_or_else(|| tl!("not saved (no data folder)").to_string(), |s| s.root().display().to_string());

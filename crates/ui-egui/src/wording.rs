@@ -7,8 +7,10 @@
 //! by exact match ([`engine`]).
 
 use artcraft_toolbox_engine::update_cmds::CheckSummary;
-use artcraft_toolbox_engine::{Session, Status, Trust, Version};
+use artcraft_toolbox_engine::{SelfStatus, Session, Status, Trust, Version};
 use serde_json::Value;
+
+use crate::theme::Tokens;
 
 use crate::i18n::{fmt, tn};
 
@@ -19,6 +21,7 @@ pub const ENGINE_STRINGS: &[&str] = &[
     "this session has no install location",
     "a check is already running",
     "the icons are already being refreshed",
+    "the toolbox is already updating",
     "the server took too long to answer",
     "GitHub's request limit is used up",
     "too many redirects",
@@ -59,6 +62,21 @@ pub fn status(s: &Status) -> String {
             fmt(tl!("{latest} available · {installed} installed"), &[("latest", &latest.to_string()), ("installed", &installed.to_string())])
         }
         Status::Unsupported { .. } => tl!("No build for this computer").to_string(),
+    }
+}
+
+/// The toolbox's own update state, and its colour: `0.2.0 is available`,
+/// `… is downloaded · restart to update`, `Up to date`, `Not checked yet`. The feed's
+/// "no release for this computer" shows as not checked: the toolbox doesn't nag about its own
+/// releases the way it does about an app's.
+pub fn self_status(st: &SelfStatus, t: &Tokens) -> (String, egui::Color32) {
+    if let Some(v) = &st.staged {
+        return (fmt(tl!("{version} is downloaded · restart to update"), &[("version", &v.to_string())]), t.accent_fg);
+    }
+    match &st.status {
+        Status::UpdateAvailable { latest, .. } => (fmt(tl!("{version} is available"), &[("version", &latest.to_string())]), t.accent_fg),
+        Status::UpToDate { .. } => (tl!("Up to date").to_string(), t.text_dim),
+        Status::Unknown { .. } | Status::Unsupported { .. } | Status::NotInstalled { .. } => (tl!("Not checked yet").to_string(), t.text_dim),
     }
 }
 
@@ -106,7 +124,7 @@ pub fn check_notice(session: &Session, result: &Value) -> Option<String> {
     if let Some(until_at) = summary.rate_limited_until {
         return Some(rate_limited(session.now(), until_at));
     }
-    let name = |id: &str| session.catalog().get(id).map_or_else(|| id.to_string(), |a| a.name.clone());
+    let name = |id: &str| session.feed_app(id).map_or_else(|| id.to_string(), |a| a.name.clone());
     match summary.failed.as_slice() {
         [] => None,
         [f] => Some(fmt(tl!("Couldn't check {app}: {error}"), &[("app", &name(&f.app)), ("error", engine(&f.error))])),

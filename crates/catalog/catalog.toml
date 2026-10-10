@@ -16,6 +16,17 @@
 # Checked against GitHub on 2026-10-09: all twelve publish the contract's full asset set.
 schema = 1
 
+# The toolbox itself: where its own releases are published, so it can update itself
+# (docs/architecture.md § 7). Not one of the apps in the list; it follows the same release
+# contract (docs/releasing.md), so the same parsers read its feed. `bundle_id` is set because the
+# app id is `ai.storyteller.toolbox`, not `ai.storyteller.artcraft-toolbox`.
+[toolbox]
+id = "artcraft-toolbox"
+name = "ArtCraft Toolbox"
+tagline = "Installs, updates and launches the Crafting Apps"
+repo = "smyrgeorge/artcraft-toolbox"
+bundle_id = "ai.storyteller.toolbox"
+
 [[app]]
 id = "photocraft"
 name = "PhotoCraft"

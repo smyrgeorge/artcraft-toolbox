@@ -1,6 +1,6 @@
 # ArtCraft Toolbox architecture
 
-Status: v1.4 (2026-10-09, M1–M4). The crates marked *planned* are designed here and registered in
+Status: v1.5 (2026-10-10, M1–M5, M8). The crates marked *planned* are designed here and registered in
 `xtask/src/layers.rs`, but not written yet; `docs/roadmap.md` says when each one lands.
 
 ## 1. Goals and principles
@@ -59,12 +59,14 @@ artcraft-toolbox/
 └─ xtask/                        layers, ci, contract (live release check), version
 ```
 
-**What exists today** (M1–M4, M8): `release`, `catalog`, `model`, `feed`, `net`, `store`,
+**What exists today** (M1–M5, M8): `release`, `catalog`, `model`, `feed`, `net`, `store`,
 `install`, `engine`, `ui-egui`, both apps and xtask. The toolbox checks GitHub for every app's
 releases in the background, caches them, persists its settings and inventory, shows what is
 available and what needs updating, and installs, updates (by hand or automatically), rolls back,
 adopts, uninstalls and opens any craft, checking platform signatures on the way. Its window is in
-15 languages, in a dark or light theme, at a chosen text size.
+15 languages, in a dark or light theme, at a chosen text size. It is packaged like a craft
+(`docs/releasing.md`) and updates itself through its own release feed (§ 7). The `jobs` crate
+stayed planned: installs and the self-update are engine jobs.
 
 ## 3. Layers (enforced)
 
@@ -118,9 +120,11 @@ Windows `%APPDATA%\ArtCraft Toolbox`, Linux `$XDG_CONFIG_HOME/artcraft-toolbox`
 ```text
 settings.json          Settings, with per-app overrides (replaced atomically; unreadable → backed up as .corrupt, defaults used)
 inventory.json         what is installed where (unreadable → reported, locked, never overwritten)
-state.json             what is remembered: the update versions already notified
-feeds/<app>.json       the last release feed: raw GitHub body, ETag, check time
+state.json             what is remembered: the update versions already notified, the toolbox's own staged update
+feeds/<app>.json       the last release feed: raw GitHub body, ETag, check time (the toolbox's own under artcraft-toolbox.json)
 icons/<app>.png        the app's icon, and icons/<app>.json (ETag, fetch time)
+downloads/             partial and verified downloads, until they are installed
+self-update/           a newer toolbox placed for the next start, and previous/ with the replaced one (§ 7)
 logs/                  artcraft-toolbox.log, .1.log, .2.log (desktop app)
 ```
 
@@ -209,6 +213,9 @@ accessors (`statuses()`, `app_status()`) serve the UI; commands serve everyone e
 | `app.adopt` | `{"app":"<id>"}` | M3 |
 | `apps.updateAll` | `{"onlyAutomatic"?:bool}` | M3 |
 | `apps.rescan` | `{}` | M3 |
+| `toolbox.status` | `{}` | M5 |
+| `toolbox.update` (background) | `{"version"?:"x.y.z"}` | M5 |
+| `toolbox.apply` | `{}` | M5 |
 
 Long work runs as background jobs (`engine/src/jobs.rs`, PhotoCraft's pattern): a command with
 a `start` hook runs on worker threads when called through `Session::start` (the UI), and to
@@ -225,11 +232,46 @@ checks its cancel flag between chunks; a cancelled download keeps its `.part` fi
 attempt resumes it. The worker also activates the version and removes the ones beyond
 `keepPrevious`; the session records it all when the job's result arrives.
 
-## 7. Self-update
+## 7. Self-update (M5)
 
-The toolbox is distributed exactly like a craft (M5: PhotoCraft's release pipeline, ported) and
-follows the same release contract, so it can update itself through its own feed: download,
-verify, stage, and swap on next start (the running binary can't replace itself on Windows).
+The toolbox is distributed exactly like a craft (PhotoCraft's release pipeline, ported:
+`docs/releasing.md`) and follows the same release contract, so it updates itself through its
+own feed with the same code that updates a craft.
+
+- **Its feed is one more entry of every check.** `catalog.toml` has a `[toolbox]` entry (id
+  `artcraft-toolbox`, repo, bundle id `ai.storyteller.toolbox`); `updates.check` fetches it with
+  the apps' (13 requests per full check), caches it as `feeds/artcraft-toolbox.json`, and
+  `Session::self_status` compares the running version (`build_info::VERSION`) with it on the
+  global channel. The UI offers the update at the top of the app list and on the About card;
+  a notification announces it once, like an app's.
+- **Only a packaged copy updates itself.** At start the session locates its own installation
+  (`install::selfupdate::locate`): the `.app` bundle the executable sits in, the AppImage
+  (`APPIMAGE` from its runtime), or `artcraft-toolbox.exe` beside the running exe. A `cargo run`
+  build, a deb/rpm/MSI install (`/usr/bin`, Program Files: not writable without elevation, and
+  the toolbox never elevates) or a CLI unzipped on its own has no such installation: the
+  status says so and the update is left to the way the copy was installed.
+- **`toolbox.update`** (a background job, `toolbox_cmds`) is the install pipeline pointed at the
+  toolbox: `SHA256SUMS.txt` first, download to `downloads/`, SHA-256, the platform installer
+  places the new version in `<data>/self-update/` (the DMG attached and its one `.app` checked
+  against the bundle id; the portable zip extracted as hostile input; the AppImage checked),
+  its platform signature is checked and **must match the running copy's developer** (the
+  running copy's own signature is read first; a broken one refuses the update), and the result
+  is recorded as *staged* in `state.json`. `autoUpdate` downloads it by itself after a check
+  and announces it when ready. Before any of that, the installation's folder is probed for
+  write access.
+- **Swap on the next start.** A program can't replace itself safely while it runs, so the swap
+  (`install::selfupdate::swap`) happens when the desktop app starts, before it opens its
+  window (`Session::apply_staged_update`): the installation is moved to
+  `self-update/previous/` and the staged version put in its place, the new version is started
+  (`Applied::relaunch`: `open -n` of the bundle on macOS, a detached process elsewhere) and the
+  old one exits. On Windows a running exe can be renamed but not deleted, so there the old
+  `artcraft-toolbox.exe` becomes `artcraft-toolbox.exe.previous` beside the new one (the CLI exe
+  too) and the leftovers are removed at the following start. `Restart to update` in the UI does
+  the same at once. `toolbox.apply` does it for the CLI and agents while the toolbox isn't
+  running. A stale record (a version no newer than the one running, files gone) is forgotten.
+  Nothing elevates: an installation the user can't write to refuses before downloading.
+- **The previous version is kept** for a manual recovery; there is no `toolbox.rollback` yet
+  (`docs/roadmap.md`).
 
 ## 8. The HTTP client (decided in M1)
 

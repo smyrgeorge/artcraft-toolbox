@@ -23,6 +23,7 @@ pub mod cjk_fonts;
 pub mod details;
 pub mod i18n;
 pub mod icons;
+pub mod self_update;
 pub mod settings_ui;
 pub mod state;
 pub mod theme;
@@ -33,6 +34,7 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 use artcraft_toolbox_engine::icons::REFRESH_ICONS;
+use artcraft_toolbox_engine::toolbox_cmds::UPDATE as TOOLBOX_UPDATE;
 use artcraft_toolbox_engine::update_cmds::CHECK;
 use artcraft_toolbox_engine::versions_cmds::UPDATE_ALL;
 use artcraft_toolbox_engine::{JobId, Session, Started};
@@ -70,11 +72,16 @@ pub struct ToolboxApp {
     pub services: Services,
     /// Set by an explicit Quit (the tray menu): closing the window then really quits.
     pub quitting: bool,
+    /// The user asked to restart into the downloaded toolbox version (`Restart to update`): the
+    /// desktop app swaps it in (`Session::apply_staged_update`), starts it and quits.
+    pub restart_wanted: bool,
     pub(crate) markdown: egui_commonmark::CommonMarkCache,
     /// App icons uploaded to the GPU, with the revision they were made from.
     textures: HashMap<String, (u64, egui::TextureHandle)>,
     /// Updates started automatically (`autoUpdate`): announced when they finish.
     auto_updates: std::collections::HashSet<JobId>,
+    /// The toolbox's own update started automatically: announced when it is ready.
+    auto_self_update: Option<JobId>,
     /// The `textSize` setting last applied as the zoom factor.
     applied_text_size: Option<u32>,
     /// The search field was just opened: give it the keyboard focus.
@@ -93,9 +100,11 @@ impl ToolboxApp {
             notice: None,
             services,
             quitting: false,
+            restart_wanted: false,
             markdown: egui_commonmark::CommonMarkCache::default(),
             textures: HashMap::new(),
             auto_updates: std::collections::HashSet::new(),
+            auto_self_update: None,
             applied_text_size: None,
             focus_search: false,
         }
@@ -234,12 +243,23 @@ impl ToolboxApp {
                 }
                 continue;
             }
+            if self.auto_self_update == Some(event.id) {
+                self.auto_self_update = None;
+                match &event.result {
+                    Ok(v) => self.announce_self_update_ready(v["version"].as_str().unwrap_or_default()),
+                    Err(e) => log::warn!("automatic toolbox update: {e}"),
+                }
+                continue;
+            }
             match (&event.result, event.command.as_str()) {
                 (Ok(v), CHECK) => {
                     self.notice = wording::check_notice(&self.session, v);
                     self.announce_updates();
                     self.update_all(true);
+                    self.self_update_if_automatic();
                 }
+                // Downloaded and verified: the offer now says "restart to update".
+                (Ok(_), TOOLBOX_UPDATE) => self.notice = None,
                 // Icons failing is not worth a banner: the monogram stays.
                 (Ok(_), _) => {}
                 (Err(e), _) => self.notice = Some(wording::engine(e).to_string()),

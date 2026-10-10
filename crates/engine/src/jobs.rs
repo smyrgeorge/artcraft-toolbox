@@ -25,6 +25,7 @@ use serde_json::Value;
 
 use crate::icons::{IconMsg, IconSummary};
 use crate::install_cmds::{InstallMsg, InstallState};
+use crate::toolbox_cmds::SelfMsg;
 use crate::update_cmds::{CheckMsg, CheckSummary};
 use crate::{EngineError, Result, Session};
 
@@ -73,6 +74,8 @@ pub(crate) enum JobMsg {
     Check(CheckMsg),
     Icon(IconMsg),
     Install(InstallMsg),
+    /// The toolbox updating itself (`toolbox_cmds`).
+    SelfUpdate(SelfMsg),
 }
 
 /// A job's own bookkeeping, by kind.
@@ -80,6 +83,7 @@ pub(crate) enum JobState {
     Check(CheckSummary),
     Icons(IconSummary),
     Install(InstallState),
+    SelfUpdate(InstallState),
 }
 
 impl JobState {
@@ -87,7 +91,7 @@ impl JobState {
         match self {
             JobState::Check(s) => s.done(),
             JobState::Icons(s) => s.done(),
-            JobState::Install(s) => usize::from(s.outcome.is_some()),
+            JobState::Install(s) | JobState::SelfUpdate(s) => usize::from(s.outcome.is_some()),
         }
     }
 }
@@ -114,11 +118,11 @@ impl Running {
             total: self.items.len(),
             in_flight: self.in_flight.iter().cloned().collect(),
             phase: match &self.state {
-                JobState::Install(s) => Some(s.phase.clone()),
+                JobState::Install(s) | JobState::SelfUpdate(s) => Some(s.phase.clone()),
                 _ => None,
             },
             fraction: match &self.state {
-                JobState::Install(s) => s.fraction(),
+                JobState::Install(s) | JobState::SelfUpdate(s) => s.fraction(),
                 _ => None,
             },
         }
@@ -288,6 +292,7 @@ impl Session {
             JobMsg::Check(m) => crate::update_cmds::apply(self, job, m),
             JobMsg::Icon(m) => crate::icons::apply(self, job, m),
             JobMsg::Install(m) => crate::install_cmds::apply(self, job, m),
+            JobMsg::SelfUpdate(m) => crate::toolbox_cmds::apply(self, job, m),
         }
     }
 
@@ -297,6 +302,7 @@ impl Session {
             JobState::Check(_) => Ok(crate::update_cmds::finish(self, job)),
             JobState::Icons(_) => Ok(crate::icons::finish(job)),
             JobState::Install(_) => crate::install_cmds::finish(job),
+            JobState::SelfUpdate(_) => crate::toolbox_cmds::finish(job),
         };
         JobEvent { id, command, result }
     }

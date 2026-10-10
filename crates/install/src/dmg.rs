@@ -175,6 +175,11 @@ pub fn bundle_version(bundle: &Path) -> Option<String> {
     plist_value(bundle, "CFBundleShortVersionString")
 }
 
+/// `CFBundleExecutable`: the name of the program in `Contents/MacOS/`.
+pub(crate) fn bundle_executable(bundle: &Path) -> Option<String> {
+    plist_value(bundle, "CFBundleExecutable").filter(|n| !n.contains(['/', '\\']) && n != "." && n != "..")
+}
+
 /// Delete a bundle after checking it is the app it is supposed to be and isn't running.
 fn remove_bundle(app: &AppInfo, bundle: &Path) -> Result<()> {
     let is_bundle = bundle.extension().is_some_and(|x| x == "app") && std::fs::symlink_metadata(bundle).is_ok_and(|m| m.is_dir());
