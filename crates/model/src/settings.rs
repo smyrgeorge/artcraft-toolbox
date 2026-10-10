@@ -135,6 +135,10 @@ pub struct Settings {
     pub theme: ThemePref,
     /// Text and controls, in percent of the normal size (one of [`TEXT_SIZES`]).
     pub text_size: u32,
+    /// Follow the publisher's signed remote catalog and aggregated release feed (one request per
+    /// check, new apps without a toolbox release). Off: the built-in catalog and one GitHub API
+    /// request per app, as before.
+    pub remote_catalog: bool,
     /// Per-app overrides, by catalog id.
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub apps: BTreeMap<String, AppSettings>,
@@ -153,6 +157,7 @@ impl Default for Settings {
             language: "auto".into(),
             theme: ThemePref::System,
             text_size: 100,
+            remote_catalog: true,
             apps: BTreeMap::new(),
         }
     }
@@ -268,6 +273,10 @@ impl Settings {
             "closeToTray" => match value.as_bool() {
                 Some(b) => self.close_to_tray = b,
                 None => return bad("closeToTray must be true or false".into()),
+            },
+            "remoteCatalog" => match value.as_bool() {
+                Some(b) => self.remote_catalog = b,
+                None => return bad("remoteCatalog must be true or false".into()),
             },
             "language" => match value.as_str() {
                 Some(l) if valid_language(l) => self.language = l.to_string(),

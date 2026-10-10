@@ -1,0 +1,602 @@
+[
+  {
+    "tag_name": "artcraft-v0.41.0",
+    "name": "ArtCraft v0.41.0",
+    "draft": false,
+    "prerelease": false,
+    "published_at": "2026-09-26T11:14:22Z",
+    "html_url": "https://github.com/storytold/artcraft/releases/tag/artcraft-v0.41.0",
+    "body": "Release notes trimmed for this test fixture.",
+    "assets": [
+      {
+        "name": "ArtCraft_0.41.0_universal.dmg",
+        "size": 94852055,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.41.0/ArtCraft_0.41.0_universal.dmg"
+      },
+      {
+        "name": "ArtCraft_0.41.0_x64-setup.exe",
+        "size": 41791713,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.41.0/ArtCraft_0.41.0_x64-setup.exe"
+      },
+      {
+        "name": "ArtCraft_0.41.0_x64_en-US.msi",
+        "size": 46837760,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.41.0/ArtCraft_0.41.0_x64_en-US.msi"
+      },
+      {
+        "name": "ArtCraft_universal.app.tar.gz",
+        "size": 94658582,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.41.0/ArtCraft_universal.app.tar.gz"
+      }
+    ]
+  },
+  {
+    "tag_name": "artcraft-v0.37.0",
+    "name": "ArtCraft v0.37.0",
+    "draft": false,
+    "prerelease": false,
+    "published_at": "2026-09-11T05:41:04Z",
+    "html_url": "https://github.com/storytold/artcraft/releases/tag/artcraft-v0.37.0",
+    "body": "Release notes trimmed for this test fixture.",
+    "assets": [
+      {
+        "name": "ArtCraft_0.37.0_universal.dmg",
+        "size": 98550398,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.37.0/ArtCraft_0.37.0_universal.dmg"
+      },
+      {
+        "name": "ArtCraft_0.37.0_x64-setup.exe",
+        "size": 43823220,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.37.0/ArtCraft_0.37.0_x64-setup.exe"
+      },
+      {
+        "name": "ArtCraft_0.37.0_x64_en-US.msi",
+        "size": 48676864,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.37.0/ArtCraft_0.37.0_x64_en-US.msi"
+      },
+      {
+        "name": "ArtCraft_universal.app.tar.gz",
+        "size": 98347612,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.37.0/ArtCraft_universal.app.tar.gz"
+      }
+    ]
+  },
+  {
+    "tag_name": "artcraft-v0.32.0",
+    "name": "ArtCraft v0.32.0",
+    "draft": false,
+    "prerelease": false,
+    "published_at": "2026-05-14T17:05:23Z",
+    "html_url": "https://github.com/storytold/artcraft/releases/tag/artcraft-v0.32.0",
+    "body": "Release notes trimmed for this test fixture.",
+    "assets": [
+      {
+        "name": "ArtCraft_0.32.0_universal.dmg",
+        "size": 871194972,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.32.0/ArtCraft_0.32.0_universal.dmg"
+      },
+      {
+        "name": "ArtCraft_0.32.0_x64-setup.exe",
+        "size": 430592038,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.32.0/ArtCraft_0.32.0_x64-setup.exe"
+      },
+      {
+        "name": "ArtCraft_0.32.0_x64_en-US.msi",
+        "size": 432218112,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.32.0/ArtCraft_0.32.0_x64_en-US.msi"
+      },
+      {
+        "name": "ArtCraft_universal.app.tar.gz",
+        "size": 870529319,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.32.0/ArtCraft_universal.app.tar.gz"
+      }
+    ]
+  },
+  {
+    "tag_name": "artcraft-v0.29.0",
+    "name": "ArtCraft v0.29.0",
+    "draft": false,
+    "prerelease": false,
+    "published_at": "2026-04-23T02:24:34Z",
+    "html_url": "https://github.com/storytold/artcraft/releases/tag/artcraft-v0.29.0",
+    "body": "Release notes trimmed for this test fixture.",
+    "assets": [
+      {
+        "name": "ArtCraft_0.29.0_universal.dmg",
+        "size": 870878035,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.29.0/ArtCraft_0.29.0_universal.dmg"
+      },
+      {
+        "name": "ArtCraft_0.29.0_x64-setup.exe",
+        "size": 430510055,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.29.0/ArtCraft_0.29.0_x64-setup.exe"
+      },
+      {
+        "name": "ArtCraft_0.29.0_x64_en-US.msi",
+        "size": 432054272,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.29.0/ArtCraft_0.29.0_x64_en-US.msi"
+      },
+      {
+        "name": "ArtCraft_universal.app.tar.gz",
+        "size": 870214129,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.29.0/ArtCraft_universal.app.tar.gz"
+      }
+    ]
+  },
+  {
+    "tag_name": "artcraft-v0.28.0",
+    "name": "ArtCraft v0.28.0",
+    "draft": false,
+    "prerelease": false,
+    "published_at": "2026-04-14T16:59:04Z",
+    "html_url": "https://github.com/storytold/artcraft/releases/tag/artcraft-v0.28.0",
+    "body": "Release notes trimmed for this test fixture.",
+    "assets": [
+      {
+        "name": "ArtCraft_0.28.0_universal.dmg",
+        "size": 872218588,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.28.0/ArtCraft_0.28.0_universal.dmg"
+      },
+      {
+        "name": "ArtCraft_0.28.0_x64-setup.exe",
+        "size": 430432164,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.28.0/ArtCraft_0.28.0_x64-setup.exe"
+      },
+      {
+        "name": "ArtCraft_0.28.0_x64_en-US.msi",
+        "size": 431960064,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.28.0/ArtCraft_0.28.0_x64_en-US.msi"
+      },
+      {
+        "name": "ArtCraft_universal.app.tar.gz",
+        "size": 871550969,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.28.0/ArtCraft_universal.app.tar.gz"
+      }
+    ]
+  },
+  {
+    "tag_name": "artcraft-v0.27.0",
+    "name": "ArtCraft v0.27.0",
+    "draft": false,
+    "prerelease": false,
+    "published_at": "2026-04-12T09:37:53Z",
+    "html_url": "https://github.com/storytold/artcraft/releases/tag/artcraft-v0.27.0",
+    "body": "Release notes trimmed for this test fixture.",
+    "assets": [
+      {
+        "name": "ArtCraft_0.27.0_universal.dmg",
+        "size": 872169387,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.27.0/ArtCraft_0.27.0_universal.dmg"
+      },
+      {
+        "name": "ArtCraft_0.27.0_x64-setup.exe",
+        "size": 430430526,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.27.0/ArtCraft_0.27.0_x64-setup.exe"
+      },
+      {
+        "name": "ArtCraft_0.27.0_x64_en-US.msi",
+        "size": 431935488,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.27.0/ArtCraft_0.27.0_x64_en-US.msi"
+      },
+      {
+        "name": "ArtCraft_universal.app.tar.gz",
+        "size": 871503800,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.27.0/ArtCraft_universal.app.tar.gz"
+      }
+    ]
+  },
+  {
+    "tag_name": "artcraft-v0.24.0",
+    "name": "ArtCraft v0.24.0",
+    "draft": false,
+    "prerelease": false,
+    "published_at": "2026-04-07T21:13:15Z",
+    "html_url": "https://github.com/storytold/artcraft/releases/tag/artcraft-v0.24.0",
+    "body": "Release notes trimmed for this test fixture.",
+    "assets": [
+      {
+        "name": "ArtCraft_0.24.0_universal.dmg",
+        "size": 871627094,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.24.0/ArtCraft_0.24.0_universal.dmg"
+      },
+      {
+        "name": "ArtCraft_0.24.0_x64-setup.exe",
+        "size": 430209530,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.24.0/ArtCraft_0.24.0_x64-setup.exe"
+      },
+      {
+        "name": "ArtCraft_0.24.0_x64_en-US.msi",
+        "size": 431644672,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.24.0/ArtCraft_0.24.0_x64_en-US.msi"
+      },
+      {
+        "name": "ArtCraft_universal.app.tar.gz",
+        "size": 870951140,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.24.0/ArtCraft_universal.app.tar.gz"
+      }
+    ]
+  },
+  {
+    "tag_name": "artcraft-v0.23.0",
+    "name": "ArtCraft v0.23.0",
+    "draft": false,
+    "prerelease": false,
+    "published_at": "2026-04-03T23:11:47Z",
+    "html_url": "https://github.com/storytold/artcraft/releases/tag/artcraft-v0.23.0",
+    "body": "Release notes trimmed for this test fixture.",
+    "assets": [
+      {
+        "name": "ArtCraft_0.23.0_universal.dmg",
+        "size": 871624384,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.23.0/ArtCraft_0.23.0_universal.dmg"
+      },
+      {
+        "name": "ArtCraft_0.23.0_x64-setup.exe",
+        "size": 430226003,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.23.0/ArtCraft_0.23.0_x64-setup.exe"
+      },
+      {
+        "name": "ArtCraft_0.23.0_x64_en-US.msi",
+        "size": 431644672,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.23.0/ArtCraft_0.23.0_x64_en-US.msi"
+      },
+      {
+        "name": "ArtCraft_universal.app.tar.gz",
+        "size": 870950427,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.23.0/ArtCraft_universal.app.tar.gz"
+      }
+    ]
+  },
+  {
+    "tag_name": "artcraft-v0.22.0",
+    "name": "ArtCraft v0.22.0",
+    "draft": false,
+    "prerelease": false,
+    "published_at": "2026-04-03T16:18:25Z",
+    "html_url": "https://github.com/storytold/artcraft/releases/tag/artcraft-v0.22.0",
+    "body": "Release notes trimmed for this test fixture.",
+    "assets": [
+      {
+        "name": "ArtCraft_0.22.0_universal.dmg",
+        "size": 871621454,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.22.0/ArtCraft_0.22.0_universal.dmg"
+      },
+      {
+        "name": "ArtCraft_0.22.0_x64-setup.exe",
+        "size": 430205997,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.22.0/ArtCraft_0.22.0_x64-setup.exe"
+      },
+      {
+        "name": "ArtCraft_0.22.0_x64_en-US.msi",
+        "size": 431640576,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.22.0/ArtCraft_0.22.0_x64_en-US.msi"
+      },
+      {
+        "name": "ArtCraft_universal.app.tar.gz",
+        "size": 870943331,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.22.0/ArtCraft_universal.app.tar.gz"
+      }
+    ]
+  },
+  {
+    "tag_name": "artcraft-v0.20.0",
+    "name": "ArtCraft v0.20.0",
+    "draft": false,
+    "prerelease": false,
+    "published_at": "2026-03-25T03:44:26Z",
+    "html_url": "https://github.com/storytold/artcraft/releases/tag/artcraft-v0.20.0",
+    "body": "Release notes trimmed for this test fixture.",
+    "assets": [
+      {
+        "name": "ArtCraft_0.20.0_universal.dmg",
+        "size": 871360381,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.20.0/ArtCraft_0.20.0_universal.dmg"
+      },
+      {
+        "name": "ArtCraft_0.20.0_x64-setup.exe",
+        "size": 430150894,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.20.0/ArtCraft_0.20.0_x64-setup.exe"
+      },
+      {
+        "name": "ArtCraft_0.20.0_x64_en-US.msi",
+        "size": 431579136,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.20.0/ArtCraft_0.20.0_x64_en-US.msi"
+      },
+      {
+        "name": "ArtCraft_universal.app.tar.gz",
+        "size": 870701362,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.20.0/ArtCraft_universal.app.tar.gz"
+      }
+    ]
+  },
+  {
+    "tag_name": "artcraft-v0.19.0",
+    "name": "ArtCraft v0.19.0",
+    "draft": false,
+    "prerelease": false,
+    "published_at": "2026-03-24T08:21:50Z",
+    "html_url": "https://github.com/storytold/artcraft/releases/tag/artcraft-v0.19.0",
+    "body": "Release notes trimmed for this test fixture.",
+    "assets": [
+      {
+        "name": "ArtCraft_0.19.0_universal.dmg",
+        "size": 871346554,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.19.0/ArtCraft_0.19.0_universal.dmg"
+      },
+      {
+        "name": "ArtCraft_0.19.0_x64-setup.exe",
+        "size": 430193903,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.19.0/ArtCraft_0.19.0_x64-setup.exe"
+      },
+      {
+        "name": "ArtCraft_0.19.0_x64_en-US.msi",
+        "size": 431583232,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.19.0/ArtCraft_0.19.0_x64_en-US.msi"
+      },
+      {
+        "name": "ArtCraft_universal.app.tar.gz",
+        "size": 870696453,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.19.0/ArtCraft_universal.app.tar.gz"
+      }
+    ]
+  },
+  {
+    "tag_name": "artcraft-v0.15.0",
+    "name": "ArtCraft v0.15.0",
+    "draft": false,
+    "prerelease": false,
+    "published_at": "2026-03-16T18:49:28Z",
+    "html_url": "https://github.com/storytold/artcraft/releases/tag/artcraft-v0.15.0",
+    "body": "Release notes trimmed for this test fixture.",
+    "assets": [
+      {
+        "name": "ArtCraft_0.15.0_universal.dmg",
+        "size": 871245630,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.15.0/ArtCraft_0.15.0_universal.dmg"
+      },
+      {
+        "name": "ArtCraft_0.15.0_x64-setup.exe",
+        "size": 430119371,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.15.0/ArtCraft_0.15.0_x64-setup.exe"
+      },
+      {
+        "name": "ArtCraft_0.15.0_x64_en-US.msi",
+        "size": 431505408,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.15.0/ArtCraft_0.15.0_x64_en-US.msi"
+      },
+      {
+        "name": "ArtCraft_universal.app.tar.gz",
+        "size": 870561884,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.15.0/ArtCraft_universal.app.tar.gz"
+      }
+    ]
+  },
+  {
+    "tag_name": "artcraft-v0.14.0",
+    "name": "ArtCraft v0.14.0",
+    "draft": false,
+    "prerelease": false,
+    "published_at": "2026-03-10T18:43:44Z",
+    "html_url": "https://github.com/storytold/artcraft/releases/tag/artcraft-v0.14.0",
+    "body": "Release notes trimmed for this test fixture.",
+    "assets": [
+      {
+        "name": "ArtCraft_0.14.0_universal.dmg",
+        "size": 871194997,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.14.0/ArtCraft_0.14.0_universal.dmg"
+      },
+      {
+        "name": "ArtCraft_0.14.0_x64-setup.exe",
+        "size": 430104709,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.14.0/ArtCraft_0.14.0_x64-setup.exe"
+      },
+      {
+        "name": "ArtCraft_0.14.0_x64_en-US.msi",
+        "size": 431484928,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.14.0/ArtCraft_0.14.0_x64_en-US.msi"
+      },
+      {
+        "name": "ArtCraft_universal.app.tar.gz",
+        "size": 870509924,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.14.0/ArtCraft_universal.app.tar.gz"
+      }
+    ]
+  },
+  {
+    "tag_name": "artcraft-v0.12.0",
+    "name": "ArtCraft v0.12.0",
+    "draft": false,
+    "prerelease": false,
+    "published_at": "2026-03-04T17:19:02Z",
+    "html_url": "https://github.com/storytold/artcraft/releases/tag/artcraft-v0.12.0",
+    "body": "Release notes trimmed for this test fixture.",
+    "assets": [
+      {
+        "name": "ArtCraft_0.12.0_universal.dmg",
+        "size": 871223464,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.12.0/ArtCraft_0.12.0_universal.dmg"
+      },
+      {
+        "name": "ArtCraft_0.12.0_x64-setup.exe",
+        "size": 430028944,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.12.0/ArtCraft_0.12.0_x64-setup.exe"
+      },
+      {
+        "name": "ArtCraft_0.12.0_x64_en-US.msi",
+        "size": 431390720,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.12.0/ArtCraft_0.12.0_x64_en-US.msi"
+      },
+      {
+        "name": "ArtCraft_universal.app.tar.gz",
+        "size": 870502264,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.12.0/ArtCraft_universal.app.tar.gz"
+      }
+    ]
+  },
+  {
+    "tag_name": "artcraft-v0.11.0",
+    "name": "ArtCraft v0.11.0",
+    "draft": false,
+    "prerelease": false,
+    "published_at": "2026-03-02T15:56:39Z",
+    "html_url": "https://github.com/storytold/artcraft/releases/tag/artcraft-v0.11.0",
+    "body": "Release notes trimmed for this test fixture.",
+    "assets": [
+      {
+        "name": "ArtCraft_0.11.0_universal.dmg",
+        "size": 871169005,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.11.0/ArtCraft_0.11.0_universal.dmg"
+      },
+      {
+        "name": "ArtCraft_0.11.0_x64-setup.exe",
+        "size": 430036973,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.11.0/ArtCraft_0.11.0_x64-setup.exe"
+      },
+      {
+        "name": "ArtCraft_0.11.0_x64_en-US.msi",
+        "size": 431403008,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.11.0/ArtCraft_0.11.0_x64_en-US.msi"
+      },
+      {
+        "name": "ArtCraft_universal.app.tar.gz",
+        "size": 870481040,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.11.0/ArtCraft_universal.app.tar.gz"
+      }
+    ]
+  },
+  {
+    "tag_name": "artcraft-v0.10.0",
+    "name": "ArtCraft v0.10.0",
+    "draft": false,
+    "prerelease": false,
+    "published_at": "2026-03-01T07:50:40Z",
+    "html_url": "https://github.com/storytold/artcraft/releases/tag/artcraft-v0.10.0",
+    "body": "Release notes trimmed for this test fixture.",
+    "assets": [
+      {
+        "name": "ArtCraft_0.10.0_universal.dmg",
+        "size": 871027408,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.10.0/ArtCraft_0.10.0_universal.dmg"
+      },
+      {
+        "name": "ArtCraft_0.10.0_x64-setup.exe",
+        "size": 429965923,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.10.0/ArtCraft_0.10.0_x64-setup.exe"
+      },
+      {
+        "name": "ArtCraft_0.10.0_x64_en-US.msi",
+        "size": 431325184,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.10.0/ArtCraft_0.10.0_x64_en-US.msi"
+      },
+      {
+        "name": "ArtCraft_universal.app.tar.gz",
+        "size": 870357499,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.10.0/ArtCraft_universal.app.tar.gz"
+      }
+    ]
+  },
+  {
+    "tag_name": "artcraft-v0.8.0",
+    "name": "ArtCraft v0.8.0",
+    "draft": false,
+    "prerelease": false,
+    "published_at": "2026-02-25T00:00:55Z",
+    "html_url": "https://github.com/storytold/artcraft/releases/tag/artcraft-v0.8.0",
+    "body": "Release notes trimmed for this test fixture.",
+    "assets": [
+      {
+        "name": "ArtCraft_0.8.0_universal.dmg",
+        "size": 870957735,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.8.0/ArtCraft_0.8.0_universal.dmg"
+      },
+      {
+        "name": "ArtCraft_0.8.0_x64-setup.exe",
+        "size": 429929611,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.8.0/ArtCraft_0.8.0_x64-setup.exe"
+      },
+      {
+        "name": "ArtCraft_0.8.0_x64_en-US.msi",
+        "size": 431271936,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.8.0/ArtCraft_0.8.0_x64_en-US.msi"
+      },
+      {
+        "name": "ArtCraft_universal.app.tar.gz",
+        "size": 870297604,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.8.0/ArtCraft_universal.app.tar.gz"
+      }
+    ]
+  },
+  {
+    "tag_name": "artcraft-v0.7.0",
+    "name": "ArtCraft v0.7.0",
+    "draft": false,
+    "prerelease": false,
+    "published_at": "2026-02-22T06:22:46Z",
+    "html_url": "https://github.com/storytold/artcraft/releases/tag/artcraft-v0.7.0",
+    "body": "Release notes trimmed for this test fixture.",
+    "assets": [
+      {
+        "name": "ArtCraft_0.7.0_universal.dmg",
+        "size": 870979366,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.7.0/ArtCraft_0.7.0_universal.dmg"
+      },
+      {
+        "name": "ArtCraft_0.7.0_x64-setup.exe",
+        "size": 429908986,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.7.0/ArtCraft_0.7.0_x64-setup.exe"
+      },
+      {
+        "name": "ArtCraft_0.7.0_x64_en-US.msi",
+        "size": 431255552,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.7.0/ArtCraft_0.7.0_x64_en-US.msi"
+      },
+      {
+        "name": "ArtCraft_universal.app.tar.gz",
+        "size": 870283186,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.7.0/ArtCraft_universal.app.tar.gz"
+      }
+    ]
+  },
+  {
+    "tag_name": "artcraft-windows-v0.5.0",
+    "name": "Artcraft Windows v0.5.0",
+    "draft": false,
+    "prerelease": false,
+    "published_at": "2026-01-23T18:32:24Z",
+    "html_url": "https://github.com/storytold/artcraft/releases/tag/artcraft-windows-v0.5.0",
+    "body": "Release notes trimmed for this test fixture.",
+    "assets": [
+      {
+        "name": "ArtCraft_0.5.0_x64-setup.exe",
+        "size": 429918679,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-windows-v0.5.0/ArtCraft_0.5.0_x64-setup.exe"
+      },
+      {
+        "name": "ArtCraft_0.5.0_x64_en-US.msi",
+        "size": 431214592,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-windows-v0.5.0/ArtCraft_0.5.0_x64_en-US.msi"
+      }
+    ]
+  },
+  {
+    "tag_name": "artcraft-v0.5.0",
+    "name": "Artcraft macOS v0.5.0",
+    "draft": false,
+    "prerelease": false,
+    "published_at": "2026-01-23T18:32:03Z",
+    "html_url": "https://github.com/storytold/artcraft/releases/tag/artcraft-v0.5.0",
+    "body": "Release notes trimmed for this test fixture.",
+    "assets": [
+      {
+        "name": "ArtCraft_0.5.0_universal.dmg",
+        "size": 870880667,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.5.0/ArtCraft_0.5.0_universal.dmg"
+      },
+      {
+        "name": "ArtCraft_universal.app.tar.gz",
+        "size": 870161859,
+        "browser_download_url": "https://github.com/storytold/artcraft/releases/download/artcraft-v0.5.0/ArtCraft_universal.app.tar.gz"
+      }
+    ]
+  }
+]

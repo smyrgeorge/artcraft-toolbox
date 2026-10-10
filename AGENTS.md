@@ -23,8 +23,8 @@ ArtCraft Toolbox installs, updates, rolls back and launches the **Crafting Apps*
 
 ```text
 crates/
-  release      L0 standalone  the release contract: Version, asset names, Target, SHA256SUMS (pure)
-  catalog      L0 standalone  the Crafting Apps, as data (catalog.toml, embedded)
+  release      L0 standalone  the release contract: Version, asset names (+ patterns), Target, SHA256SUMS, signed envelopes (pure)
+  catalog      L0 standalone  the Crafting Apps, as data (catalog.toml, embedded; [remote] names the signed catalog and feed)
   model        L1             toolbox state: Inventory (installed versions), Settings (serde, no I/O)
   feed         L2             GitHub release JSON -> Release; each app's update Status (pure)
   net          L3             HTTPS (ureq + rustls): GitHub-only host policy per redirect hop, token scoping, caps
@@ -38,7 +38,7 @@ crates/
 apps/
   artcraft-toolbox            desktop app (eframe/wgpu): window, menu-bar/tray icon, OS notifications, logger; `--control <port>` serves the window to agents
   artcraft-toolbox-cli        headless CLI: list / status / check / install / update / rollback / versions / adopt / uninstall / open / self-update / commands / run / serve / mcp
-xtask/                        cargo xtask layers | ci | contract [--dir] | version | ico
+xtask/                        cargo xtask layers | ci | contract [--dir] | version | ico | keygen | sign | feed
 packaging/                    the release pipeline (PhotoCraft's, ported): icons.sh, env.sh, macos/, windows/, linux/
 ```
 
@@ -63,7 +63,8 @@ A toolbox that crashes mid-update can leave an app half-installed. A malformed r
 The toolbox downloads executables and runs them; a mistake here is a supply-chain hole on the user's machine (`SECURITY.md`).
 
 - **Downloads come only from GitHub release URLs** (`feed::github::DOWNLOAD_PREFIX`, `https://github.com/`, plus GitHub's own redirect to its asset CDN). A feed can never point the toolbox at another host. HTTPS only, no downgrade.
-- **Verify before use.** Every downloaded file is checked against its release's `SHA256SUMS.txt` before it is opened, mounted, extracted or run. No checksum entry means no install; a mismatch deletes the file, reports it, and keeps the current version.
+- **Verify before use.** Every downloaded file is checked against its release's `SHA256SUMS.txt` (or, for an app outside the contract, the digest the publisher's signed feed carries) before it is opened, mounted, extracted or run. No checksum means no install; a mismatch deletes the file, reports it, and keeps the current version.
+- **The publisher's documents are signed.** The remote catalog and the aggregated feed are accepted only with a valid Ed25519 signature by the key pinned in the built-in catalog, and a catalog only when its revision isn't older; otherwise the built-in catalog and the per-app API are used (`release::signing`, `engine::remote`).
 - **A checksum is integrity, not authorship.** It comes from the same release as the file. The platform signature is checked too, before a version is activated (`install::trust`: macOS `codesign --verify --deep` and Gatekeeper, Windows Authenticode): broken is refused, and an update must be signed by the same developer as the version it replaces.
 - **Archives and disk images are hostile.** Reject zip-slip (`..`, absolute paths, drive letters), symlinks leaving the target, and decompression bombs (cap total size and entry count).
 - **Install atomically.** Stage next to the target, then rename into place. Never delete or overwrite the working version before the new one is verified and in place; keep the previous version per `Settings::keep_previous` for rollback.
@@ -72,7 +73,7 @@ The toolbox downloads executables and runs them; a mistake here is a supply-chai
 ### Numbered rules
 
 1. **Everything is a command.** New user-visible behaviour = a command in the engine (`crates/engine/src/<area>_cmds.rs` with a `specs()` function, registered in `commands.rs`): id `<area>.<verb>` (`app.install`), label, params doc, `enabled`, `run`, plus tests. The UI, the CLI, the control channel and MCP all dispatch commands by id, so a new command is reachable by agents with no further work (its id and params doc show up in `engine.commands` and MCP's `command_list`). Only pure view state (open tab, search text) lives in `ui-egui/src/state.rs`; a new field there must be readable and settable through `ui.get`/`ui.set` (`ui-egui/src/control.rs`, `UI_SET_FIELDS`, with validation and a test in `tests/m6.rs`).
-2. **The catalog is data.** Apps, their repos and former names live in `crates/catalog/catalog.toml`. Never hard-code a craft's name, repo or asset naming in code, and never special-case one craft in logic. When a craft deviates, generalise the contract (like `former_slugs`), document it and add a fixture.
+2. **The catalog is data.** Apps, their repos, former names and (for an app outside the contract) their `[app.assets]` patterns live in `crates/catalog/catalog.toml`; bump its `revision` with every change, because the same file is published as the signed remote catalog and a toolbox applies only a revision that isn't older (docs/architecture.md § 12). Never hard-code a craft's name, repo or asset naming in code, and never special-case one craft in logic. When a craft deviates, generalise the contract (like `former_slugs` and `[app.assets]`), document it and add a fixture.
 3. **The release contract is our API.** `docs/release-contract.md` is everything we rely on from the crafts; `cargo xtask contract` checks it against the live releases. When a craft changes its release pipeline, update the doc, the parser and a fixture in one change.
 4. **The core is pure.** L0–L2 take bytes and return data: no network, no filesystem, no clock (pass `now` in), no environment. That is what lets them be tested with real captured responses (`crates/feed/tests/fixtures/`). Above L2, network goes through a `net::Transport` and time through the session's clock (`Session::set_clock`), so tests fake both.
 5. **Tests are the gate.** Every change comes with tests. Parsers get hostile-input tests; `engine/tests/panic_hunt.rs` runs every command with adversarial params and must stay green. Network and install code is tested against local fixtures, temp dirs and a local server, never live GitHub in `cargo test` (live checks belong to `cargo xtask contract`).
@@ -124,7 +125,8 @@ Then append a terse entry to `log/devlog.md` (local, gitignored: what landed, nu
 
 ## 8. Adding a Crafting App
 
-1. Add an `[[app]]` entry to `crates/catalog/catalog.toml` (id = the slug in its asset names).
-2. `cargo xtask contract --app <id>`. If it passes, you're done: no code changes.
-3. If it fails, the craft deviates from the contract. Prefer fixing the craft's release pipeline (it should follow PhotoCraft's, `../craftrules/release/playbook.md`); otherwise generalise the contract as rule 2 says.
-4. `cargo test -p artcraft-toolbox-catalog` (the built-in catalog test counts the apps; update it).
+1. Add an `[[app]]` entry to `crates/catalog/catalog.toml` (id = the slug in its asset names) and bump `revision`.
+2. `cargo xtask contract --app <id>`. If it passes, you're done with the code: no changes.
+3. If it fails, the craft deviates from the contract. Prefer fixing the craft's release pipeline (it should follow PhotoCraft's, `../craftrules/release/playbook.md`); an app that can't be fixed gets `[app.assets]` patterns (docs/release-contract.md › Apps outside the contract), and its digests come from the signed feed.
+4. `cargo test -p artcraft-toolbox-catalog` (the built-in catalog test counts the apps; update it), and add the tagline to the 14 translation catalogs (`cargo test -p artcraft-toolbox-ui-egui` lists what's missing).
+5. Commit: the Feed workflow publishes the new catalog, and every installed toolbox shows the app at its next check, without a release.

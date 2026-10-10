@@ -11,10 +11,16 @@ Status legend: ✅ done · 🟡 in progress · ⬜ not started. Updated 2026-10-
 | M4 Toolbox UX parity | ✅ | Menu-bar/tray app, background checks, notifications, release notes, per-app settings |
 | M5 Distribution and self-update | ✅ | Signed installers via PhotoCraft's release pipeline; the toolbox updates itself |
 | M6 Automation | ✅ | Control channel and MCP over the command registry |
-| M7 Catalog from the network | ⬜ | A signed remote catalog; non-conforming apps (ArtCraft itself) |
+| M7 Catalog from the network | ✅ | A signed remote catalog; non-conforming apps (ArtCraft itself) |
 | M8 Polish | ✅ | Localization (PhotoCraft's `tl!` pattern), accessibility, light theme |
 
-## Current focus: M7 Catalog from the network
+## Current focus: every milestone has landed; next is shipping
+
+Open work, in order: cut the first toolbox release and configure the signing secrets
+(docs/releasing.md); set the `ARTCRAFT_TOOLBOX_SIGNING_KEY` secret and run the Feed workflow
+once, so the aggregated feed and ArtCraft's digests go live; then the dev log's "still open"
+bullets (`toolbox.rollback`, Windows and Linux runs on real machines) and the open questions
+below.
 
 Agents: pick the first unchecked item of the current milestone. Tick it in the same change that
 lands it.
@@ -139,11 +145,19 @@ control server. Still open: a session with a real MCP client against the package
 app's control server only serves while the process runs (a launcher that wants it must pass
 `--control`); no progress notifications for long jobs over MCP (poll `jobs_list`).
 
-### M7 Catalog from the network
+### M7 Catalog from the network ✅ (2026-10-10)
 
-- [ ] One aggregated, signed release feed for the whole suite (a static file, not the rate-limited API): one request per check instead of 12, and no 60/hour ceiling for anonymous users
-- [ ] Signed remote catalog (new crafts appear without a toolbox release); the built-in catalog stays the fallback
-- [ ] Per-app asset patterns for apps outside the contract (ArtCraft's Tauri releases)
+- [x] One aggregated, signed release feed for the whole suite (a static file, not the rate-limited API): one request per check instead of 12, and no 60/hour ceiling for anonymous users: `artcraft-feed.json` on the `feed` branch, built hourly by `cargo xtask feed` (`feed.yml`), fetched conditionally from raw.githubusercontent.com at the start of every check; the API only for what it doesn't cover
+- [x] Signed remote catalog (new crafts appear without a toolbox release); the built-in catalog stays the fallback: `artcraft-catalog.json`, Ed25519 envelopes (`release::signing`) verified against the key pinned in the built-in catalog, applied when `revision` is not older, cached and applied again at start; setting `remoteCatalog`; `catalog.status`
+- [x] Per-app asset patterns for apps outside the contract (ArtCraft's Tauri releases): `[app.assets] "<os>-<arch>" = "Name_{version}.ext"`, digests from the signed feed, `app.install` refuses without one; ArtCraft (`ai.artcraft.app`, macOS) is in the catalog
+
+Tested with a fake publisher and a test key (`engine/tests/remote_catalog.rs`): two requests per
+check instead of fourteen, a newer catalog adding apps mid-check and at the next start, tampered,
+foreign, older and missing documents falling back to the API with the built-in catalog kept, and
+an app outside the contract installing from the feed's digest and refused without one. Not yet
+done: the real key's secret isn't configured and the `feed` branch doesn't exist, so every
+toolbox still falls back to the API (and ArtCraft shows as available but can't be installed)
+until the Feed workflow has run once; MSI installs (ArtCraft on Windows) stay out of scope.
 
 ## Open questions
 

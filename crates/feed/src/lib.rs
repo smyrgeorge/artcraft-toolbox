@@ -7,13 +7,15 @@
 #![forbid(unsafe_code)]
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
+pub mod aggregate;
 pub mod github;
 pub mod status;
 
 use artcraft_toolbox_release::{AssetName, Version};
 use serde::{Deserialize, Serialize};
 
-pub use github::parse_releases;
+pub use aggregate::{Aggregate, parse_aggregate};
+pub use github::{parse_releases, parse_releases_for};
 pub use status::{Status, latest, status};
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
@@ -22,6 +24,8 @@ pub enum Error {
     Json(String),
     #[error("release feed is too large ({0} bytes, limit {max})", max = github::MAX_RESPONSE_BYTES)]
     TooLarge(usize),
+    #[error("aggregated feed: {0}")]
+    Aggregate(String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -64,4 +68,8 @@ pub struct Asset {
     pub size: u64,
     /// `https://github.com/<owner>/<repo>/releases/download/<tag>/<file>`.
     pub url: String,
+    /// The file's SHA-256 (64 hex digits), when the feed carries it: the signed aggregated feed
+    /// does for apps outside the contract, which have no `SHA256SUMS.txt`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sha256: Option<String>,
 }

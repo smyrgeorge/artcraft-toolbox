@@ -110,12 +110,35 @@ struct Plan {
     url: String,
     file: String,
     size: u64,
-    sums_url: String,
+    verify: Verify,
     icon_png: Option<Vec<u8>>,
     /// The active version, for an update.
     replaces: Option<Replaced>,
     /// Inactive versions to remove once the new one is active (beyond `keepPrevious`).
     prune: Vec<(Version, PathBuf, PackageKind)>,
+}
+
+/// Where the expected digest of a build comes from. A build with neither is never installed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum Verify {
+    /// The release's `SHA256SUMS.txt` (the contract).
+    Sums(String),
+    /// A digest the signed aggregated feed carries (apps outside the contract).
+    Digest(Sha256),
+}
+
+/// How a release's build will be verified, or why it can't be.
+pub(crate) fn verification(name: &str, version: &Version, checksums_url: Option<&str>, asset: &artcraft_toolbox_feed::Asset) -> Result<Verify> {
+    if let Some(url) = checksums_url {
+        return Ok(Verify::Sums(url.to_string()));
+    }
+    match asset.sha256.as_deref().and_then(Sha256::from_hex) {
+        Some(digest) => Ok(Verify::Digest(digest)),
+        None => Err(refused(format!(
+            "{name} {version} has no SHA256SUMS.txt and the release feed carries no digest for {}; the toolbox only installs what it can verify (an app outside the contract needs the publisher's signed feed)",
+            asset.file
+        ))),
+    }
 }
 
 impl Plan {
@@ -281,10 +304,7 @@ fn plan(s: &Session, app: &App, wanted: Option<&Version>, replaces: Option<Repla
     if kind_for(host.os) != Some(chosen.name.kind) {
         return Err(refused(format!("installing {:?} packages isn't supported on {}", chosen.name.kind, host.os.label())));
     }
-    let sums_url = release
-        .checksums_url
-        .clone()
-        .ok_or_else(|| refused(format!("{} {} has no SHA256SUMS.txt; the toolbox only installs what it can verify", app.name, release.version)))?;
+    let verify = verification(&app.name, &release.version, release.checksums_url.as_deref(), chosen)?;
     let icon_png = s.store.as_ref().and_then(|st| st.load_icon(&app.id).ok().flatten()).map(|(png, _)| png);
     Ok(Plan {
         id: app.id.clone(),
@@ -296,7 +316,7 @@ fn plan(s: &Session, app: &App, wanted: Option<&Version>, replaces: Option<Repla
         url: chosen.url.clone(),
         file: chosen.file.clone(),
         size: chosen.size,
-        sums_url,
+        verify,
         icon_png,
         replaces,
         prune,
@@ -345,7 +365,10 @@ fn install_worker(
 ) -> std::result::Result<Done, String> {
     let what = plan.what();
     send(tx, "Verifying the release", 0, Some(plan.size));
-    let expected = fetch_checksum(transport, &plan.sums_url, &plan.file, &what)?;
+    let expected = match &plan.verify {
+        Verify::Sums(url) => fetch_checksum(transport, url, &plan.file, &what)?,
+        Verify::Digest(digest) => *digest,
+    };
 
     let fetch = Fetch { url: &plan.url, file: &plan.file, size: plan.size };
     let package = download(&fetch, transport, &layout.downloads, cancel, &|done| send(tx, "Downloading", done, Some(plan.size)))?;

@@ -4,6 +4,7 @@
 //! are invoked through `std::process::Command`.
 
 mod contract;
+mod feed;
 mod ico;
 mod layers;
 mod version;
@@ -26,6 +27,16 @@ commands:
                   print the workspace version, or set it (Cargo.toml + Cargo.lock)
   ico <out.ico> <in.png>...
                   pack square PNGs (<= 256 px) into a Windows .ico (see packaging/icons.sh)
+  keygen [--out <file>]
+                  a fresh Ed25519 key pair for the signed catalog and feed: prints the public key
+                  (for catalog.toml's [remote]) and writes the secret to <file> (0600) or stdout
+  sign --kind catalog|feed --key <secret-file> <in> --out <envelope.json>
+                  sign one document (the feed workflow uses `feed` instead)
+  feed --out <dir> [--key <secret-file>] [--previous <dir>] [--catalog <catalog.toml>] [--no-digests]
+                  build and sign the remote catalog (artcraft-catalog.json) and the aggregated
+                  release feed (artcraft-feed.json) from the live GitHub releases of every catalog
+                  app; the secret comes from --key or ARTCRAFT_TOOLBOX_SIGNING_KEY; --previous
+                  reuses the digests an earlier feed computed (docs/releasing.md › The feed)
 ";
 
 fn main() -> ExitCode {
@@ -37,6 +48,9 @@ fn main() -> ExitCode {
         Some("contract") => contract::run(&rest),
         Some("version") => version::run(&root(), &rest),
         Some("ico") => ico::run(&rest),
+        Some("keygen") => feed::keygen(&rest),
+        Some("sign") => feed::sign(&rest),
+        Some("feed") => feed::feed(&rest),
         Some("-h" | "--help" | "help") | None => {
             print!("{USAGE}");
             Ok(())

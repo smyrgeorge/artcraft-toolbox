@@ -359,7 +359,7 @@ mod tests {
         s.set_clock(t0);
         assert!(s.icons_due());
         let r: IconSummary = serde_json::from_value(s.execute(REFRESH_ICONS, json!({})).unwrap()).unwrap();
-        assert_eq!((r.fetched.len(), r.failed.len()), (10, 2), "{r:?}");
+        assert_eq!((r.fetched.len(), r.failed.len()), (11, 2), "{r:?}");
         assert!(r.failed.iter().any(|f| f.app == "wordcraft" && f.error.contains("no icon")));
         assert!(r.failed.iter().any(|f| f.app == "gridcraft" && f.error.contains("not a PNG")));
         let icon = s.icon("photocraft").unwrap().clone();
@@ -375,7 +375,7 @@ mod tests {
         // ...and a week later asks with them: 304s keep the images.
         fake.seen.lock().unwrap().clear();
         let r: IconSummary = serde_json::from_value(s2.execute(REFRESH_ICONS, json!({})).unwrap()).unwrap();
-        assert_eq!(r.unchanged.len(), 10, "{r:?}");
+        assert_eq!(r.unchanged.len(), 11, "{r:?}");
         assert!(fake.seen.lock().unwrap().iter().filter(|(u, _)| u.contains("/photocraft/")).all(|(_, e)| e.as_deref() == Some("\"i\"")));
         assert!(s2.icon("photocraft").is_some());
         let _ = std::fs::remove_dir_all(&root);

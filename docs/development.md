@@ -100,6 +100,24 @@ Without a window, `artcraft-toolbox-cli serve` answers the same lines on stdio (
 the token's handling are in `crates/automation/src/security.rs`; the UI's handlers are tested
 without a GPU in `crates/ui-egui/tests/m6.rs`, the transport in `apps/artcraft-toolbox/src/control_server.rs`.
 
+## The remote catalog and the aggregated feed
+
+`updates.check` first asks the publisher for the signed catalog and the aggregated feed
+(docs/architecture.md § 12) and only then GitHub's API for what they don't cover. To work on
+that path without publishing anything:
+
+```sh
+cargo xtask keygen --out /tmp/dev.key                   # prints the public key
+# put it in crates/catalog/catalog.toml › [remote] public_key (don't commit a dev key)
+cargo xtask feed --out /tmp/feed --key /tmp/dev.key --no-digests   # builds and self-verifies both documents
+cargo run -p artcraft-toolbox-cli -- run catalog.status             # where the running catalog came from
+cargo run -p artcraft-toolbox-cli -- run settings.set '{"remoteCatalog": false}'   # API only
+```
+
+The engine tests fake the publisher with a test key (`crates/engine/tests/remote_catalog.rs`);
+the real documents are checked by `cargo xtask feed`'s own verification step and by the toolbox
+at every check (a refused document is logged and the check goes on without it).
+
 ## Offscreen UI snapshots (no window)
 
 ```sh
@@ -197,7 +215,8 @@ CLI's `Env` a `layout`. Only the apps' startup (`setup::open_in`) uses the platf
 | `ARTCRAFT_TOOLBOX_CONTROL_PORT` | Desktop app: start the control server on this loopback port (`--control` wins) |
 | `ARTCRAFT_TOOLBOX_CONTROL_TOKEN` | The control token (64 hex characters), for the app's server, `serve --port` and `mcp --bridge`; `--control-token` wins |
 | `ARTCRAFT_TOOLBOX_CONTROL_TOKEN_FILE` | The control token file instead (created with a fresh token if missing); `--control-token-file` wins |
-| `GITHUB_TOKEN` | `cargo xtask contract` only: authenticated GitHub API requests |
+| `GITHUB_TOKEN` | `cargo xtask contract` and `cargo xtask feed` only: authenticated GitHub API requests |
+| `ARTCRAFT_TOOLBOX_SIGNING_KEY` | `cargo xtask feed` only: the publisher's secret key (`ed25519-secret:…`), instead of `--key`; the Feed workflow's secret |
 
 ## Logs
 

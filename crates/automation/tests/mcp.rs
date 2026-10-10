@@ -133,7 +133,7 @@ async fn headless_tools_drive_the_session() {
         _ => None,
     });
     let v: Value = serde_json::from_str(&body.unwrap()).unwrap();
-    assert_eq!(v["apps"].as_array().map(Vec::len), Some(12));
+    assert_eq!(v["apps"].as_array().map(Vec::len), Some(13));
     client.cancel().await.unwrap();
 }
 

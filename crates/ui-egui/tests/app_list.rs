@@ -88,7 +88,7 @@ fn check_for_updates_fills_in_the_rows() {
     let (mut session, _) = Session::open(Catalog::builtin().unwrap(), None, Some(Arc::new(Fake)));
     session.set_host(Target::from_consts("linux", "x86_64"));
     let mut h = harness_with(session);
-    h.get_by_label("Not checked yet · 12 apps · linux-x86_64");
+    h.get_by_label("Not checked yet · 13 apps · linux-x86_64");
     h.get_by_label("Check for updates").click();
     // A frame first: the click only starts the check when the next frame handles it. Then frames
     // until it is done, by a deadline, not a frame count: CI machines differ.
@@ -142,7 +142,7 @@ fn status_text_has_no_missing_glyphs() {
             "0.1.0 (dev build)",
             "Check for updates",
             "Checking 3 of 12",
-            "Checked 5 min ago · 12 apps · macos-aarch64",
+            "Checked 5 min ago · 13 apps · macos-aarch64",
             "Not checked yet",
             "Couldn't check: the server took too long to answer",
             "Back",

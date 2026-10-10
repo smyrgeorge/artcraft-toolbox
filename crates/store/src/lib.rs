@@ -6,6 +6,8 @@
 //! <data dir>/inventory.json       Inventory: what is installed where (the only record of it)
 //! <data dir>/state.json           what the toolbox remembers (notifications already shown)
 //! <data dir>/feeds/<app>.json     the last release feed per app, with its ETag
+//! <data dir>/remote/catalog.json  the last signed remote catalog (its envelope), with its ETag
+//! <data dir>/remote/feed.json     the aggregated feed's ETag and fetch time (its apps are in feeds/)
 //! <data dir>/icons/<app>.png      the app's icon, and <app>.json with its ETag and fetch time
 //! <data dir>/logs/                the desktop app's log files
 //! ```
@@ -28,6 +30,8 @@ pub const SETTINGS_FILE: &str = "settings.json";
 pub const INVENTORY_FILE: &str = "inventory.json";
 pub const STATE_FILE: &str = "state.json";
 pub const FEEDS_DIR: &str = "feeds";
+/// The publisher's signed documents: `catalog` and `feed` (docs/architecture.md § 12).
+pub const REMOTE_DIR: &str = "remote";
 pub const ICONS_DIR: &str = "icons";
 /// Largest icon accepted (a 128 px PNG is a few KB).
 pub const MAX_ICON_BYTES: usize = 512 * 1024;
@@ -85,7 +89,7 @@ impl Store {
     /// Use (and create) `root` and its subfolders.
     pub fn open(root: impl Into<PathBuf>) -> Result<Store> {
         let root = root.into();
-        for dir in [root.clone(), root.join(FEEDS_DIR), root.join(ICONS_DIR)] {
+        for dir in [root.clone(), root.join(FEEDS_DIR), root.join(REMOTE_DIR), root.join(ICONS_DIR)] {
             std::fs::create_dir_all(&dir).map_err(|e| io_err(&dir, &e))?;
         }
         Ok(Store { root })
@@ -210,6 +214,31 @@ impl Store {
     pub fn touch_feed(&self, app: &str, fetched_at: u64) -> Result<()> {
         match self.load_feed(app)? {
             Some(feed) => self.save_feed(app, &CachedFeed { fetched_at, ..feed }),
+            None => Ok(()),
+        }
+    }
+
+    fn remote_path(&self, name: &str) -> Result<PathBuf> {
+        self.app_path(REMOTE_DIR, name, "json")
+    }
+
+    /// A signed remote document (`catalog`, `feed`) as last fetched; `None` when never.
+    pub fn load_remote(&self, name: &str) -> Result<Option<CachedFeed>> {
+        let path = self.remote_path(name)?;
+        let Some(text) = read_capped(&path, MAX_FEED_FILE_BYTES)? else { return Ok(None) };
+        serde_json::from_str(&text).map(Some).map_err(|e| Error::Corrupt { path, reason: e.to_string() })
+    }
+
+    pub fn save_remote(&self, name: &str, doc: &CachedFeed) -> Result<()> {
+        let path = self.remote_path(name)?;
+        let json = serde_json::to_string(doc).map_err(|e| Error::Io { path: path.clone(), message: e.to_string() })?;
+        atomic::atomic_write(&path, json.as_bytes()).map_err(|e| io_err(&path, &e))
+    }
+
+    /// Record a check that found the document unchanged (`304`): only the time moves.
+    pub fn touch_remote(&self, name: &str, fetched_at: u64) -> Result<()> {
+        match self.load_remote(name)? {
+            Some(doc) => self.save_remote(name, &CachedFeed { fetched_at, ..doc }),
             None => Ok(()),
         }
     }
@@ -355,5 +384,23 @@ mod tests {
         std::fs::write(&root, "a file where the folder should be").unwrap();
         assert!(matches!(Store::open(&root), Err(Error::Io { .. })));
         let _ = std::fs::remove_file(&root);
+    }
+
+    #[test]
+    fn remote_documents_are_cached_and_touched() {
+        let root = std::env::temp_dir().join(format!("artcraft-toolbox-store-remote-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let store = Store::open(&root).unwrap();
+        assert_eq!(store.load_remote("catalog").unwrap(), None);
+        let doc = CachedFeed { etag: Some("W/\"c1\"".into()), fetched_at: 5, body: "{\"schema\":1}".into() };
+        store.save_remote("catalog", &doc).unwrap();
+        assert_eq!(store.load_remote("catalog").unwrap(), Some(doc.clone()));
+        store.touch_remote("catalog", 9).unwrap();
+        assert_eq!(store.load_remote("catalog").unwrap().unwrap().fetched_at, 9);
+        store.touch_remote("feed", 9).unwrap();
+        assert_eq!(store.load_remote("feed").unwrap(), None, "touching what was never saved saves nothing");
+        assert!(matches!(store.load_remote("../x").unwrap_err(), Error::BadName(_)));
+        assert!(root.join("remote/catalog.json").is_file());
+        let _ = std::fs::remove_dir_all(&root);
     }
 }

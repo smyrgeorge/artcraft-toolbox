@@ -1,6 +1,6 @@
 # ArtCraft Toolbox architecture
 
-Status: v1.6 (2026-10-10, M1–M6, M8). The crates marked *planned* are designed here and registered in
+Status: v1.7 (2026-10-10, M1–M8). The crates marked *planned* are designed here and registered in
 `xtask/src/layers.rs`, but not written yet; `docs/roadmap.md` says when each one lands.
 
 ## 1. Goals and principles
@@ -21,7 +21,8 @@ Status: v1.6 (2026-10-10, M1–M6, M8). The crates marked *planned* are designed
 2. **Everything is a command.** Each action has a stable id (`app.install`, `apps.status`) with
    JSON params, dispatched through `Session::execute`.
 3. **Data, not code, describes the suite.** The apps are `crates/catalog/catalog.toml`; how they
-   publish is `docs/release-contract.md`. Adding a craft is a catalog entry, not a code change.
+   publish is `docs/release-contract.md`. Adding a craft is a catalog entry, not a code change,
+   and since M7 not even a release: the publisher's signed catalog reaches every toolbox (§ 12).
 4. **A pure core.** Parsing and decisions (versions, asset names, checksums, feeds, statuses,
    update plans) take bytes and return data. Only L3+ touches the network or the disk, so the
    core is tested with real captured responses, deterministically and offline.
@@ -93,9 +94,11 @@ tokio, zip, …) below L3, testkit as a normal dependency, or an unregistered cr
 ## 4. Data flow
 
 ```text
-catalog.toml ─────────────► Catalog ───────────────────────────────┐
-GitHub /repos/<repo>/releases?per_page=20 ─(net, If-None-Match)─►   │
-   worker: feed::parse_releases ─► feeds/<app>.json ─► Feed ────────┤
+catalog.toml ─────────────► Catalog ◄── remote/catalog.json (signed, revision ≥) ──┐
+raw…/artcraft-catalog.json ─(net, If-None-Match)─► signing::verify ─► Catalog::accepts │
+raw…/artcraft-feed.json ───(net, If-None-Match)─► signing::verify ─► per app ─────────┤
+GitHub /repos/<repo>/releases?per_page=20 ─(net, If-None-Match)─► (what the feed misses) │
+   worker: feed::parse_releases_for ─► feeds/<app>.json ─► Feed ────┤
 inventory.json ───────────► Inventory (installed, active version) ──┼─► feed::status ─► AppStatus
 settings.json ────────────► Settings (channel, keep_previous, …) ───┘     (UI rows, `apps.status`)
 
@@ -221,6 +224,7 @@ accessors (`statuses()`, `app_status()`) serve the UI; commands serve everyone e
 | `toolbox.status` | `{}` | M5 |
 | `toolbox.update` (background) | `{"version"?:"x.y.z"}` | M5 |
 | `toolbox.apply` | `{}` | M5 |
+| `catalog.status` | `{}` | M7 |
 
 Long work runs as background jobs (`engine/src/jobs.rs`, PhotoCraft's pattern): a command with
 a `start` hook runs on worker threads when called through `Session::start` (the UI), and to
@@ -383,3 +387,39 @@ What an agent can't do is what the user can't do without elevation: nothing in t
 bypasses the engine's verification, and nothing elevates. The limits (1 MiB requests, 8 MiB
 replies, 16 connections, 256 batch steps) are constants in `automation::security` and
 `automation::budgets`, tested in both directions.
+
+## 12. The catalog from the network (M7)
+
+Three things come from the publisher instead of from a toolbox release, all as signed documents
+(`docs/release-contract.md` › The aggregated feed and the remote catalog):
+
+- **The remote catalog.** The same `catalog.toml`, with a `revision`. Every `updates.check`
+  starts with one conditional GET of it (`engine::remote`, on the check job's coordinator
+  thread, before the per-app workers). The envelope is verified against the key pinned in the
+  built-in catalog (`release::signing`, Ed25519, the kind in the signed bytes), parsed with the
+  same validation as the built-in one, and accepted only if `Catalog::accepts` it: not older,
+  and keeping a `[remote]` section with the same key. The session swaps its catalog on its own
+  thread (`Session::set_catalog`); rows, feeds, icons and settings follow by id. The verified
+  envelope is cached (`remote/catalog.json`) and applied again at the next start, offline, so a
+  new craft stays visible. Anything else keeps the built-in catalog and is logged.
+- **The aggregated feed.** One document with every app's GitHub "list releases" response,
+  trimmed to the fields the parser reads. One conditional GET from `raw.githubusercontent.com`
+  (not the API: no 60-per-hour limit, and a 304 costs nothing) replaces one API request per app;
+  each list is parsed, cached per app and applied exactly as a direct response, so everything
+  downstream is unchanged. Apps the feed doesn't cover, or the whole set when the feed can't be
+  fetched or verified, go to the API as before. `CheckSummary` says what happened
+  (`catalog`, `feed`, `aggregated`).
+- **Apps outside the contract.** `[app.assets]` patterns name an app's builds per target;
+  the feed generator hashes each matched build and writes `sha256` on it, and `app.install`
+  takes that digest in place of `SHA256SUMS.txt` (`install_cmds::Verify`). Without either,
+  nothing is installed. ArtCraft itself is listed this way.
+
+Publishing is `cargo xtask feed` (`xtask/src/feed.rs`: fetch every app's releases with the
+toolbox's own parsers, trim, hash, sign, verify its own output) run hourly by
+`.github/workflows/feed.yml` onto the `feed` branch; `cargo xtask keygen` makes the key pair and
+`docs/releasing.md` › The feed says where the secret goes. The setting `remoteCatalog` (default
+on) turns the whole thing off; `catalog.status` reports the source, revision and times.
+
+What this does not change: downloads still come only from GitHub release URLs, every build is
+still verified before it is opened, the platform signature is still checked, and a publisher
+key can't be rotated by a remote document (a new key needs a toolbox release).

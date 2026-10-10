@@ -94,6 +94,13 @@ impl Target {
     }
 
     /// From `std::env::consts::{OS, ARCH}` values.
+    /// `<os>-<arch>` as written in asset names and catalog patterns (`macos-universal`,
+    /// `windows-x64`, `linux-x86_64`).
+    pub fn from_tokens(s: &str) -> Option<Target> {
+        let (os, arch) = s.split_once('-')?;
+        Some(Target::new(Os::from_token(os)?, Arch::from_token(arch)?))
+    }
+
     pub fn from_consts(os: &str, arch: &str) -> Option<Target> {
         let os = Os::from_token(os)?;
         let arch = match arch {

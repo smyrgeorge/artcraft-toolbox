@@ -11,7 +11,7 @@ pub(crate) fn specs() -> Vec<CommandSpec> {
         CommandSpec {
             id: "settings.set",
             label: "Change Settings",
-            params: r#"{"channel"?:"stable|prerelease","checkIntervalHours"?:0..168,"autoUpdate"?:bool,"keepPrevious"?:0..5,"installDir"?:"<path>"|null,"notifications"?:bool,"closeToTray"?:bool,"language"?:"auto|en|ja|zh-hans|...","theme"?:"system|dark|light","textSize"?:90|100|110|125|150}"#,
+            params: r#"{"channel"?:"stable|prerelease","checkIntervalHours"?:0..168,"autoUpdate"?:bool,"keepPrevious"?:0..5,"installDir"?:"<path>"|null,"notifications"?:bool,"closeToTray"?:bool,"language"?:"auto|en|ja|zh-hans|...","theme"?:"system|dark|light","textSize"?:90|100|110|125|150,"remoteCatalog"?:bool}"#,
             enabled: always,
             run: set,
             start: None,

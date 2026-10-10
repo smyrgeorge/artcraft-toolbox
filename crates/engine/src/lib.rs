@@ -21,6 +21,7 @@ pub mod icons;
 pub mod install_cmds;
 pub mod jobs;
 mod params;
+pub mod remote;
 mod settings_cmds;
 pub mod setup;
 mod status_cmds;
@@ -36,9 +37,11 @@ use std::sync::Arc;
 
 use artcraft_toolbox_release::PackageKind;
 
+use artcraft_toolbox_catalog::App;
 use artcraft_toolbox_feed::Release;
 use artcraft_toolbox_model::{Channel, Inventory, Settings, ToolboxState};
 use artcraft_toolbox_net::Transport;
+use artcraft_toolbox_release::signing::{Kind, PublicKey};
 use artcraft_toolbox_store::Store;
 use serde::Serialize;
 use serde_json::Value;
@@ -103,6 +106,22 @@ pub struct Feed {
     pub etag: Option<String>,
 }
 
+/// Where the session's catalog came from (`catalog.status`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(tag = "source", rename_all = "camelCase", rename_all_fields = "camelCase")]
+pub enum CatalogSource {
+    /// The catalog compiled into this build.
+    Builtin,
+    /// The publisher's signed catalog, fetched or read from the cache at `fetched_at`.
+    Remote { fetched_at: u64 },
+}
+
+/// An app's `[app.assets]` patterns as the feed parser takes them (a target the build doesn't
+/// know is skipped: the catalog only checks the shape).
+pub(crate) fn patterns_of(app: &App) -> Vec<(Target, String)> {
+    app.assets.iter().filter_map(|(t, p)| Target::from_tokens(t).map(|t| (t, p.clone()))).collect()
+}
+
 /// One row of the app list: what the UI shows and `apps.status` returns.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -128,6 +147,13 @@ pub struct AppStatus {
 
 pub struct Session {
     catalog: Catalog,
+    /// Where `catalog` came from.
+    catalog_source: CatalogSource,
+    /// The publisher's key, from the catalog this session started with (the built-in one in the
+    /// apps): a remote catalog can move the URLs but never change the key.
+    pinned_key: Option<PublicKey>,
+    /// When the aggregated feed was last fetched or found unchanged.
+    feed_fetched_at: Option<u64>,
     inventory: Inventory,
     settings: Settings,
     feeds: BTreeMap<String, Feed>,
@@ -174,6 +200,9 @@ impl Session {
 
     pub fn with_catalog(catalog: Catalog) -> Session {
         Session {
+            pinned_key: catalog.remote.as_ref().and_then(|r| PublicKey::parse(&r.public_key).ok()),
+            catalog_source: CatalogSource::Builtin,
+            feed_fetched_at: None,
             catalog,
             inventory: Inventory::default(),
             settings: Settings::default(),
@@ -235,13 +264,13 @@ impl Session {
                 Ok(None) => {}
                 Err(e) => log::warn!("{e}; starting afresh"),
             }
+            s.load_cached_remote_catalog(store);
             s.load_cached_icons(store);
-            let apps: Vec<(String, Vec<String>)> =
-                s.catalog.apps.iter().chain(&s.catalog.toolbox).map(|a| (a.id.clone(), a.slugs().iter().map(|x| x.to_string()).collect())).collect();
-            for (id, slugs) in apps {
-                let slugs: Vec<&str> = slugs.iter().map(String::as_str).collect();
+            let apps: Vec<App> = s.catalog.apps.iter().chain(&s.catalog.toolbox).cloned().collect();
+            for app in apps {
+                let id = app.id.clone();
                 match store.load_feed(&id) {
-                    Ok(Some(cached)) => match artcraft_toolbox_feed::parse_releases(&cached.body, &slugs) {
+                    Ok(Some(cached)) => match artcraft_toolbox_feed::parse_releases_for(&cached.body, &app.slugs(), &patterns_of(&app)) {
                         Ok(releases) => {
                             s.feeds.insert(id, Feed { releases, fetched_at: cached.fetched_at, etag: cached.etag });
                         }
@@ -258,6 +287,66 @@ impl Session {
 
     pub fn catalog(&self) -> &Catalog {
         &self.catalog
+    }
+
+    /// The publisher's signed catalog as last cached, if the settings follow it and it still
+    /// verifies against the pinned key and isn't older than the one compiled in.
+    fn load_cached_remote_catalog(&mut self, store: &Store) {
+        if !self.settings.remote_catalog {
+            return;
+        }
+        let Some(key) = self.pinned_key.clone() else { return };
+        match store.load_remote(remote::CATALOG_DOC) {
+            Ok(Some(doc)) => {
+                let verified = artcraft_toolbox_release::signing::verify(&doc.body, &key, Kind::Catalog)
+                    .map_err(|e| e.to_string())
+                    .and_then(|payload| Catalog::parse(&payload).map_err(|e| e.to_string()));
+                match verified.and_then(|c| self.set_catalog(c, doc.fetched_at)) {
+                    Ok(revision) => log::info!("using the cached remote catalog, revision {revision}"),
+                    Err(e) => log::warn!("cached remote catalog: {e}; using the built-in catalog"),
+                }
+            }
+            Ok(None) => {}
+            Err(e) => log::warn!("{e}; using the built-in catalog"),
+        }
+        match store.load_remote(remote::FEED_DOC) {
+            Ok(Some(doc)) => self.feed_fetched_at = Some(doc.fetched_at),
+            Ok(None) => {}
+            Err(e) => log::warn!("{e}"),
+        }
+    }
+
+    /// Replace the catalog with a verified remote one, if [`Catalog::accepts`] it. Returns the
+    /// new revision. Feeds, icons and settings of apps that stay are kept.
+    pub fn set_catalog(&mut self, catalog: Catalog, fetched_at: u64) -> std::result::Result<u64, String> {
+        self.catalog.accepts(&catalog)?;
+        self.catalog = catalog;
+        self.catalog_source = CatalogSource::Remote { fetched_at };
+        Ok(self.catalog.revision)
+    }
+
+    pub fn catalog_source(&self) -> CatalogSource {
+        self.catalog_source
+    }
+
+    /// The publisher's key this session pins, if its catalog names one.
+    pub fn pinned_key(&self) -> Option<&PublicKey> {
+        self.pinned_key.as_ref()
+    }
+
+    /// When the aggregated feed was last fetched or found unchanged.
+    pub fn feed_fetched_at(&self) -> Option<u64> {
+        self.feed_fetched_at
+    }
+
+    pub(crate) fn set_feed_fetched_at(&mut self, at: u64) {
+        self.feed_fetched_at = Some(at);
+    }
+
+    /// Does this session follow the publisher's remote catalog and feed? (The setting, and a
+    /// catalog that names them with a key this build can read.)
+    pub fn remote_enabled(&self) -> bool {
+        self.settings.remote_catalog && self.catalog.remote.is_some() && self.pinned_key.is_some()
     }
 
     pub fn inventory(&self) -> &Inventory {
@@ -362,7 +451,7 @@ impl Session {
     /// how many releases it held.
     pub fn ingest_releases(&mut self, app: &str, json: &str, fetched_at: u64) -> Result<usize> {
         let entry = self.catalog.feed_app(app).ok_or_else(|| EngineError::UnknownApp(echo(app)))?;
-        let releases = artcraft_toolbox_feed::parse_releases(json, &entry.slugs())?;
+        let releases = artcraft_toolbox_feed::parse_releases_for(json, &entry.slugs(), &patterns_of(entry))?;
         let n = releases.len();
         self.feeds.insert(app.to_string(), Feed { releases, fetched_at, etag: None });
         Ok(n)

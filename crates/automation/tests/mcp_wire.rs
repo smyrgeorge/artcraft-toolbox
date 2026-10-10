@@ -42,7 +42,7 @@ async fn malformed_line_recovers_and_lists_are_complete() {
     let reply: Value = serde_json::from_str(&lines.next_line().await.unwrap().unwrap()).unwrap();
     assert_eq!(reply["result"]["isError"], false, "{reply}");
     let apps: Value = serde_json::from_str(reply["result"]["content"][0]["text"].as_str().unwrap()).unwrap();
-    assert_eq!(apps.as_array().map(Vec::len), Some(12));
+    assert_eq!(apps.as_array().map(Vec::len), Some(13));
     drop(input);
     tokio::time::timeout(std::time::Duration::from_secs(5), server).await.unwrap().unwrap().unwrap();
 }

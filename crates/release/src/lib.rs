@@ -8,6 +8,7 @@
 
 pub mod asset;
 pub mod checksums;
+pub mod signing;
 pub mod target;
 pub mod version;
 
@@ -24,6 +25,12 @@ pub enum Error {
     BadChecksums { line: usize, reason: String },
     #[error("{what} is too large ({len} bytes, limit {limit})")]
     TooLarge { what: &'static str, len: usize, limit: usize },
+    #[error("key: {0}")]
+    BadKey(String),
+    #[error("signed document: {0}")]
+    BadEnvelope(String),
+    #[error("signature: {0}")]
+    BadSignature(String),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

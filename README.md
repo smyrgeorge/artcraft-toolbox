@@ -76,7 +76,12 @@ assets named `<app>-<version>-<os>-<arch>.<ext>`, and a `SHA256SUMS.txt`. The to
 feeds, picks the right per-user package for your machine (DMG on macOS, the portable zip on
 Windows, the AppImage on Linux), verifies it, installs it side by side with the previous version
 so you can roll back, and keeps it up to date. `cargo xtask contract` checks every craft's latest
-release against that contract; on 2026-10-09 all twelve pass.
+release against that contract; on 2026-10-09 all twelve pass. ArtCraft itself, which publishes
+differently, is matched by name patterns and verified with digests from a signed feed.
+
+Checks are cheap: a signed, aggregated feed of every app's releases is fetched with one request
+(no GitHub API quota), and the same signed channel carries the catalog, so new crafts appear
+without updating the toolbox (`docs/architecture.md` § 12).
 
 ## Get started
 

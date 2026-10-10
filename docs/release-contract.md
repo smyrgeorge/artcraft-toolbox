@@ -34,9 +34,12 @@ runs it before uploading).
   releases were 304 KB uncompressed (gzip is negotiated); cached feeds are 45–320 KB per app.
 - **Anonymous requests: 60 per hour per IP address, and a `304 Not Modified` still counts.**
   Measured: three conditional requests in a row, all answered `304`, took
-  `x-ratelimit-remaining` from 47 to 44. ETags save bandwidth, not quota. One full check of 12 apps costs 12 requests, so an anonymous user
-  gets about five full checks an hour. Hence the toolbox's back-off (`engine::update_cmds`) and
-  roadmap M7's single aggregated feed.
+  `x-ratelimit-remaining` from 47 to 44. ETags save bandwidth, not quota. One full check of 13
+  apps and the toolbox costs 14 requests, so an anonymous user gets about four full checks an
+  hour from the API. Hence the toolbox's back-off (`engine::update_cmds`) and, since M7, the
+  publisher's aggregated feed: one request to `raw.githubusercontent.com` (no such limit) per
+  check, the API only for what the feed doesn't cover (§ Apps outside the contract, and
+  docs/architecture.md § 12).
 - With a token (`ARTCRAFT_TOOLBOX_GITHUB_TOKEN`) the limit is 5,000 per hour. Observed: the first
   authenticated request with an ETag from an anonymous response got a full `200`, not a `304`.
 - A refusal is `403` with `x-ratelimit-remaining: 0` and `x-ratelimit-reset` (Unix seconds), or
@@ -151,7 +154,10 @@ every host installable, every asset listed in `SHA256SUMS.txt`). Every craft rel
 6. **ArtCraft itself does not follow the contract.** `storytold/artcraft` (the AI studio) is a
    different stack: tags `artcraft-v0.41.0`, assets `ArtCraft_0.41.0_universal.dmg`,
    `ArtCraft_0.41.0_x64-setup.exe`, `ArtCraft_0.41.0_x64_en-US.msi`, no Linux build and no
-   checksums. It is not in the catalog; supporting it is roadmap M7.
+   checksums. Since M7 it is in the catalog through `[app.assets]` patterns, and its digests
+   come from the signed feed (§ Apps outside the contract). Measured 2026-10-10: bundle id
+   `ai.artcraft.app`, signed and notarized by the same team as the crafts (DJ6XS33FX8); the
+   Windows build is an MSI only, which the toolbox doesn't install, so no Windows pattern.
 7. **The DMG volume is named after the product without the version** and holds `<Name>.app` plus
    an `Applications` link. The toolbox mounts it at a private mount point, so two installs never
    collide on `/Volumes/<Name>`, and requires exactly one `.app` whose `CFBundleIdentifier` is
@@ -165,10 +171,58 @@ every host installable, every asset listed in `SHA256SUMS.txt`). Every craft rel
    xattr; the staged folder has none. `makehybrid` has no option to turn that off, so fixing it
    means another DMG builder; until then `--strict` can't be used on any craft's bundle.
 
+## Apps outside the contract
+
+An app that doesn't publish the asset set above can still be listed, with its builds named per
+target in the catalog (`crates/catalog/catalog.toml` › `[app.assets]`):
+
+```toml
+[[app]]
+id = "artcraft"
+name = "ArtCraft"
+repo = "storytold/artcraft"
+bundle_id = "ai.artcraft.app"
+icon = "https://raw.githubusercontent.com/storytold/artcraft/HEAD/crates/desktop/artcraft/icons/128x128.png"
+
+[app.assets]
+"macos-universal" = "ArtCraft_{version}_universal.dmg"
+```
+
+- The key is `<os>-<arch>` as in asset names; the value is the whole file name with `{version}`
+  where the version goes. `release::asset::from_pattern` matches it; the package kind comes from
+  the extension, so only kinds the toolbox installs (DMG, portable zip, AppImage) are useful.
+- The tag may be `v<version>`, `<version>` or `<name>-v<version>` (`Version::from_tag`).
+- Such a release has no `SHA256SUMS.txt`. **The digests come from the publisher's signed
+  aggregated feed**: `cargo xtask feed` downloads each matched build once, hashes it and writes
+  `sha256` on the asset (the toolbox reads it from the signed document only). A session that
+  got the app's feed from the GitHub API instead has no digest, and `app.install` refuses:
+  "the toolbox only installs what it can verify".
+- The platform signature is checked as for any app (`install::trust`), and the first install
+  pins the signer for later updates.
+- `cargo xtask contract` checks that every pattern matches a build of the newest stable release.
+
+## The aggregated feed and the remote catalog
+
+Published by the Feed workflow (`.github/workflows/feed.yml`, hourly) on this repository's
+`feed` branch and served by `raw.githubusercontent.com`:
+
+| Document | Payload | Use |
+|---|---|---|
+| `artcraft-catalog.json` | `catalog.toml` (schema 1, with its `revision`) | New apps, moved repos or URLs reach every toolbox without a release; applied when the revision is not older than the running one |
+| `artcraft-feed.json` | `{"schema":1,"generated":<unix>,"apps":{"<id>":[<GitHub release objects, trimmed>]}}` | Every app's releases in one request; each list is read by the same parser as a direct API response and cached per app |
+
+Both are `release::signing` envelopes: `{"schema":1,"kind":"catalog|feed","signer":"ed25519:…",
+"signature":"<base64>","payload":"<text>"}`, Ed25519 over `"artcraft-toolbox <kind> v1\n"` +
+payload. The toolbox pins the public key compiled into its built-in catalog (`[remote]`); a
+remote catalog may move the URLs, never the key. Rejected documents (bad signature, other key,
+older revision, wrong kind, unreadable) are logged and the check goes on: the built-in catalog
+and the per-app API requests are the fallback.
+
 ## Refreshing the fixtures
 
-`crates/feed/tests/fixtures/*.json` are real responses, trimmed (four releases, notes replaced so
-no contributor data is stored):
+`crates/feed/tests/fixtures/*.json` are real responses, trimmed (four releases for the crafts,
+twenty for ArtCraft because its tags and duplicate versions are what the patterns are tested
+against; notes replaced so no contributor data is stored):
 
 ```sh
 gh api 'repos/storytold/photocraft/releases?per_page=4' > /tmp/raw.json

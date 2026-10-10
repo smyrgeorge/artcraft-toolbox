@@ -61,7 +61,7 @@ mod tests {
         assert_eq!(s.execute("app.status", json!({"app": "photocraft"})).unwrap()["status"]["state"], "updateAvailable");
 
         let all = s.execute("apps.status", json!(null)).unwrap();
-        assert_eq!(all.as_array().map(Vec::len), Some(12));
+        assert_eq!(all.as_array().map(Vec::len), Some(13));
         assert!(s.ingest_releases("nope", FEED, 1).is_err());
         assert!(s.ingest_releases("photocraft", "garbage", 1).is_err());
     }

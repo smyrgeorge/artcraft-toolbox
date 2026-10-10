@@ -215,6 +215,7 @@ optional. If one is missing, that platform's artifacts are unsigned and the run 
 | `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET` | service principal for Azure Trusted Signing (an alternative to the `.pfx`) |
 | `AZURE_SIGNING_ENDPOINT` | e.g. `https://eus.codesigning.azure.net` |
 | `AZURE_SIGNING_ACCOUNT`, `AZURE_CERT_PROFILE` | Trusted Signing account and certificate profile names |
+| `ARTCRAFT_TOOLBOX_SIGNING_KEY` | A repository secret, not in the `release` environment: the Ed25519 secret that signs the remote catalog and the aggregated feed (§ The feed) |
 
 `GITHUB_TOKEN` creates the release. Only the final job gets `contents: write`.
 
@@ -228,6 +229,37 @@ certificate's team (or shipping an unsigned release after signed ones) means eve
 reinstall by hand. No signing secrets are configured yet (2026-10-10): the first releases are
 ad-hoc signed on macOS and unsigned on Windows, which the toolbox shows as "No platform
 signature" and accepts as the reference for later ones.
+
+## The feed
+
+Every toolbox checks for updates by fetching two signed documents from this repository's `feed`
+branch (`docs/architecture.md` § 12): `artcraft-catalog.json` (the catalog, so new crafts and
+moved repositories reach installed toolboxes without a release) and `artcraft-feed.json` (every
+app's releases in one request, with the digests of ArtCraft's builds). The Feed workflow
+(`.github/workflows/feed.yml`) rebuilds and publishes them every hour and on every change to
+`catalog.toml`.
+
+Setting it up once:
+
+1. `cargo xtask keygen --out artcraft-toolbox-signing.key` (keep the file out of the repository;
+   `plan/` and `secrets/` are ignored). It prints the public key.
+2. Put the public key in `crates/catalog/catalog.toml` › `[remote] public_key`, bump `revision`,
+   commit. Every toolbox built from then on pins that key.
+3. Add the file's content as the repository secret `ARTCRAFT_TOOLBOX_SIGNING_KEY`
+   (*Settings → Secrets and variables → Actions*). Until it exists, the workflow publishes
+   nothing and says so.
+4. Run the workflow once (*Actions → Feed → Run workflow*). The `feed` branch appears with the
+   two files and a README.
+
+Changing the catalog afterwards is a commit to `catalog.toml` with `revision` bumped: the
+workflow publishes it, and every toolbox applies it at its next check (a toolbox refuses a
+revision older than the one it runs). Rotating the key needs a toolbox release: a remote catalog
+may move the URLs but never change the key.
+
+`cargo xtask feed --out <dir> --key <file>` does locally what the workflow does, verifying its
+own output with the catalog's public key; `--previous <dir>` reuses the digests of an earlier
+feed, so only new builds are downloaded (ArtCraft's DMG is about 95 MB; the workflow fetches
+the previous feed first).
 
 ## Icons
 

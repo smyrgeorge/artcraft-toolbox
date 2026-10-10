@@ -12,9 +12,24 @@
 #   website       optional product page
 #   former_slugs  optional earlier asset-name slugs (PdfCraft shipped 0.2.x as printcraft)
 #   bundle_id     optional, when it is not ai.storyteller.<id>
+#   icon          optional PNG URL, when the icon isn't at the crafts' usual path
+#   [app.assets]  optional, for an app outside the contract: "<os>-<arch>" = "Name_{version}.ext"
+#                 (docs/release-contract.md › Apps outside the contract)
 #
-# Checked against GitHub on 2026-10-09: all twelve publish the contract's full asset set.
+# Checked against GitHub on 2026-10-09: all twelve crafts publish the contract's full asset set.
 schema = 1
+# Bumped on every published change. A remote catalog replaces the built-in one only when its
+# revision is not older (docs/architecture.md § 12).
+revision = 1
+
+# Where a newer catalog and the suite's aggregated release feed are published, signed with this
+# key (`cargo xtask feed`, docs/releasing.md › The feed). One request per check instead of one
+# per app, and raw.githubusercontent.com has no 60-per-hour limit. The key is pinned by this
+# build: a remote catalog may move these URLs but never change the key.
+[remote]
+catalog = "https://raw.githubusercontent.com/smyrgeorge/artcraft-toolbox/feed/artcraft-catalog.json"
+feed = "https://raw.githubusercontent.com/smyrgeorge/artcraft-toolbox/feed/artcraft-feed.json"
+public_key = "ed25519:xocsWGS8OufgrZoCDrYGzTOjU3Kmw9paYoMhXJ5h5Cw="
 
 # The toolbox itself: where its own releases are published, so it can update itself
 # (docs/architecture.md § 7). Not one of the apps in the list; it follows the same release
@@ -106,3 +121,20 @@ id = "wordcraft"
 name = "WordCraft"
 tagline = "Word processing"
 repo = "storytold/wordcraft"
+
+# ArtCraft itself (the AI studio) is a different stack and doesn't follow the contract: tags
+# `artcraft-v<version>`, Tauri-style asset names, no Linux build, no SHA256SUMS.txt. Its builds
+# are matched by these patterns; their digests come from the signed aggregated feed, so it can
+# only be installed while that feed is published (docs/release-contract.md › Apps outside the
+# contract). Windows ships an MSI only, which the toolbox doesn't install (M2), so no pattern.
+[[app]]
+id = "artcraft"
+name = "ArtCraft"
+tagline = "The AI creative studio"
+repo = "storytold/artcraft"
+website = "https://getartcraft.com"
+bundle_id = "ai.artcraft.app"
+icon = "https://raw.githubusercontent.com/storytold/artcraft/HEAD/crates/desktop/artcraft/icons/128x128.png"
+
+[app.assets]
+"macos-universal" = "ArtCraft_{version}_universal.dmg"

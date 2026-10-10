@@ -1,6 +1,6 @@
 //! GitHub's REST "list releases" response (`GET /repos/{owner}/{repo}/releases`) to [`Release`]s.
 
-use artcraft_toolbox_release::{Version, asset};
+use artcraft_toolbox_release::{Sha256, Target, Version, asset};
 use serde::Deserialize;
 
 use crate::{Asset, Error, Release, Result};
@@ -39,24 +39,50 @@ struct GhAsset {
     #[serde(default)]
     size: u64,
     browser_download_url: String,
+    /// Not GitHub's: the signed aggregated feed adds it for apps outside the contract.
+    #[serde(default)]
+    sha256: Option<String>,
 }
 
 /// Parse a "list releases" response for an app published under `slugs` (its id first, then
 /// former names). Drafts and releases whose tag is not a version are skipped. The result is
 /// newest first.
 pub fn parse_releases(json: &str, slugs: &[&str]) -> Result<Vec<Release>> {
+    parse_releases_for(json, slugs, &[])
+}
+
+/// [`parse_releases`] for an app that may be outside the contract: assets that don't follow the
+/// naming contract are matched against `patterns` (`(target, "Name_{version}.ext")`, the
+/// catalog's `[app.assets]`) under the first slug.
+pub fn parse_releases_for(json: &str, slugs: &[&str], patterns: &[(Target, String)]) -> Result<Vec<Release>> {
     if json.len() > MAX_RESPONSE_BYTES {
         return Err(Error::TooLarge(json.len()));
     }
     let raw: Vec<GhRelease> = serde_json::from_str(json).map_err(|e| Error::Json(e.to_string()))?;
-    let mut out: Vec<Release> = raw.into_iter().take(MAX_RELEASES).filter(|r| !r.draft).filter_map(|r| convert(r, slugs)).collect();
+    let mut out: Vec<Release> = raw.into_iter().take(MAX_RELEASES).filter(|r| !r.draft).filter_map(|r| convert(r, slugs, patterns)).collect();
     out.sort_by(|a, b| b.version.cmp(&a.version));
-    out.dedup_by(|a, b| a.version == b.version);
+    // Two releases of one version (ArtCraft's `artcraft-windows-v0.5.0` beside `artcraft-v0.5.0`)
+    // become one with both's builds.
+    out.dedup_by(|dup, kept| {
+        if dup.version != kept.version {
+            return false;
+        }
+        for asset in dup.assets.drain(..) {
+            if !kept.assets.iter().any(|k| k.file == asset.file) {
+                kept.assets.push(asset);
+            }
+        }
+        if kept.checksums_url.is_none() {
+            kept.checksums_url = dup.checksums_url.take();
+        }
+        true
+    });
     Ok(out)
 }
 
-fn convert(r: GhRelease, slugs: &[&str]) -> Option<Release> {
+fn convert(r: GhRelease, slugs: &[&str], patterns: &[(Target, String)]) -> Option<Release> {
     let version = Version::from_tag(&r.tag_name).ok()?;
+    let slug = slugs.first().copied().unwrap_or_default();
     let mut assets = Vec::new();
     let mut checksums_url = None;
     let mut unrecognized = Vec::new();
@@ -69,9 +95,17 @@ fn convert(r: GhRelease, slugs: &[&str]) -> Option<Release> {
             checksums_url = Some(a.browser_download_url);
             continue;
         }
-        match asset::parse(&a.name, slugs) {
-            Some(name) if name.version == version => assets.push(Asset { name, file: a.name, size: a.size, url: a.browser_download_url }),
-            _ => unrecognized.push(a.name),
+        let name = match asset::parse(&a.name, slugs) {
+            Some(name) if name.version == version => Some(name),
+            _ => patterns.iter().find_map(|(target, pattern)| asset::from_pattern(&a.name, pattern, &version, *target, slug)),
+        };
+        match name {
+            Some(name) => {
+                // A digest that isn't one is dropped, not trusted.
+                let sha256 = a.sha256.filter(|s| Sha256::from_hex(s).is_some()).map(|s| s.to_ascii_lowercase());
+                assets.push(Asset { name, file: a.name, size: a.size, url: a.browser_download_url, sha256 });
+            }
+            None => unrecognized.push(a.name),
         }
     }
     let mut notes = r.body.unwrap_or_default();
@@ -164,5 +198,54 @@ mod tests {
     fn kinds_survive_parsing() {
         let r = parse_releases(&json!([release("v0.5.0", &["photocraft-0.5.0-windows-x64-portable.zip"])]).to_string(), &["photocraft"]).unwrap();
         assert_eq!(r[0].assets[0].name.kind, PackageKind::PortableZip);
+    }
+
+    const ARTCRAFT: &str = include_str!("../tests/fixtures/artcraft-releases.json");
+
+    #[test]
+    fn an_app_outside_the_contract_is_read_through_its_patterns() {
+        let mac = Target::from_tokens("macos-universal").unwrap();
+        let patterns = [(mac, "ArtCraft_{version}_universal.dmg".to_string())];
+        // Without patterns nothing of ArtCraft's is recognized (its names aren't the contract's).
+        let plain = parse_releases(ARTCRAFT, &["artcraft"]).unwrap();
+        assert_eq!(plain.len(), 19, "20 entries; `artcraft-windows-v0.5.0` and `artcraft-v0.5.0` are one version");
+        assert!(plain.iter().all(|r| r.assets.is_empty() && r.checksums_url.is_none()));
+        let releases = parse_releases_for(ARTCRAFT, &["artcraft"], &patterns).unwrap();
+        let newest = &releases[0];
+        assert_eq!((newest.tag.as_str(), newest.version.to_string().as_str()), ("artcraft-v0.41.0", "0.41.0"));
+        assert_eq!(newest.assets.len(), 1, "{:?}", newest.assets);
+        let dmg = &newest.assets[0];
+        assert_eq!(
+            (dmg.file.as_str(), dmg.name.target, dmg.name.kind, dmg.sha256.as_deref()),
+            ("ArtCraft_0.41.0_universal.dmg", Some(mac), PackageKind::Dmg, None)
+        );
+        assert_eq!(dmg.name.slug, "artcraft");
+        assert!(newest.unrecognized.iter().any(|n| n.ends_with("-setup.exe")), "the rest stays unrecognized");
+        assert!(releases.iter().all(|r| r.assets.len() == 1), "every release has its DMG, 0.5.0's from its second entry");
+        assert_eq!(releases.len(), 19);
+    }
+
+    #[test]
+    fn two_entries_of_one_version_merge_their_builds() {
+        let a = release("v1.0.0", &["photocraft-1.0.0-macos-universal.dmg"]);
+        let b = release("1.0.0", &["photocraft-1.0.0-linux-x86_64.AppImage", "SHA256SUMS.txt", "photocraft-1.0.0-macos-universal.dmg"]);
+        let out = parse_releases(&json!([a, b]).to_string(), &["photocraft"]).unwrap();
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].assets.len(), 2, "{:?}", out[0].assets);
+        assert!(out[0].checksums_url.is_some());
+        assert_eq!(out[0].tag, "v1.0.0", "the first entry's identity");
+    }
+
+    #[test]
+    fn digests_in_a_feed_are_kept_when_they_are_hex_and_dropped_otherwise() {
+        let mut r = release("v0.5.0", &["photocraft-0.5.0-linux-x86_64.AppImage", "photocraft-0.5.0-macos-universal.dmg"]);
+        r["assets"][0]["sha256"] = json!("AB".repeat(32));
+        r["assets"][1]["sha256"] = json!("not a digest");
+        let out = parse_releases(&json!([r]).to_string(), &["photocraft"]).unwrap();
+        assert_eq!(out[0].assets[0].sha256.as_deref(), Some("ab".repeat(32).as_str()));
+        assert_eq!(out[0].assets[1].sha256, None);
+        // Serialized releases keep the digest and omit a missing one.
+        let text = serde_json::to_string(&out[0]).unwrap();
+        assert_eq!(text.matches("sha256").count(), 1);
     }
 }

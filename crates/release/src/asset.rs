@@ -86,6 +86,26 @@ pub struct AssetName {
     pub kind: PackageKind,
 }
 
+/// Longest file-name pattern of an app outside the contract (`catalog.toml` › `[app.assets]`).
+pub const MAX_PATTERN_LEN: usize = 128;
+/// What a pattern writes where the version goes: `ArtCraft_{version}_universal.dmg`.
+pub const VERSION_PLACEHOLDER: &str = "{version}";
+
+/// Match `file` against a catalog pattern of an app outside the contract, for the build
+/// `target`: the pattern with `{version}` written out must be the whole file name. The package
+/// kind comes from the extension, as in the contract.
+pub fn from_pattern(file: &str, pattern: &str, version: &Version, target: Target, slug: &str) -> Option<AssetName> {
+    if file.len() > MAX_NAME_LEN || pattern.len() > MAX_PATTERN_LEN || !pattern.contains(VERSION_PLACEHOLDER) {
+        return None;
+    }
+    if file != pattern.replace(VERSION_PLACEHOLDER, &version.to_string()) {
+        return None;
+    }
+    let (_, kind) = EXTENSIONS.iter().find(|(ext, _)| file.ends_with(ext))?;
+    let kind = if *kind == PackageKind::Zip && file.ends_with("-portable.zip") { PackageKind::PortableZip } else { *kind };
+    Some(AssetName { slug: slug.to_string(), component: Component::App, version: version.clone(), target: Some(target), kind })
+}
+
 /// Parse `file` as an asset of an app published under any of `slugs`. `None` for names that
 /// don't follow the contract (including `SHA256SUMS.txt`).
 pub fn parse(file: &str, slugs: &[&str]) -> Option<AssetName> {
@@ -271,5 +291,29 @@ mod tests {
         for (os, arch) in [(Os::Macos, Arch::Aarch64), (Os::Linux, Arch::X86_64)] {
             assert!(select(&only, Target::new(os, arch), |a| a).is_none());
         }
+    }
+}
+
+#[cfg(test)]
+mod pattern_tests {
+    use super::*;
+
+    #[test]
+    fn patterns_match_whole_names_and_take_the_kind_from_the_extension() {
+        let v = Version::new(0, 41, 0);
+        let mac = Target::from_tokens("macos-universal").unwrap();
+        let a = from_pattern("ArtCraft_0.41.0_universal.dmg", "ArtCraft_{version}_universal.dmg", &v, mac, "artcraft").unwrap();
+        assert_eq!((a.slug.as_str(), a.component, &a.version, a.target, a.kind), ("artcraft", Component::App, &v, Some(mac), PackageKind::Dmg));
+        let win = Target::from_tokens("windows-x64").unwrap();
+        assert_eq!(from_pattern("App_0.41.0_x64-portable.zip", "App_{version}_x64-portable.zip", &v, win, "app").unwrap().kind, PackageKind::PortableZip);
+        assert_eq!(from_pattern("App_0.41.0_x64.msi", "App_{version}_x64.msi", &v, win, "app").unwrap().kind, PackageKind::Msi);
+        // Another version, a prefix, a suffix, an unknown extension, a pattern without the placeholder.
+        assert!(from_pattern("ArtCraft_0.40.0_universal.dmg", "ArtCraft_{version}_universal.dmg", &v, mac, "artcraft").is_none());
+        assert!(from_pattern("xArtCraft_0.41.0_universal.dmg", "ArtCraft_{version}_universal.dmg", &v, mac, "artcraft").is_none());
+        assert!(from_pattern("ArtCraft_0.41.0_universal.dmg.sig", "ArtCraft_{version}_universal.dmg", &v, mac, "artcraft").is_none());
+        assert!(from_pattern("ArtCraft_0.41.0_x64-setup.exe", "ArtCraft_{version}_x64-setup.exe", &v, win, "artcraft").is_none());
+        assert!(from_pattern("ArtCraft.dmg", "ArtCraft.dmg", &v, mac, "artcraft").is_none());
+        assert!(from_pattern(&"a".repeat(MAX_NAME_LEN + 1), "a{version}", &v, mac, "a").is_none());
+        assert!(Target::from_tokens("macos").is_none() && Target::from_tokens("amiga-m68k").is_none());
     }
 }

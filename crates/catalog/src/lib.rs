@@ -1,12 +1,14 @@
 //! The Crafting Apps the toolbox manages, as data.
 //!
-//! The built-in list is `catalog.toml`, embedded at compile time. The same format can later come
-//! from a signed remote catalog (docs/roadmap.md), so [`Catalog::parse`] validates everything and
-//! never panics on any input.
+//! The built-in list is `catalog.toml`, embedded at compile time. The same format comes from the
+//! signed remote catalog ([`Remote`], docs/architecture.md § 12), so [`Catalog::parse`] validates
+//! everything and never panics on any input.
 //!
 //! Standalone (L0): no workspace dependencies and no I/O.
 #![forbid(unsafe_code)]
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
+
+use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
@@ -16,6 +18,10 @@ pub const SCHEMA: u32 = 1;
 pub const MAX_BYTES: usize = 256 * 1024;
 /// Most apps a catalog may list.
 pub const MAX_APPS: usize = 256;
+/// Longest asset-name pattern of an app outside the contract.
+pub const MAX_PATTERN_LEN: usize = 128;
+/// What a pattern writes where the version goes.
+pub const VERSION_PLACEHOLDER: &str = "{version}";
 
 /// The catalog compiled into this build.
 pub const BUILTIN: &str = include_str!("../catalog.toml");
@@ -54,9 +60,20 @@ pub struct App {
     /// The app icon (a PNG), when it isn't at the Crafting Apps' usual path (see [`App::icon_url`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub icon: Option<String>,
+    /// For an app outside the release contract: its build per `<os>-<arch>` target, as a file
+    /// name with `{version}` (`"macos-universal" = "ArtCraft_{version}_universal.dmg"`). Such an
+    /// app has no `SHA256SUMS.txt`; its digests come from the signed aggregated feed, and
+    /// without one nothing is installed.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub assets: BTreeMap<String, String>,
 }
 
 impl App {
+    /// Does this app publish the contract's asset set (no [`App::assets`] patterns)?
+    pub fn follows_contract(&self) -> bool {
+        self.assets.is_empty()
+    }
+
     /// Every slug its assets may start with: the id first, then former names.
     pub fn slugs(&self) -> Vec<&str> {
         std::iter::once(self.id.as_str()).chain(self.former_slugs.iter().map(String::as_str)).collect()
@@ -88,9 +105,28 @@ impl App {
     }
 }
 
+/// Where the publisher puts a newer catalog and the suite's aggregated release feed, and the
+/// key both are signed with (`release::signing`). The key is pinned by the built-in catalog: a
+/// remote catalog may move the URLs but never change the key.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Remote {
+    /// The signed catalog envelope (`artcraft-catalog.json`).
+    pub catalog: String,
+    /// The signed aggregated feed envelope (`artcraft-feed.json`).
+    pub feed: String,
+    /// `ed25519:<base64>`.
+    pub public_key: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Catalog {
     pub schema: u32,
+    /// Bumped by the publisher on every change. A remote catalog replaces the current one only
+    /// when its revision is not older ([`Catalog::accepts`]).
+    #[serde(default)]
+    pub revision: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub remote: Option<Remote>,
     /// The toolbox itself, as the app whose releases it updates itself from (the same contract
     /// as the apps; docs/architecture.md § 7). Not listed among [`Catalog::apps`]. A catalog
     /// without it leaves self-update off.
@@ -123,6 +159,20 @@ impl Catalog {
     /// An app of the list, or the toolbox itself: everything with a release feed.
     pub fn feed_app(&self, id: &str) -> Option<&App> {
         self.get(id).or_else(|| self.toolbox.as_ref().filter(|t| t.id == id))
+    }
+
+    /// May `other`, a verified remote catalog, replace this one? It must not be older, and it
+    /// must keep a `[remote]` section with the same key, or the toolbox would stop following
+    /// the publisher (or start following another).
+    pub fn accepts(&self, other: &Catalog) -> std::result::Result<(), String> {
+        if other.revision < self.revision {
+            return Err(format!("revision {} is older than the current {}", other.revision, self.revision));
+        }
+        match (&self.remote, &other.remote) {
+            (Some(mine), Some(theirs)) if mine.public_key != theirs.public_key => Err("it names another signing key; the key is pinned by this build".into()),
+            (Some(_), None) => Err("it has no [remote] section".into()),
+            _ => Ok(()),
+        }
     }
 
     fn validate(&self) -> Result<()> {
@@ -172,9 +222,61 @@ impl Catalog {
             {
                 return bad(format!("{id}: bundle_id `{}` is not a reverse-DNS id", short(b)));
             }
+            for (target, pattern) in &app.assets {
+                if !valid_target(target) {
+                    return bad(format!("{id}: assets key `{}` is not `<os>-<arch>`", short(target)));
+                }
+                if let Err(why) = valid_pattern(pattern) {
+                    return bad(format!("{id}: assets pattern `{}` {why}", short(pattern)));
+                }
+            }
+        }
+        if let Some(remote) = &self.remote {
+            for (what, url) in [("catalog", &remote.catalog), ("feed", &remote.feed)] {
+                if !valid_url(url) {
+                    return bad(format!("remote.{what} must be an https:// URL"));
+                }
+            }
+            if !valid_key(&remote.public_key) {
+                return bad("remote.public_key must be `ed25519:<base64 of 32 bytes>`".into());
+            }
         }
         Ok(())
     }
+}
+
+fn valid_url(s: &str) -> bool {
+    s.starts_with("https://") && s.len() > 8 && s.len() <= 512 && !s.contains(char::is_whitespace) && !s.contains(char::is_control)
+}
+
+/// `ed25519:` and 44 base64 characters (32 bytes, padded). The key itself is parsed above L0.
+fn valid_key(s: &str) -> bool {
+    s.strip_prefix("ed25519:")
+        .is_some_and(|b| b.len() == 44 && b.ends_with('=') && b.bytes().all(|c| c.is_ascii_alphanumeric() || matches!(c, b'+' | b'/' | b'=')))
+}
+
+/// `<os>-<arch>`: lowercase tokens, as in asset names (`macos-universal`, `linux-x86_64`).
+fn valid_target(s: &str) -> bool {
+    let part = |p: &str| !p.is_empty() && p.len() <= 16 && p.bytes().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == b'_');
+    matches!(s.split_once('-'), Some((os, arch)) if part(os) && part(arch))
+}
+
+/// A file name with `{version}` once, an extension, and nothing that could leave a folder.
+fn valid_pattern(p: &str) -> std::result::Result<(), String> {
+    if p.is_empty() || p.len() > MAX_PATTERN_LEN {
+        return Err(format!("must be 1 to {MAX_PATTERN_LEN} bytes"));
+    }
+    if p.matches(VERSION_PLACEHOLDER).count() != 1 {
+        return Err(format!("must contain `{VERSION_PLACEHOLDER}` exactly once"));
+    }
+    if p.contains(['/', '\\']) || p.contains(char::is_whitespace) || p.contains(char::is_control) || p.starts_with('.') {
+        return Err("must be a plain file name".into());
+    }
+    let Some((_, after)) = p.rsplit_once(VERSION_PLACEHOLDER) else { return Err("must contain `{version}`".into()) };
+    if !after.contains('.') || after.ends_with('.') {
+        return Err("must end with a file extension".into());
+    }
+    Ok(())
 }
 
 fn valid_slug(s: &str) -> bool {
@@ -201,7 +303,11 @@ mod tests {
     #[test]
     fn builtin_catalog_is_valid() {
         let c = Catalog::builtin().unwrap();
-        assert_eq!(c.apps.len(), 12);
+        assert_eq!(c.apps.len(), 13, "the twelve Crafting Apps and ArtCraft itself");
+        assert!(c.revision >= 1);
+        let remote = c.remote.as_ref().expect("a [remote] section");
+        assert!(remote.catalog.ends_with("/artcraft-catalog.json") && remote.feed.ends_with("/artcraft-feed.json"));
+        assert!(remote.public_key.starts_with("ed25519:"));
         // The toolbox itself follows the contract under its own slug and app id.
         let toolbox = c.toolbox.as_ref().unwrap();
         assert_eq!(
@@ -220,6 +326,60 @@ mod tests {
             assert!(app.name.ends_with("Craft"), "{}: product names are {{Function}}Craft", app.name);
             assert_eq!(app.repo, format!("storytold/{}", app.id));
         }
+        // ArtCraft itself is the one app outside the contract: matched by patterns.
+        let artcraft = c.get("artcraft").unwrap();
+        assert!(!artcraft.follows_contract() && artcraft.assets.contains_key("macos-universal"));
+        assert_eq!(artcraft.bundle_id(), "ai.artcraft.app");
+        assert!(c.apps.iter().filter(|a| a.id != "artcraft").all(App::follows_contract));
+    }
+
+    #[test]
+    fn a_remote_catalog_is_accepted_only_when_not_older_and_with_the_same_key() {
+        let current = Catalog::builtin().unwrap();
+        let mut newer = current.clone();
+        newer.revision += 1;
+        assert_eq!(current.accepts(&newer), Ok(()));
+        assert_eq!(current.accepts(&current), Ok(()), "the same revision again is harmless");
+        let mut older = current.clone();
+        older.revision = 0;
+        assert!(current.accepts(&older).unwrap_err().contains("older"));
+        let mut other_key = newer.clone();
+        other_key.remote.as_mut().unwrap().public_key = "ed25519:BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBA=".into();
+        assert!(current.accepts(&other_key).unwrap_err().contains("pinned"));
+        let mut no_remote = newer.clone();
+        no_remote.remote = None;
+        assert!(current.accepts(&no_remote).unwrap_err().contains("[remote]"));
+        // Moving the URLs is fine.
+        let mut moved = newer.clone();
+        moved.remote.as_mut().unwrap().feed = "https://example.invalid/feed.json".into();
+        assert_eq!(current.accepts(&moved), Ok(()));
+    }
+
+    #[test]
+    fn patterns_and_remote_are_validated() {
+        let ok = "id = \"x\"\nname = \"XCraft\"\ntagline = \"\"\nrepo = \"o/x\"";
+        let with = |extra: &str| format!("schema = 1\n[[app]]\n{ok}\n{extra}\n");
+        assert!(Catalog::parse(&with("[app.assets]\n\"macos-universal\" = \"X_{version}_universal.dmg\"")).is_ok());
+        for (extra, want) in [
+            ("[app.assets]\n\"macos\" = \"X_{version}.dmg\"", "<os>-<arch>"),
+            ("[app.assets]\n\"macos-universal\" = \"X.dmg\"", "exactly once"),
+            ("[app.assets]\n\"macos-universal\" = \"X_{version}_{version}.dmg\"", "exactly once"),
+            ("[app.assets]\n\"macos-universal\" = \"../X_{version}.dmg\"", "plain file name"),
+            ("[app.assets]\n\"macos-universal\" = \"X_{version}\"", "extension"),
+            ("[app.assets]\n\"macos-universal\" = \"X {version}.dmg\"", "plain file name"),
+        ] {
+            let e = Catalog::parse(&with(extra)).unwrap_err().to_string();
+            assert!(e.contains(want), "{extra}: {e}");
+        }
+        let remote = |catalog: &str, feed: &str, key: &str| {
+            format!("schema = 1\n[remote]\ncatalog = \"{catalog}\"\nfeed = \"{feed}\"\npublic_key = \"{key}\"\n[[app]]\n{ok}\n")
+        };
+        let key = "ed25519:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+        assert!(Catalog::parse(&remote("https://x/c.json", "https://x/f.json", key)).is_ok());
+        assert!(Catalog::parse(&remote("http://x/c.json", "https://x/f.json", key)).unwrap_err().to_string().contains("remote.catalog"));
+        assert!(Catalog::parse(&remote("https://x/c.json", "https://x/f json", key)).unwrap_err().to_string().contains("remote.feed"));
+        assert!(Catalog::parse(&remote("https://x/c.json", "https://x/f.json", "ed25519:short")).unwrap_err().to_string().contains("public_key"));
+        assert!(Catalog::parse(&remote("https://x/c.json", "https://x/f.json", "rsa:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")).is_err());
     }
 
     #[test]

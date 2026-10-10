@@ -17,6 +17,8 @@ use artcraft_toolbox_catalog::{App, Catalog};
 use artcraft_toolbox_feed::Release;
 use artcraft_toolbox_model::Channel;
 use artcraft_toolbox_release::{Arch, Checksums, Os, PackageKind, Target};
+
+use crate::feed;
 use std::path::Path;
 use std::process::Command;
 
@@ -84,6 +86,9 @@ pub fn run(args: &[&str]) -> Result<(), String> {
 /// `Ok(summary)` or every problem found.
 fn check_app(app: &App) -> Result<String, Vec<String>> {
     let json = fetch(&format!("{}?per_page=10", app.releases_api_url())).map_err(|e| vec![e])?;
+    if !app.follows_contract() {
+        return check_pattern_app(app, &json);
+    }
     let releases = artcraft_toolbox_feed::parse_releases(&json, &app.slugs()).map_err(|e| vec![e.to_string()])?;
     let Some(rel) = releases.iter().find(|r| Channel::Stable.offers(&r.version, r.prerelease)) else {
         return Err(vec!["no stable release".into()]);
@@ -101,6 +106,23 @@ fn check_app(app: &App) -> Result<String, Vec<String>> {
         },
     }
     if problems.is_empty() { Ok(format!("{} ({} assets, {} hosts)", rel.tag, rel.assets.len(), HOSTS.len())) } else { Err(problems) }
+}
+
+/// An app outside the contract (`[app.assets]` patterns): its newest stable release must have
+/// the build each pattern names. It has no `SHA256SUMS.txt`; the signed feed carries the digests.
+fn check_pattern_app(app: &App, json: &str) -> Result<String, Vec<String>> {
+    let patterns = feed::patterns_of(app).map_err(|e| vec![e])?;
+    let releases = artcraft_toolbox_feed::parse_releases_for(json, &app.slugs(), &patterns).map_err(|e| vec![e.to_string()])?;
+    let Some(rel) = releases.iter().find(|r| Channel::Stable.offers(&r.version, r.prerelease)) else {
+        return Err(vec!["no stable release".into()]);
+    };
+    let mut problems = Vec::new();
+    for (target, pattern) in &patterns {
+        if !rel.assets.iter().any(|a| a.name.target == Some(*target)) {
+            problems.push(format!("{}: no asset matches `{pattern}` for {target}", rel.tag));
+        }
+    }
+    if problems.is_empty() { Ok(format!("{} ({} patterned builds; digests from the signed feed)", rel.tag, rel.assets.len())) } else { Err(problems) }
 }
 
 /// Contract checks that need no further download.
@@ -214,7 +236,7 @@ fn release_of_files(app: &App, names: &[String]) -> (Option<Release>, Vec<String
     }
 }
 
-fn fetch(url: &str) -> Result<String, String> {
+pub(crate) fn fetch(url: &str) -> Result<String, String> {
     let mut c = Command::new("curl");
     c.args(["-fsSL", "--proto", "=https", "--retry", "2", "-A", USER_AGENT, "-H", "Accept: application/vnd.github+json"]);
     if let Ok(token) = std::env::var("GITHUB_TOKEN")

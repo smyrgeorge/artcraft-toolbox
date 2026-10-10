@@ -1,7 +1,11 @@
 //! `updates.check`: fetch every app's release feed (or one app's) in the background. The
 //! toolbox's own feed (`Catalog::toolbox`, how it updates itself) is one more entry of the list.
 //!
-//! Per app, one conditional GET of `/repos/<repo>/releases?per_page=20` with the cached ETag.
+//! First, when the settings follow the publisher (`remoteCatalog`), the signed remote catalog
+//! and the aggregated feed are fetched with two conditional GETs that don't touch the API
+//! (`remote`, docs/architecture.md § 12): a newer catalog replaces the session's, and every app
+//! the feed covers is done. The rest, or everything when the feed can't be used, goes to GitHub:
+//! per app, one conditional GET of `/repos/<repo>/releases?per_page=20` with the cached ETag.
 //! A new body is parsed on the worker and cached (raw, with its ETag) before it reaches the
 //! session; a `304` only moves the check time.
 //!
@@ -13,10 +17,12 @@
 //! `ARTCRAFT_TOOLBOX_GITHUB_TOKEN` raises the limit to 5,000 per hour.
 
 use std::collections::BTreeSet;
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 
+use artcraft_toolbox_catalog::Catalog;
 use artcraft_toolbox_feed::{Release, Status};
 use artcraft_toolbox_net::{ACCEPT_GITHUB_JSON, NetError, Request, Response, Transport};
 use artcraft_toolbox_store::{CachedFeed, Store};
@@ -25,7 +31,8 @@ use serde_json::Value;
 
 use crate::commands::CommandSpec;
 use crate::jobs::{JobMsg, JobState, PoolTask, Running, spawn_pool};
-use crate::{EngineError, Feed, JobId, Result, Session, params, setup, time};
+use crate::remote::{self, RemoteTask};
+use crate::{CatalogSource, EngineError, Feed, JobId, Result, Session, params, setup, time};
 
 pub const CHECK: &str = "updates.check";
 /// Releases asked for per app: enough to find the newest stable build behind a run of
@@ -81,6 +88,29 @@ pub struct CheckSummary {
     pub updates_available: Vec<String>,
     /// Set when GitHub's rate limit stopped the check.
     pub rate_limited_until: Option<u64>,
+    /// The publisher's signed catalog: what happened to it in this check.
+    pub catalog: RemoteState,
+    /// The publisher's aggregated feed: what happened to it in this check.
+    pub feed: RemoteState,
+    /// Apps whose releases came from the aggregated feed (the rest were asked from GitHub).
+    pub aggregated: Vec<String>,
+}
+
+/// What a check did with one of the publisher's documents.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "state", rename_all = "camelCase", rename_all_fields = "camelCase")]
+pub enum RemoteState {
+    /// Not used: the setting is off, or the catalog names no publisher.
+    #[default]
+    Off,
+    /// Fetched and in use.
+    Fetched,
+    /// `304`: the cached one is current.
+    Unchanged,
+    /// A newer catalog replaced the session's.
+    Applied { revision: u64 },
+    /// Couldn't be fetched, verified or accepted; the check went on without it.
+    Failed { error: String },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -100,13 +130,48 @@ impl CheckSummary {
     }
 }
 
-/// What a check worker reports about one app.
+/// What a check worker reports about one app, or about the publisher's documents.
 pub(crate) enum CheckMsg {
-    Fetched { app: String, releases: Vec<Release>, etag: Option<String>, at: u64 },
-    Unchanged { app: String, at: u64 },
-    Failed { app: String, error: String },
+    Fetched {
+        app: String,
+        releases: Vec<Release>,
+        etag: Option<String>,
+        at: u64,
+    },
+    Unchanged {
+        app: String,
+        at: u64,
+    },
+    Failed {
+        app: String,
+        error: String,
+    },
     Skipped(String),
-    RateLimited { until: u64 },
+    RateLimited {
+        until: u64,
+    },
+    /// A verified, newer remote catalog.
+    Catalog {
+        catalog: Box<Catalog>,
+        at: u64,
+    },
+    CatalogUnchanged {
+        at: u64,
+    },
+    CatalogFailed {
+        error: String,
+    },
+    /// The aggregated feed covered `apps` (each also gets its own `Fetched`).
+    FeedFetched {
+        at: u64,
+        apps: Vec<String>,
+    },
+    FeedUnchanged {
+        at: u64,
+    },
+    FeedFailed {
+        error: String,
+    },
 }
 
 fn run(s: &mut Session, p: &Value) -> Result<Value> {
@@ -163,14 +228,44 @@ fn start(s: &mut Session, p: &Value) -> Result<JobId> {
     let (tx, rx) = mpsc::channel();
     let cancel = Arc::new(AtomicBool::new(false));
     let (store, clock) = (s.store.clone(), s.clock);
-    // Set once GitHub refuses: the remaining apps are skipped, not requested.
-    let stop = AtomicBool::new(false);
-    spawn_pool("updates-check", tasks, WORKERS, Arc::clone(&cancel), tx, move |task: &Task| {
-        if stop.load(Ordering::Relaxed) {
-            return vec![JobMsg::Check(CheckMsg::Skipped(task.app.clone()))];
+    // The publisher's documents first, when followed and when something is to be checked.
+    let remote_task = match (s.remote_enabled() && !tasks.is_empty(), s.pinned_key.clone()) {
+        (true, Some(key)) => Some(RemoteTask { catalog: s.catalog.clone(), key, have_feed: s.feeds.keys().cloned().collect() }),
+        _ => None,
+    };
+    if remote_task.is_none() {
+        summary.catalog = RemoteState::Off;
+        summary.feed = RemoteState::Off;
+    }
+    let pool_cancel = Arc::clone(&cancel);
+    let spawned = std::thread::Builder::new().name("updates-check".into()).spawn(move || {
+        let mut covered = BTreeSet::new();
+        if let Some(task) = remote_task {
+            let outcome = catch_unwind(AssertUnwindSafe(|| remote::run(&task, transport.as_ref(), store.as_ref(), clock, &pool_cancel)));
+            let (msgs, done) = outcome.unwrap_or_else(|_| {
+                log::error!("the remote catalog phase panicked");
+                (vec![CheckMsg::FeedFailed { error: "internal error (logged)".into() }], BTreeSet::new())
+            });
+            for m in msgs {
+                if tx.send(JobMsg::Check(m)).is_err() {
+                    return;
+                }
+            }
+            covered = done;
         }
-        check_one(task, transport.as_ref(), store.as_ref(), clock, &stop).into_iter().map(JobMsg::Check).collect()
+        let tasks: Vec<Task> = tasks.into_iter().filter(|t| !covered.contains(&t.app)).collect();
+        // Set once GitHub refuses: the remaining apps are skipped, not requested.
+        let stop = AtomicBool::new(false);
+        spawn_pool("updates-check", tasks, WORKERS, pool_cancel, tx, move |task: &Task| {
+            if stop.load(Ordering::Relaxed) {
+                return vec![JobMsg::Check(CheckMsg::Skipped(task.app.clone()))];
+            }
+            check_one(task, transport.as_ref(), store.as_ref(), clock, &stop).into_iter().map(JobMsg::Check).collect()
+        });
     });
+    if let Err(e) = spawned {
+        return Err(EngineError::Job(format!("couldn't start the check: {e}")));
+    }
     let id = s.jobs.next_id();
     s.jobs.push(Running {
         id,
@@ -216,6 +311,37 @@ pub(crate) fn apply(s: &mut Session, job: &mut Running, msg: CheckMsg) {
             s.rate_limited_until = Some(s.rate_limited_until.map_or(until, |t| t.max(until)));
             summary.rate_limited_until = Some(until);
         }
+        CheckMsg::Catalog { catalog, at } => {
+            summary.catalog = match s.set_catalog(*catalog, at) {
+                Ok(revision) => {
+                    // Apps the new catalog adds join this check (the feed may cover them).
+                    for app in s.catalog.apps.iter().chain(&s.catalog.toolbox) {
+                        if !job.items.contains(&app.id) {
+                            job.items.push(app.id.clone());
+                        }
+                    }
+                    RemoteState::Applied { revision }
+                }
+                Err(error) => RemoteState::Failed { error },
+            };
+        }
+        CheckMsg::CatalogUnchanged { at } => {
+            if let CatalogSource::Remote { .. } = s.catalog_source {
+                s.catalog_source = CatalogSource::Remote { fetched_at: at };
+            }
+            summary.catalog = RemoteState::Unchanged;
+        }
+        CheckMsg::CatalogFailed { error } => summary.catalog = RemoteState::Failed { error },
+        CheckMsg::FeedFetched { at, apps } => {
+            s.set_feed_fetched_at(at);
+            summary.feed = RemoteState::Fetched;
+            summary.aggregated = apps;
+        }
+        CheckMsg::FeedUnchanged { at } => {
+            s.set_feed_fetched_at(at);
+            summary.feed = RemoteState::Unchanged;
+        }
+        CheckMsg::FeedFailed { error } => summary.feed = RemoteState::Failed { error },
     }
 }
 
@@ -362,6 +488,8 @@ mod tests {
         let (mut s, _) = Session::open(Catalog::builtin().unwrap(), store, Some(fake));
         s.set_clock(t0);
         s.set_host(Some(Target::new(Os::Linux, Arch::X86_64)));
+        // These tests are about the GitHub API path; `tests/remote_catalog.rs` covers the feed.
+        s.execute("settings.set", json!({"remoteCatalog": false})).unwrap();
         s
     }
 
@@ -373,9 +501,10 @@ mod tests {
         let mut s = session(Arc::clone(&fake), Some(store.clone()));
         let r = s.execute(CHECK, json!({})).unwrap();
         let summary: CheckSummary = serde_json::from_value(r.clone()).unwrap();
-        assert_eq!(summary.fetched.len(), 13, "12 apps and the toolbox itself: {summary:?}");
+        assert_eq!(summary.fetched.len(), 14, "13 apps and the toolbox itself: {summary:?}");
         assert!(summary.failed.is_empty() && summary.rate_limited_until.is_none());
-        assert_eq!(fake.requests().len(), 13);
+        assert_eq!((summary.catalog.clone(), summary.feed.clone()), (RemoteState::Off, RemoteState::Off));
+        assert_eq!(fake.requests().len(), 14);
         assert!(fake.requests().iter().any(|(url, _)| url.contains("/artcraft-toolbox/releases")), "the toolbox's own feed");
         assert!(fake.requests().iter().all(|(url, etag)| url.ends_with("/releases?per_page=20") && etag.is_none()));
         assert_eq!(s.app_status("photocraft").unwrap().status, Status::NotInstalled { latest: artcraft_toolbox_release::Version::new(0, 5, 0) });
@@ -394,7 +523,7 @@ mod tests {
         s.execute(CHECK, json!({})).unwrap();
         // Seconds later: everything is fresh, nothing is requested.
         let r: CheckSummary = serde_json::from_value(s.execute(CHECK, json!({})).unwrap()).unwrap();
-        assert_eq!((r.fresh.len(), fake.requests().len()), (13, 13));
+        assert_eq!((r.fresh.len(), fake.requests().len()), (14, 14));
         // An hour later: requested again, with the ETag.
         s.set_clock(t1);
         let fake2 = Fake::new(vec![("photocraft", Ok(Response::NotModified { rate: RateLimit::default() }))]);
@@ -423,7 +552,7 @@ mod tests {
         assert_eq!(summary.rate_limited_until, Some(t0() + 1200));
         assert!(!summary.skipped.is_empty(), "apps after the refusal are not requested: {summary:?}");
         assert!(fake.requests().len() <= WORKERS, "{} requests", fake.requests().len());
-        assert_eq!(summary.done(), 13);
+        assert_eq!(summary.done(), 14);
         let notice = s.check_notice(&r).unwrap();
         assert!(notice.contains("request limit") && notice.contains("in 20 min") && notice.contains("ARTCRAFT_TOOLBOX_GITHUB_TOKEN"), "{notice}");
         let err = s.execute(CHECK, json!({})).unwrap_err().to_string();
@@ -468,7 +597,7 @@ mod tests {
         let mut s = session(fake, None);
         let Started::Job(id) = s.start(CHECK, json!({})).unwrap() else { panic!("a job") };
         assert!(s.has_jobs());
-        assert_eq!(s.jobs()[0].total, 13);
+        assert_eq!(s.jobs()[0].total, 14);
         assert!(s.execute(CHECK, json!({})).unwrap_err().to_string().contains("already running"));
         let mut events = Vec::new();
         for _ in 0..500 {
@@ -495,6 +624,7 @@ mod tests {
             }
         }
         let (mut s, _) = Session::open(Catalog::builtin().unwrap(), None, Some(Arc::new(Slow)));
+        s.execute("settings.set", json!({"remoteCatalog": false})).unwrap();
         let Started::Job(id) = s.start(CHECK, json!({})).unwrap() else { panic!("a job") };
         assert!(s.cancel_job(id));
         assert!(!s.has_jobs() && !s.cancel_job(id));

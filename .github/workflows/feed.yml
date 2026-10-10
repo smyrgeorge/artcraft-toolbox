@@ -1,0 +1,78 @@
+# The publisher's signed documents (docs/architecture.md § 12): the remote catalog
+# (artcraft-catalog.json) and the suite's aggregated release feed (artcraft-feed.json), rebuilt
+# every hour from the live releases of every catalog app and published on the `feed` branch,
+# which raw.githubusercontent.com serves to every toolbox (one request per check instead of
+# one GitHub API request per app). Needs the ARTCRAFT_TOOLBOX_SIGNING_KEY secret
+# (`cargo xtask keygen`, docs/releasing.md › The feed); without it the job says so and publishes
+# nothing, so a fork never serves an unsigned feed.
+name: Feed
+
+on:
+  schedule:
+    - cron: "23 * * * *"
+  push:
+    branches: [main]
+    paths:
+      - "crates/catalog/catalog.toml"
+      - "xtask/src/feed.rs"
+      - ".github/workflows/feed.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: feed
+  cancel-in-progress: false
+
+jobs:
+  feed:
+    name: build and publish the signed feed
+    runs-on: ubuntu-latest
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: feed
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Fetch the previous feed (its digests are reused)
+        run: |
+          mkdir -p previous
+          curl -sSfL -o previous/artcraft-feed.json \
+            "https://raw.githubusercontent.com/${{ github.repository }}/feed/artcraft-feed.json" \
+            || echo "no previous feed: every digest is computed"
+      - name: Build and sign the catalog and the feed
+        env:
+          ARTCRAFT_TOOLBOX_SIGNING_KEY: ${{ secrets.ARTCRAFT_TOOLBOX_SIGNING_KEY }}
+          # Authenticated GitHub API requests (5,000/hour instead of 60 per runner IP).
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -z "$ARTCRAFT_TOOLBOX_SIGNING_KEY" ]; then
+            echo "::warning::ARTCRAFT_TOOLBOX_SIGNING_KEY is not set: nothing is published (docs/releasing.md › The feed)"
+            exit 0
+          fi
+          cargo xtask feed --out dist/feed --previous previous
+      - name: Publish to the feed branch
+        run: |
+          [ -f dist/feed/artcraft-feed.json ] || { echo "nothing to publish"; exit 0; }
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git worktree add --detach feed-branch
+          cd feed-branch
+          if git ls-remote --exit-code --heads origin feed >/dev/null; then
+            git fetch -q origin feed
+            git checkout -q -B feed origin/feed
+          else
+            git checkout -q --orphan feed
+            git rm -rfq . || true
+          fi
+          cp ../dist/feed/artcraft-feed.json ../dist/feed/artcraft-catalog.json .
+          printf '%s\n' "# ArtCraft Toolbox feed" "" \
+            "Machine-written by the Feed workflow: the signed remote catalog and aggregated release feed" \
+            "every ArtCraft Toolbox fetches (docs/architecture.md § 12 on the main branch). Do not edit." > README.md
+          git add -A
+          git commit -q -m "feed: $(date -u +%Y-%m-%dT%H:%M:%SZ)" || { echo "unchanged"; exit 0; }
+          git push -q origin HEAD:feed

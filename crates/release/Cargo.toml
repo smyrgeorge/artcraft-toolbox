@@ -10,7 +10,8 @@ workspace = true
 
 [dependencies]
 serde = { workspace = true }
-thiserror = { workspace = true }
-
-[dev-dependencies]
 serde_json = { workspace = true }
+thiserror = { workspace = true }
+# Signed documents (the remote catalog, the aggregated feed): Ed25519, pure Rust.
+ed25519-dalek = { version = "2", default-features = false, features = ["std"] }
+base64 = "0.22"

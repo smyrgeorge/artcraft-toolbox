@@ -73,7 +73,7 @@ async fn the_bridge_forwards_every_tool_over_one_authenticated_connection() {
     let r = json_of(&call(&client, "command_run", json!({"id": "settings.get"})).await);
     assert_eq!(r["channel"], "prerelease");
     let r = json_of(&call(&client, "apps_status", json!({})).await);
-    assert_eq!(r["apps"].as_array().map(Vec::len), Some(12));
+    assert_eq!(r["apps"].as_array().map(Vec::len), Some(13));
     assert_eq!(r["toolbox"]["id"], "artcraft-toolbox");
     assert_eq!(json_of(&call(&client, "jobs_list", json!({})).await)["jobs"], json!([]));
     assert_eq!(json_of(&call(&client, "jobs_cancel", json!({})).await)["cancelled"], 0);
