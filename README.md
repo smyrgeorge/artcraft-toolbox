@@ -13,13 +13,16 @@
 </p>
 
 > [!NOTE]
-> **Pre-alpha.** Milestones M0 to M5 and M8 are done: the toolbox lives in the menu bar or tray,
-> checks GitHub for every app's releases in the background, and installs, updates (on request or
-> automatically), rolls back, opens and uninstalls any craft, checking each version's checksum and
-> platform signature first. It opens as a popover from the menu bar or tray, in 15 languages and a
-> dark or light theme. It is packaged the way the crafts are (a signed DMG, MSI and portable zip,
-> AppImage, deb and rpm; [docs/releasing.md](docs/releasing.md)) and updates itself from its own
-> releases; the first release hasn't been published yet. See [the roadmap](docs/roadmap.md).
+> **Pre-alpha.** Every milestone (M0 to M8) is done: the toolbox lives in the menu bar or tray,
+> checks every app's releases in the background (one signed, aggregated feed; GitHub's API only
+> as the fallback), and installs, updates (on request or automatically), rolls back, opens and
+> uninstalls any craft, checking each version's checksum and platform signature first. It opens
+> as a popover from the menu bar or tray, in 15 languages and a dark or light theme. Agents drive
+> it through a control channel and an MCP server over the same commands. It is packaged the way
+> the crafts are (a signed DMG, MSI and portable zip, AppImage, deb and rpm;
+> [docs/releasing.md](docs/releasing.md)), updates itself from its own releases and its catalog
+> from a signed remote one; neither the first release nor the signed feed has been published
+> yet. See [the roadmap](docs/roadmap.md).
 
 ## Screenshots
 
@@ -65,9 +68,12 @@ folder (PhotoCraft installed by the toolbox); see [docs/development.md](docs/dev
 | **GridCraft** | Spreadsheets | [storytold/gridcraft](https://github.com/storytold/gridcraft) |
 | **SoundCraft** | Audio recording, editing and mixing | [storytold/soundcraft](https://github.com/storytold/soundcraft) |
 | **WordCraft** | Word processing | [storytold/wordcraft](https://github.com/storytold/wordcraft) |
+| **ArtCraft** | The AI creative studio (publishes differently: matched by name patterns, macOS for now) | [storytold/artcraft](https://github.com/storytold/artcraft) |
 
 The list is data ([`crates/catalog/catalog.toml`](crates/catalog/catalog.toml)): adding a craft
-that follows the [release contract](docs/release-contract.md) needs no code.
+that follows the [release contract](docs/release-contract.md) needs no code, and because the
+catalog itself reaches installed toolboxes as a signed document, not even a toolbox release. An
+app outside the contract gets name patterns for its builds and digests from the signed feed.
 
 ## How it works
 
@@ -76,12 +82,12 @@ assets named `<app>-<version>-<os>-<arch>.<ext>`, and a `SHA256SUMS.txt`. The to
 feeds, picks the right per-user package for your machine (DMG on macOS, the portable zip on
 Windows, the AppImage on Linux), verifies it, installs it side by side with the previous version
 so you can roll back, and keeps it up to date. `cargo xtask contract` checks every craft's latest
-release against that contract; on 2026-10-09 all twelve pass. ArtCraft itself, which publishes
-differently, is matched by name patterns and verified with digests from a signed feed.
+release against that contract; on 2026-10-10 all twelve pass, and ArtCraft through its patterns.
 
 Checks are cheap: a signed, aggregated feed of every app's releases is fetched with one request
-(no GitHub API quota), and the same signed channel carries the catalog, so new crafts appear
-without updating the toolbox (`docs/architecture.md` § 12).
+(no GitHub API quota; the API, one request per app, is the fallback until the feed is published),
+and the same signed channel carries the catalog, so new crafts appear without updating the
+toolbox ([docs/architecture.md](docs/architecture.md) § 12).
 
 ## Get started
 
@@ -102,6 +108,7 @@ cargo run -p artcraft-toolbox-cli -- install photocraft   # download, verify, in
 cargo run -p artcraft-toolbox-cli -- update --all         # update everything, keeping the old versions
 cargo run -p artcraft-toolbox-cli -- status \
   --feed photocraft=crates/feed/tests/fixtures/photocraft-releases.json
+cargo run -p artcraft-toolbox-cli -- mcp           # an MCP server over every command, for agents
 cargo xtask ci                                     # fmt, clippy, tests, layering
 ```
 
@@ -125,6 +132,7 @@ the window's state (`docs/mcp.md`, `docs/control-protocol.md`).
 | [docs/architecture.md](docs/architecture.md) | Crates, layers, data flow, install layout |
 | [docs/release-contract.md](docs/release-contract.md) | What the toolbox relies on from every craft |
 | [docs/development.md](docs/development.md) | Build, test, CLI, UI snapshots |
+| [docs/releasing.md](docs/releasing.md) | Packaging and signing, the self-update, the signed feed |
 | [docs/control-protocol.md](docs/control-protocol.md) | Driving the app and the headless server in JSON lines |
 | [docs/mcp.md](docs/mcp.md) | The MCP server: tools, resources, limits |
 | [docs/roadmap.md](docs/roadmap.md) | Milestones and current focus |
