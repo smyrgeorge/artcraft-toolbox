@@ -580,7 +580,8 @@ mod tests {
         let out = s.execute(UPDATE, json!({})).unwrap();
         assert_eq!((out["version"].as_str(), out["staged"].as_bool()), (Some("0.2.0"), Some(true)));
         let staged = root.join("data/self-update/artcraft-toolbox/0.2.0/artcraft-toolbox.AppImage");
-        assert_eq!(out["path"], staged.to_str().unwrap());
+        // Compared as paths: Windows writes the staged path with backslashes.
+        assert_eq!(PathBuf::from(out["path"].as_str().unwrap()), staged);
         assert_eq!(std::fs::read(&staged).unwrap(), new);
         assert_eq!(s.staged_update().map(|u| u.version.clone()), Some(Version::new(0, 2, 0)));
         assert_eq!(s.self_status().unwrap().staged, Some(Version::new(0, 2, 0)));

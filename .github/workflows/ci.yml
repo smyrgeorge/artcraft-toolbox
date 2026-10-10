@@ -86,7 +86,9 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Test
-        run: cargo test --workspace --locked
+        # Every crate's result in one run: a failure on one platform shouldn't hide the next
+        # crate's (the Windows run stopped at the engine for a week of changes).
+        run: cargo test --workspace --locked --no-fail-fast
 
       - name: Clippy
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
