@@ -226,9 +226,10 @@ the job.
 **The signer is part of the contract with the toolbox's users:** once a signed version is
 installed, the toolbox refuses any later version signed by anyone else. Changing the
 certificate's team (or shipping an unsigned release after signed ones) means every user has to
-reinstall by hand. No signing secrets are configured yet (2026-10-10): the first releases are
-ad-hoc signed on macOS and unsigned on Windows, which the toolbox shows as "No platform
-signature" and accepts as the reference for later ones.
+reinstall by hand. No signing secrets are configured yet (2026-10-10): v0.1.0 and the next
+releases are ad-hoc signed on macOS and unsigned on Windows, which the toolbox shows as "No
+platform signature" and accepts as the reference for later ones. The first signed release will
+therefore not replace an installed unsigned one: say so in its notes.
 
 ## The feed
 

@@ -16,10 +16,10 @@ Status legend: ✅ done · 🟡 in progress · ⬜ not started. Updated 2026-10-
 
 ## Current focus: every milestone has landed; next is shipping
 
-Open work, in order: cut the first toolbox release and configure the signing secrets
-(docs/releasing.md); then the dev log's "still open" bullets (`toolbox.rollback`, Windows and
-Linux runs on real machines) and the open questions below. The signed feed is live since
-2026-10-10 (the `feed` branch, refreshed hourly).
+v0.1.0 was published on 2026-10-10 (unsigned: no certificates yet) and the signed feed is live
+(the `feed` branch, refreshed hourly). Open work, in order: configure the signing secrets
+(docs/releasing.md) and cut the first signed release; then the dev log's "still open" bullets
+(`toolbox.rollback`, Windows and Linux runs on real machines) and the open questions below.
 
 Agents: pick the first unchecked item of the current milestone. Tick it in the same change that
 lands it.
@@ -123,11 +123,11 @@ shows (tests list what's missing). The CLI, command ids and logs stay English.
 Verified on macOS: `packaging/macos/package.sh --arch aarch64` builds an ad-hoc signed
 `ArtCraft Toolbox.app`, its DMG (with the Finder window layout) and the CLI zip, and
 `verify.sh` accepts them. The self-update is exercised end to end in tests with a fake GitHub
-and an AppImage (engine, UI and CLI); a real published release doesn't exist yet, so
-`cargo xtask contract --app artcraft-toolbox` fails with "no stable release" until the first
-one is cut. No signing secrets are configured. Still open: a `toolbox.rollback` to the kept
-previous version; the Windows rename-and-copy swap and the Linux AppImage exec have only run in
-tests.
+and an AppImage (engine, UI and CLI). v0.1.0 was built by the pipeline and published on
+2026-10-10 (every artifact, `SHA256SUMS.txt`, `cargo xtask contract --app artcraft-toolbox`
+passes against it); no signing secrets are configured, so it is ad-hoc signed on macOS and
+unsigned on Windows. Still open: a `toolbox.rollback` to the kept previous version; the Windows
+rename-and-copy swap and the Linux AppImage exec have only run in tests.
 
 ### M6 Automation ✅ (2026-10-10)
 

@@ -13,16 +13,8 @@
 </p>
 
 > [!NOTE]
-> **Pre-alpha.** Every milestone (M0 to M8) is done: the toolbox lives in the menu bar or tray,
-> checks every app's releases in the background (one signed, aggregated feed; GitHub's API only
-> as the fallback), and installs, updates (on request or automatically), rolls back, opens and
-> uninstalls any craft, checking each version's checksum and platform signature first. It opens
-> as a popover from the menu bar or tray, in 15 languages and a dark or light theme. Agents drive
-> it through a control channel and an MCP server over the same commands. It is packaged the way
-> the crafts are (a signed DMG, MSI and portable zip, AppImage, deb and rpm;
-> [docs/releasing.md](docs/releasing.md)), updates itself from its own releases and its catalog
-> from a signed remote one (the feed is live; the first release hasn't been published yet). See
-> [the roadmap](docs/roadmap.md).
+> **Under development.** The toolbox works end to end and 0.1.0 is out, but releases aren't
+> signed yet and things still change; see [the roadmap](docs/roadmap.md).
 
 ## Screenshots
 
@@ -91,12 +83,14 @@ channel carries the catalog, so new crafts appear without updating the toolbox
 
 ## Get started
 
-Once a release is published, download the package for your computer from
+Download the package for your computer from
 [Releases](https://github.com/smyrgeorge/artcraft-toolbox/releases): the DMG on macOS (drag
 ArtCraft Toolbox to Applications), the portable zip or the MSI on Windows, the AppImage, deb or
 rpm on Linux. Every download has its SHA-256 in `SHA256SUMS.txt`. The DMG, the portable zip and
 the AppImage update themselves from then on (the toolbox checks its own releases together with
-the apps'); an MSI, deb or rpm install is updated the way it was installed.
+the apps'); an MSI, deb or rpm install is updated the way it was installed. The releases are
+not signed yet: on macOS open the app with right-click › Open the first time, and expect a
+SmartScreen warning on Windows.
 
 From source:
 
