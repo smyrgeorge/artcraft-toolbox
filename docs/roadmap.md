@@ -17,10 +17,9 @@ Status legend: ✅ done · 🟡 in progress · ⬜ not started. Updated 2026-10-
 ## Current focus: every milestone has landed; next is shipping
 
 Open work, in order: cut the first toolbox release and configure the signing secrets
-(docs/releasing.md); set the `ARTCRAFT_TOOLBOX_SIGNING_KEY` secret and run the Feed workflow
-once, so the aggregated feed and ArtCraft's digests go live; then the dev log's "still open"
-bullets (`toolbox.rollback`, Windows and Linux runs on real machines) and the open questions
-below.
+(docs/releasing.md); then the dev log's "still open" bullets (`toolbox.rollback`, Windows and
+Linux runs on real machines) and the open questions below. The signed feed is live since
+2026-10-10 (the `feed` branch, refreshed hourly).
 
 Agents: pick the first unchecked item of the current milestone. Tick it in the same change that
 lands it.
@@ -154,10 +153,12 @@ app's control server only serves while the process runs (a launcher that wants i
 Tested with a fake publisher and a test key (`engine/tests/remote_catalog.rs`): two requests per
 check instead of fourteen, a newer catalog adding apps mid-check and at the next start, tampered,
 foreign, older and missing documents falling back to the API with the built-in catalog kept, and
-an app outside the contract installing from the feed's digest and refused without one. Not yet
-done: the real key's secret isn't configured and the `feed` branch doesn't exist, so every
-toolbox still falls back to the API (and ArtCraft shows as available but can't be installed)
-until the Feed workflow has run once; MSI installs (ArtCraft on Windows) stay out of scope.
+an app outside the contract installing from the feed's digest and refused without one. Live
+since 2026-10-10: the secret is set and the Feed workflow published the `feed` branch (14 feeds,
+ArtCraft's five newest DMGs hashed); a real check applies the remote catalog, fetches everything
+from the aggregated feed and gets 304s on the next one, and the published digest of ArtCraft
+0.41.0 matches an independently downloaded DMG. MSI installs (ArtCraft on Windows) stay out of
+scope.
 
 ## Open questions
 

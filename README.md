@@ -21,8 +21,8 @@
 > it through a control channel and an MCP server over the same commands. It is packaged the way
 > the crafts are (a signed DMG, MSI and portable zip, AppImage, deb and rpm;
 > [docs/releasing.md](docs/releasing.md)), updates itself from its own releases and its catalog
-> from a signed remote one; neither the first release nor the signed feed has been published
-> yet. See [the roadmap](docs/roadmap.md).
+> from a signed remote one (the feed is live; the first release hasn't been published yet). See
+> [the roadmap](docs/roadmap.md).
 
 ## Screenshots
 
@@ -85,9 +85,9 @@ so you can roll back, and keeps it up to date. `cargo xtask contract` checks eve
 release against that contract; on 2026-10-10 all twelve pass, and ArtCraft through its patterns.
 
 Checks are cheap: a signed, aggregated feed of every app's releases is fetched with one request
-(no GitHub API quota; the API, one request per app, is the fallback until the feed is published),
-and the same signed channel carries the catalog, so new crafts appear without updating the
-toolbox ([docs/architecture.md](docs/architecture.md) § 12).
+(no GitHub API quota; the API, one request per app, is only the fallback), and the same signed
+channel carries the catalog, so new crafts appear without updating the toolbox
+([docs/architecture.md](docs/architecture.md) § 12).
 
 ## Get started
 
