@@ -492,3 +492,139 @@ fn self_update_stages_the_new_toolbox_and_apply_swaps_it_in() {
     assert_eq!(run_cli(&["self-update", "--nope"]).code, 2);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+// ----- M6: the control protocol and the MCP server -----
+
+const CONTROL_TOKEN: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
+/// A writer several threads share: the serving thread's stderr, read by the test.
+#[derive(Clone, Default)]
+struct Shared(Arc<Mutex<Vec<u8>>>);
+
+impl std::io::Write for Shared {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.0.lock().unwrap().extend_from_slice(buf);
+        Ok(buf.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+impl Shared {
+    fn text(&self) -> String {
+        String::from_utf8_lossy(&self.0.lock().unwrap()).into_owned()
+    }
+}
+
+#[test]
+fn serve_and_mcp_usage_errors_exit_2_and_touch_nothing() {
+    let dir = temp();
+    for args in [
+        &["serve", "--port", "nope"][..],
+        &["serve", "--port"],
+        &["serve", "--port", "1", "--port", "2"],
+        &["serve", "--control-token", CONTROL_TOKEN],
+        &["serve", "--port", "1", "--control-token", CONTROL_TOKEN, "--control-token-file", "/x"],
+        &["serve", "--bridge", "127.0.0.1:1"],
+        &["mcp", "--bridge"],
+        &["mcp", "--control-token", CONTROL_TOKEN],
+        &["mcp", "--port", "1"],
+        &["mcp", "--nope"],
+    ] {
+        let r = cli_in(&dir, &fake(false), args);
+        assert_eq!(r.code, 2, "{args:?}: {}", r.err);
+        assert!(r.err.starts_with("error: "), "{args:?}: {}", r.err);
+        assert!(!dir.exists(), "{args:?} touched the data folder");
+    }
+    assert_eq!(cli_in(&dir, &fake(false), &["serve", "--help"]).code, 0);
+    assert_eq!(cli_in(&dir, &fake(false), &["mcp", "-h"]).code, 0);
+    assert!(!dir.exists());
+    // A bridge to anything but loopback, or without a valid token, is refused before any
+    // session is opened: nothing to bridge to, nothing to write.
+    let r = cli_in(&dir, &fake(false), &["mcp", "--bridge", "10.0.0.1:7878", "--control-token", CONTROL_TOKEN]);
+    assert_eq!(r.code, 1, "{}", r.err);
+    assert!(r.err.contains("loopback"), "{}", r.err);
+    let r = cli_in(&dir, &fake(false), &["mcp", "--bridge", "127.0.0.1:7878", "--control-token", "short"]);
+    assert_eq!(r.code, 1, "{}", r.err);
+    assert!(r.err.contains("64"), "{}", r.err);
+    let r = cli_in(&dir, &fake(false), &["mcp", "--bridge", "127.0.0.1:7878", "--control-token-file", dir.join("missing").to_str().unwrap()]);
+    assert_eq!(r.code, 1, "{}", r.err);
+    assert!(!dir.exists(), "a bridge opened the data folder");
+}
+
+#[test]
+fn serve_answers_authenticated_control_requests_on_loopback() {
+    use std::io::{BufRead, BufReader, Write};
+    use std::net::TcpStream;
+    use std::time::{Duration, Instant};
+    let dir = temp();
+    let err = Shared::default();
+    let (dir2, mut err2, fake) = (dir.clone(), err.clone(), fake(false));
+    // The server keeps the thread for the rest of the test process.
+    std::thread::spawn(move || {
+        let mut out = Vec::new();
+        run(&["serve", "--port", "0", "--control-token", CONTROL_TOKEN], &mut out, &mut err2, move || Env {
+            data_dir: Ok(dir2),
+            transport: Some(fake),
+            layout: None,
+            host: Target::from_consts("linux", "x86_64"),
+            self_install: None,
+        });
+    });
+    let deadline = Instant::now() + Duration::from_secs(20);
+    let addr = loop {
+        if let Some(line) = err.text().lines().find(|l| l.contains("serving on ")) {
+            break line.rsplit(' ').next().unwrap().to_string();
+        }
+        assert!(Instant::now() < deadline, "the server did not report its address: {}", err.text());
+        std::thread::sleep(Duration::from_millis(10));
+    };
+    assert!(!err.text().contains(CONTROL_TOKEN), "a supplied token is never echoed: {}", err.text());
+    let send = |stream: &mut TcpStream, reader: &mut BufReader<TcpStream>, v: serde_json::Value| -> serde_json::Value {
+        writeln!(stream, "{v}").unwrap();
+        let mut line = String::new();
+        reader.read_line(&mut line).unwrap();
+        serde_json::from_str(&line).unwrap_or_else(|e| panic!("{e}: {line:?}"))
+    };
+    // Nothing before the token.
+    let mut stream = TcpStream::connect(&addr).unwrap();
+    stream.set_read_timeout(Some(Duration::from_secs(10))).unwrap();
+    let mut reader = BufReader::new(stream.try_clone().unwrap());
+    let v = send(&mut stream, &mut reader, serde_json::json!({"id": 1, "method": "engine.execute", "params": {"command": "catalog.list"}}));
+    assert_eq!(v["error"], "authentication required");
+    // That connection is closed; a wrong token on a fresh one is refused the same way.
+    let mut stream = TcpStream::connect(&addr).unwrap();
+    stream.set_read_timeout(Some(Duration::from_secs(10))).unwrap();
+    let mut reader = BufReader::new(stream.try_clone().unwrap());
+    let v = send(&mut stream, &mut reader, serde_json::json!({"id": 1, "method": "auth", "params": {"token": "0".repeat(64)}}));
+    assert_eq!(v["ok"], false);
+    assert_eq!(v["error"], "authentication required");
+    // The right token, then the session answers.
+    let mut stream = TcpStream::connect(&addr).unwrap();
+    stream.set_read_timeout(Some(Duration::from_secs(10))).unwrap();
+    let mut reader = BufReader::new(stream.try_clone().unwrap());
+    let v = send(&mut stream, &mut reader, serde_json::json!({"id": "a", "method": "auth", "params": {"token": CONTROL_TOKEN}}));
+    assert_eq!(v["result"]["authenticated"], true);
+    let v = send(&mut stream, &mut reader, serde_json::json!({"id": 2, "method": "engine.execute", "params": {"command": "catalog.list"}}));
+    assert_eq!((v["id"].as_u64(), v["ok"].as_bool()), (Some(2), Some(true)), "{v}");
+    assert_eq!(v["result"].as_array().map(Vec::len), Some(12));
+    let v = send(
+        &mut stream,
+        &mut reader,
+        serde_json::json!({"id": 3, "method": "engine.execute", "params": {"command": "updates.check", "params": {"app": "photocraft"}}}),
+    );
+    assert_eq!(v["ok"], true, "{v}");
+    assert_eq!(v["result"]["fetched"], serde_json::json!(["photocraft"]), "{v}");
+    let v = send(
+        &mut stream,
+        &mut reader,
+        serde_json::json!({"id": 4, "method": "engine.execute", "params": {"command": "app.status", "params": {"app": "photocraft"}}}),
+    );
+    assert_eq!(v["result"]["status"]["latest"], "0.5.0", "{v}");
+    let v = send(&mut stream, &mut reader, serde_json::json!({"id": 5, "method": "methods"}));
+    assert!(v["result"].as_array().unwrap().iter().any(|m| m == "batch"), "{v}");
+    let v = send(&mut stream, &mut reader, serde_json::json!({"id": 6, "method": "nope"}));
+    assert_eq!(v["ok"], false);
+    let _ = std::fs::remove_dir_all(&dir);
+}

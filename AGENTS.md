@@ -16,6 +16,7 @@ ArtCraft Toolbox installs, updates, rolls back and launches the **Crafting Apps*
 | `docs/roadmap.md` | Milestones M0–M8 and the **current focus** |
 | `docs/ui-design.md` | Layout, tokens (dark and light), widgets, accessibility, and the planned behaviour |
 | `docs/localization.md` | The 15 UI languages, `tl!`, catalogs, adding a string or a language |
+| `docs/control-protocol.md`, `docs/mcp.md` | How agents drive the app and the headless engine: JSON lines behind a token, and the MCP server |
 | `SECURITY.md` | Threat model: this app downloads executables and runs them |
 
 ## 2. Workspace map
@@ -32,11 +33,11 @@ crates/
   jobs         L4  planned    background work outside the engine (self-update)
   engine       L5             Session + command registry (every action is a command) + background jobs (checks, icons, installs)
   ui-egui      L6             egui shell (thin: all actions go through the engine); i18n catalogs, wording, themes
-  automation   L6  planned    control channel + MCP server over the command registry
+  automation   L6             control protocol (tokens, limits, headless server, bridge client) + MCP server (rmcp) over the command registry
   testkit          planned    shared test helpers (fake feeds, temp install roots); dev-dependency only
 apps/
-  artcraft-toolbox            desktop app (eframe/wgpu): window, menu-bar/tray icon, OS notifications, logger
-  artcraft-toolbox-cli        headless CLI: list / status / check / install / update / rollback / versions / adopt / uninstall / open / commands / run
+  artcraft-toolbox            desktop app (eframe/wgpu): window, menu-bar/tray icon, OS notifications, logger; `--control <port>` serves the window to agents
+  artcraft-toolbox-cli        headless CLI: list / status / check / install / update / rollback / versions / adopt / uninstall / open / self-update / commands / run / serve / mcp
 xtask/                        cargo xtask layers | ci | contract [--dir] | version | ico
 packaging/                    the release pipeline (PhotoCraft's, ported): icons.sh, env.sh, macos/, windows/, linux/
 ```
@@ -70,7 +71,7 @@ The toolbox downloads executables and runs them; a mistake here is a supply-chai
 
 ### Numbered rules
 
-1. **Everything is a command.** New user-visible behaviour = a command in the engine (`crates/engine/src/<area>_cmds.rs` with a `specs()` function, registered in `commands.rs`): id `<area>.<verb>` (`app.install`), label, params doc, `enabled`, `run`, plus tests. The UI, the CLI and (later) the control channel and MCP all dispatch commands by id. Only pure view state (open tab, search text) lives in `ui-egui/src/state.rs`.
+1. **Everything is a command.** New user-visible behaviour = a command in the engine (`crates/engine/src/<area>_cmds.rs` with a `specs()` function, registered in `commands.rs`): id `<area>.<verb>` (`app.install`), label, params doc, `enabled`, `run`, plus tests. The UI, the CLI, the control channel and MCP all dispatch commands by id, so a new command is reachable by agents with no further work (its id and params doc show up in `engine.commands` and MCP's `command_list`). Only pure view state (open tab, search text) lives in `ui-egui/src/state.rs`; a new field there must be readable and settable through `ui.get`/`ui.set` (`ui-egui/src/control.rs`, `UI_SET_FIELDS`, with validation and a test in `tests/m6.rs`).
 2. **The catalog is data.** Apps, their repos and former names live in `crates/catalog/catalog.toml`. Never hard-code a craft's name, repo or asset naming in code, and never special-case one craft in logic. When a craft deviates, generalise the contract (like `former_slugs`), document it and add a fixture.
 3. **The release contract is our API.** `docs/release-contract.md` is everything we rely on from the crafts; `cargo xtask contract` checks it against the live releases. When a craft changes its release pipeline, update the doc, the parser and a fixture in one change.
 4. **The core is pure.** L0–L2 take bytes and return data: no network, no filesystem, no clock (pass `now` in), no environment. That is what lets them be tested with real captured responses (`crates/feed/tests/fixtures/`). Above L2, network goes through a `net::Transport` and time through the session's clock (`Session::set_clock`), so tests fake both.

@@ -20,6 +20,7 @@ pub mod actions;
 pub mod app_list;
 pub mod cjk;
 pub mod cjk_fonts;
+pub mod control;
 pub mod details;
 pub mod i18n;
 pub mod icons;
@@ -42,6 +43,8 @@ use serde_json::{Value, json};
 
 use state::{Tab, UiState};
 use theme::Tokens;
+
+pub use control::{ControlRequest, ControlResponse};
 
 /// How often the app wakes up when nothing happens, to start due checks (also while hidden).
 pub const IDLE_TICK: Duration = Duration::from_secs(60);
@@ -86,6 +89,11 @@ pub struct ToolboxApp {
     applied_text_size: Option<u32>,
     /// The search field was just opened: give it the keyboard focus.
     focus_search: bool,
+    /// Control requests from the desktop app's control server (`control`), answered between
+    /// frames.
+    control_rx: Option<std::sync::mpsc::Receiver<ControlRequest>>,
+    /// Control requests waiting for a background job they started.
+    control_waiters: Vec<(JobId, std::sync::mpsc::Sender<ControlResponse>)>,
 }
 
 impl ToolboxApp {
@@ -107,6 +115,8 @@ impl ToolboxApp {
             auto_self_update: None,
             applied_text_size: None,
             focus_search: false,
+            control_rx: None,
+            control_waiters: Vec::new(),
         }
     }
 
@@ -236,6 +246,7 @@ impl ToolboxApp {
     /// Apply background job progress; react to the jobs that ended.
     fn poll(&mut self, ctx: &egui::Context) {
         for event in self.session.poll_jobs() {
+            self.reply_job_waiters(&event);
             if self.auto_updates.remove(&event.id) {
                 match &event.result {
                     Ok(v) => self.announce_updated(v["app"].as_str().unwrap_or_default(), v["version"].as_str().unwrap_or_default()),
@@ -297,6 +308,7 @@ impl ToolboxApp {
     /// Everything that isn't drawing: also runs while the window is hidden.
     pub fn tick(&mut self, ctx: &egui::Context) {
         self.sync_appearance(ctx);
+        self.drain_control(ctx);
         self.poll(ctx);
         self.background();
         self.close_to_tray(ctx);

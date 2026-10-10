@@ -1,0 +1,26 @@
+[package]
+name = "artcraft-toolbox-automation"
+description = "ArtCraft Toolbox for agents: the JSON-lines control protocol (headless and bridged) and an MCP server (rmcp) over the command registry"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+artcraft-toolbox-engine = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+log = { workspace = true }
+# The MCP server: the official Rust SDK, as PhotoCraft uses it (server + macros, stdio transport).
+rmcp = { version = "3.5", default-features = false, features = ["server", "macros", "transport-io"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "io-std", "sync", "net", "io-util", "time"] }
+# Tool parameter schemas.
+schemars = "1"
+# Control tokens from the OS random source.
+getrandom = "0.3"
+
+[dev-dependencies]
+rmcp = { version = "3.5", default-features = false, features = ["client", "server", "macros", "transport-io"] }

@@ -20,6 +20,7 @@ artcraft-toolbox-net = { path = "crates/net" }
 artcraft-toolbox-install = { path = "crates/install" }
 artcraft-toolbox-engine = { path = "crates/engine" }
 artcraft-toolbox-ui-egui = { path = "crates/ui-egui" }
+artcraft-toolbox-automation = { path = "crates/automation" }
 
 # external (keep in step with PhotoCraft's workspace: same majors, same egui/eframe line)
 thiserror = "2"

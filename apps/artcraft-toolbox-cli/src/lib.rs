@@ -10,7 +10,9 @@
 use std::ffi::OsString;
 use std::io::Write;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
+
+use artcraft_toolbox_automation::{Headless, ToolboxMcp, rpc, security};
 
 use artcraft_toolbox_engine::install_cmds::{INSTALL, LAUNCH, UNINSTALL, UPDATE};
 use artcraft_toolbox_engine::net::Transport;
@@ -49,12 +51,25 @@ commands:
                                      it in now, while the toolbox isn't running)
   commands [--json]                  every engine command with its params
   run <command-id> [<json-params>]   run one engine command and print its JSON result
+  serve [--port <port>] [--control-token <64-hex> | --control-token-file <path>]
+                                     keep one headless session open and answer JSON lines
+                                     ({\"id\",\"method\",\"params\"}) on stdio, or on 127.0.0.1:<port>
+                                     behind a token; methods: engine.execute, engine.commands,
+                                     jobs.list, jobs.cancel, batch, methods
+                                     (docs/control-protocol.md)
+  mcp [--bridge <127.0.0.1:port>] [--control-token <64-hex> | --control-token-file <path>]
+                                     MCP server on stdio over the command registry: headless, or
+                                     bridged to a running `artcraft-toolbox --control <port>`,
+                                     which adds the window's state (docs/mcp.md)
   --version                          print the version
   --help                             print this help
 
 environment:
   ARTCRAFT_TOOLBOX_CONFIG_DIR        data folder (settings, installed apps, cached feeds)
   ARTCRAFT_TOOLBOX_GITHUB_TOKEN      GitHub token: 5,000 API requests per hour instead of 60
+  ARTCRAFT_TOOLBOX_CONTROL_TOKEN     the control token, instead of --control-token
+  ARTCRAFT_TOOLBOX_CONTROL_TOKEN_FILE
+                                     the control token file, instead of --control-token-file
 ";
 
 const OK: i32 = 0;
@@ -119,6 +134,10 @@ pub fn run(args: &[&str], out: &mut dyn Write, err: &mut dyn Write, env: impl Fn
     if let Cmd::Commands { json } = cmd {
         return report(commands(json, out), err);
     }
+    // A bridged MCP server is only a client of the running app: no session, no data folder.
+    if let Cmd::Mcp { bridge: Some(addr), token, token_file } = cmd {
+        return report(mcp_bridge(&addr, token, token_file), err);
+    }
     let env = env();
     let (layout, host, self_install) = (env.layout, env.host, env.self_install);
     let mut opened = match setup::open_in(env.data_dir, env.transport) {
@@ -150,6 +169,13 @@ pub fn run(args: &[&str], out: &mut dyn Write, err: &mut dyn Write, env: impl Fn
             let _ = writeln!(err, "note: {change}");
         }
     }
+    // The servers own the session for the rest of the process.
+    let cmd = match cmd {
+        Cmd::Serve { port, token, token_file } => return report(serve(opened.session, port, token, token_file, err), err),
+        Cmd::Mcp { token: _, token_file: _, bridge: _ } => return report(mcp_headless(opened.session), err),
+        other => other,
+    };
+    let s = &mut opened.session;
     let result = match cmd {
         Cmd::List { json } => list(s, json, out),
         Cmd::Status { json, feeds } => status(s, json, &feeds, out),
@@ -178,7 +204,8 @@ pub fn run(args: &[&str], out: &mut dyn Write, err: &mut dyn Write, env: impl Fn
         }
         Cmd::Open { app } => s.execute(LAUNCH, json!({ "app": app })).map(|_| ()).map_err(|e| e.to_string()),
         Cmd::Run { id, params } => s.execute(&id, params).map_err(|e| e.to_string()).and_then(|v| print_json(out, &v)),
-        Cmd::Commands { .. } => Ok(()),
+        // Answered above, before the session was borrowed.
+        Cmd::Commands { .. } | Cmd::Serve { .. } | Cmd::Mcp { .. } => Ok(()),
     };
     report(result, err)
 }
@@ -251,6 +278,18 @@ enum Cmd {
     Run {
         id: String,
         params: Value,
+    },
+    /// The JSON-lines control protocol on stdio, or on a loopback port behind a token.
+    Serve {
+        port: Option<u16>,
+        token: Option<String>,
+        token_file: Option<PathBuf>,
+    },
+    /// The MCP server on stdio: headless, or bridged to a running desktop app.
+    Mcp {
+        bridge: Option<String>,
+        token: Option<String>,
+        token_file: Option<PathBuf>,
     },
 }
 
@@ -349,6 +388,50 @@ fn parse(args: &[&str]) -> Result<Parsed, String> {
                 _ => Cmd::Open { app },
             }
         }
+        "serve" | "mcp" => {
+            let (mut port, mut bridge, mut token, mut token_file) = (None, None, None, None);
+            let mut it = rest.iter();
+            while let Some(a) = it.next() {
+                match (cmd, *a) {
+                    ("serve", "--port") => {
+                        let v = it.next().ok_or("--port needs a port number")?;
+                        let p: u16 = v.trim().parse().map_err(|_| format!("--port `{}` is not a port (0 to 65535)", short(v)))?;
+                        if port.replace(p).is_some() {
+                            return Err("`--port` given twice".into());
+                        }
+                    }
+                    ("mcp", "--bridge") => {
+                        let v = it.next().ok_or("--bridge needs the app's control address, 127.0.0.1:<port>")?;
+                        if bridge.replace(v.to_string()).is_some() {
+                            return Err("`--bridge` given twice".into());
+                        }
+                    }
+                    (_, "--control-token") => {
+                        let v = it.next().ok_or("--control-token needs the token (64 hex characters)")?;
+                        if token.replace(v.to_string()).is_some() {
+                            return Err("`--control-token` given twice".into());
+                        }
+                    }
+                    (_, "--control-token-file") => {
+                        let v = it.next().ok_or("--control-token-file needs a path")?;
+                        if token_file.replace(PathBuf::from(v)).is_some() {
+                            return Err("`--control-token-file` given twice".into());
+                        }
+                    }
+                    (_, other) => return Err(format!("unexpected argument `{}`", short(other))),
+                }
+            }
+            if token.is_some() && token_file.is_some() {
+                return Err("give --control-token or --control-token-file, not both".into());
+            }
+            let has_token = token.is_some() || token_file.is_some();
+            match cmd {
+                "serve" if has_token && port.is_none() => return Err("a control token needs --port (stdio needs no authentication)".into()),
+                "serve" => Cmd::Serve { port, token, token_file },
+                _ if has_token && bridge.is_none() => return Err("a control token needs --bridge (a headless mcp has no authentication)".into()),
+                _ => Cmd::Mcp { bridge, token, token_file },
+            }
+        }
         "run" => match rest {
             [id] => Cmd::Run { id: id.to_string(), params: Value::Null },
             [id, p] => Cmd::Run { id: id.to_string(), params: serde_json::from_str(p).map_err(|e| format!("params are not JSON: {e}"))? },
@@ -358,6 +441,46 @@ fn parse(args: &[&str]) -> Result<Parsed, String> {
         other => return Err(format!("unknown command `{}`", short(other))),
     };
     Ok(Parsed::Cmd(cmd))
+}
+
+/// `serve`: the control protocol on stdio, or on `127.0.0.1:<port>` behind a token. Where the
+/// token comes from goes to stderr, and a generated one with it (the terminal that started
+/// the server is the only place it is ever printed).
+fn serve(session: Session, port: Option<u16>, token: Option<String>, token_file: Option<PathBuf>, err: &mut dyn Write) -> Result<(), String> {
+    let h = Arc::new(Mutex::new(Headless::new(session)));
+    let Some(port) = port else {
+        let stdin = std::io::stdin();
+        return rpc::serve_lines(&h, stdin.lock(), std::io::stdout()).map_err(|e| e.to_string());
+    };
+    let (supplied, token_file) = security::token_inputs(token, token_file);
+    let token = security::server_token(supplied.as_deref(), token_file.as_deref()).map_err(|e| e.to_string())?;
+    if let Some(path) = &token_file {
+        let _ = writeln!(err, "artcraft-toolbox-cli control token file: {}", path.display());
+    } else if supplied.is_none() {
+        let _ = writeln!(err, "artcraft-toolbox-cli control token: {token}");
+    }
+    rpc::serve_tcp(&format!("127.0.0.1:{port}"), h, token, |local| {
+        let _ = writeln!(err, "artcraft-toolbox-cli serving on {local}");
+    })
+    .map_err(|e| e.to_string())
+}
+
+/// `mcp` without `--bridge`: the MCP server over an in-process session, on stdio.
+fn mcp_headless(session: Session) -> Result<(), String> {
+    block_on(ToolboxMcp::headless(session).serve_stdio())
+}
+
+/// `mcp --bridge`: the MCP server forwarding to the running desktop app, on stdio.
+fn mcp_bridge(addr: &str, token: Option<String>, token_file: Option<PathBuf>) -> Result<(), String> {
+    let (supplied, token_file) = security::token_inputs(token, token_file);
+    let token = security::client_token(supplied.as_deref(), token_file.as_deref()).map_err(|e| e.to_string())?;
+    let server = ToolboxMcp::bridge(addr, &token).map_err(|e| e.to_string())?;
+    block_on(server.serve_stdio())
+}
+
+fn block_on(f: impl std::future::Future<Output = Result<(), artcraft_toolbox_automation::AutomationError>>) -> Result<(), String> {
+    let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build().map_err(|e| e.to_string())?;
+    rt.block_on(f).map_err(|e| e.to_string())
 }
 
 fn print_json(out: &mut dyn Write, v: &Value) -> Result<(), String> {

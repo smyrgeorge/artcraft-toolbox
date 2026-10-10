@@ -41,6 +41,10 @@ artcraft-toolbox-cli self-update [--json]                # download and verify a
 artcraft-toolbox-cli run toolbox.apply                   # swap it in now (while the toolbox isn't running)
 artcraft-toolbox-cli commands [--json]                   # every engine command and its params
 artcraft-toolbox-cli run <command-id> [<json-params>]    # e.g. run app.status '{"app":"photocraft"}'
+artcraft-toolbox-cli serve [--port <port>] [--control-token <64-hex> | --control-token-file <path>]
+                                                         # JSON lines on stdio, or on 127.0.0.1:<port> behind a token
+artcraft-toolbox-cli mcp [--bridge <127.0.0.1:port>] [--control-token <64-hex> | --control-token-file <path>]
+                                                         # MCP server on stdio: headless, or bridged to the running app
 ```
 
 Exit codes: 0 success, 1 a command failed (or `check` couldn't reach every app), 2 a usage error.
@@ -75,6 +79,26 @@ first looks at the disk: a copy of an app put in the apps folder by hand shows u
 (and `adopt` takes it over), and an app that updated itself is reported as a `note:`.
 
 On Linux the desktop entry and icon still go to `~/.local/share` (only the apps folder moves).
+
+## Driving the app from outside
+
+Agents and tests talk to the toolbox in JSON lines (`docs/control-protocol.md`) or through MCP
+(`docs/mcp.md`). The running window:
+
+```sh
+cargo run -p artcraft-toolbox -- --control 7878 --control-token-file /tmp/tb.token
+# in another terminal
+TOKEN=$(cat /tmp/tb.token)
+printf '%s\n' "{\"id\":0,\"method\":\"auth\",\"params\":{\"token\":\"$TOKEN\"}}" \
+  '{"id":1,"method":"ui.set","params":{"tab":"settings"}}' \
+  '{"id":2,"method":"engine.execute","params":{"command":"updates.check"}}' | nc 127.0.0.1 7878
+cargo run -p artcraft-toolbox-cli -- mcp --bridge 127.0.0.1:7878 --control-token-file /tmp/tb.token
+```
+
+Without a window, `artcraft-toolbox-cli serve` answers the same lines on stdio (no token) and
+`artcraft-toolbox-cli mcp` serves MCP over an in-process session. The control server's limits and
+the token's handling are in `crates/automation/src/security.rs`; the UI's handlers are tested
+without a GPU in `crates/ui-egui/tests/m6.rs`, the transport in `apps/artcraft-toolbox/src/control_server.rs`.
 
 ## Offscreen UI snapshots (no window)
 
@@ -170,6 +194,9 @@ CLI's `Env` a `layout`. Only the apps' startup (`setup::open_in`) uses the platf
 | `ARTCRAFT_TOOLBOX_CONFIG_DIR` | Data folder override (settings, inventory, feed cache, logs); tests and agents use a temp folder |
 | `ARTCRAFT_TOOLBOX_LOCALE` | A language tag (`ja`, `pt-BR`) used instead of the system's languages when the `language` setting is `auto` (docs/localization.md) |
 | `ARTCRAFT_TOOLBOX_GITHUB_TOKEN` | GitHub token for the apps' checks: 5,000 requests/hour instead of 60; sent only to `api.github.com` |
+| `ARTCRAFT_TOOLBOX_CONTROL_PORT` | Desktop app: start the control server on this loopback port (`--control` wins) |
+| `ARTCRAFT_TOOLBOX_CONTROL_TOKEN` | The control token (64 hex characters), for the app's server, `serve --port` and `mcp --bridge`; `--control-token` wins |
+| `ARTCRAFT_TOOLBOX_CONTROL_TOKEN_FILE` | The control token file instead (created with a fresh token if missing); `--control-token-file` wins |
 | `GITHUB_TOKEN` | `cargo xtask contract` only: authenticated GitHub API requests |
 
 ## Logs

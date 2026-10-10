@@ -109,12 +109,19 @@ layered crates (enforced by `cargo xtask layers`), native egui/eframe on wgpu, n
 JavaScript, and an engine where every action is a command, so the UI, the CLI and agents all
 drive the same code. Non-test code never panics.
 
+Agents get the same commands: `artcraft-toolbox-cli mcp` is an MCP server over the registry
+(headless, or bridged to the running app with `--bridge`), and `artcraft-toolbox --control <port>`
+serves the window itself in JSON lines behind a token, so an agent can read and set every bit of
+the window's state (`docs/mcp.md`, `docs/control-protocol.md`).
+
 | Read | |
 |---|---|
 | [AGENTS.md](AGENTS.md) | Rules for contributors and AI agents: start here |
 | [docs/architecture.md](docs/architecture.md) | Crates, layers, data flow, install layout |
 | [docs/release-contract.md](docs/release-contract.md) | What the toolbox relies on from every craft |
 | [docs/development.md](docs/development.md) | Build, test, CLI, UI snapshots |
+| [docs/control-protocol.md](docs/control-protocol.md) | Driving the app and the headless server in JSON lines |
+| [docs/mcp.md](docs/mcp.md) | The MCP server: tools, resources, limits |
 | [docs/roadmap.md](docs/roadmap.md) | Milestones and current focus |
 | [SECURITY.md](SECURITY.md) | Threat model and reporting |
 

@@ -10,11 +10,11 @@ Status legend: ✅ done · 🟡 in progress · ⬜ not started. Updated 2026-10-
 | M3 Updates, rollback, trust | ✅ | Update one or all, keep and switch versions, verify signatures, adopt existing installs |
 | M4 Toolbox UX parity | ✅ | Menu-bar/tray app, background checks, notifications, release notes, per-app settings |
 | M5 Distribution and self-update | ✅ | Signed installers via PhotoCraft's release pipeline; the toolbox updates itself |
-| M6 Automation | ⬜ | Control channel and MCP over the command registry |
+| M6 Automation | ✅ | Control channel and MCP over the command registry |
 | M7 Catalog from the network | ⬜ | A signed remote catalog; non-conforming apps (ArtCraft itself) |
 | M8 Polish | ✅ | Localization (PhotoCraft's `tl!` pattern), accessibility, light theme |
 
-## Current focus: M6 Automation
+## Current focus: M7 Catalog from the network
 
 Agents: pick the first unchecked item of the current milestone. Tick it in the same change that
 lands it.
@@ -124,11 +124,20 @@ one is cut. No signing secrets are configured. Still open: a `toolbox.rollback` 
 previous version; the Windows rename-and-copy swap and the Linux AppImage exec have only run in
 tests.
 
-### M6 Automation
+### M6 Automation ✅ (2026-10-10)
 
-- [ ] JSON control channel (port PhotoCraft's control-server pattern: localhost, bearer token)
-- [ ] MCP server exposing the command registry
-- [ ] Every UI state readable and settable (`ui.get`, `ui.set`)
+- [x] JSON control channel (port PhotoCraft's control-server pattern: localhost, bearer token): `artcraft-toolbox --control <port>` with `--control-token[-file]` or the `ARTCRAFT_TOOLBOX_CONTROL_*` variables; `engine.execute` (waiting for a job or not), `engine.commands`, `jobs.list`, `jobs.cancel`, `app.quit`; the headless `artcraft-toolbox-cli serve` on stdio or a port, with `batch` (docs/control-protocol.md)
+- [x] MCP server exposing the command registry: `artcraft-toolbox-cli mcp` (headless) and `mcp --bridge` (the running app); tools `apps_status`, `command_list`, `command_run`, `command_batch`, `jobs_list`, `jobs_cancel`, `ui_get`, `ui_set`, `control_call`; resources `artcraft-toolbox://apps` and `://commands` (docs/mcp.md)
+- [x] Every UI state readable and settable (`ui.get`, `ui.set`): the tab, search text and field, the folded panel, the open app page, the uninstall question, the banner; validated as a whole before anything changes
+
+New crate `automation` (L6: tokens, bounded frames, reply budgets, the headless server, the
+bridge client, the MCP server on rmcp), `ui-egui/src/control.rs` (the handlers, run between
+frames) and `apps/artcraft-toolbox/src/control_server.rs` (the transport). Tested without a
+window or a GPU: the handlers (`ui-egui/tests/m6.rs`), the transport, the headless server, the
+MCP server over a duplex pipe and over the real line transport, and the bridge against a loopback
+control server. Still open: a session with a real MCP client against the packaged binaries; the
+app's control server only serves while the process runs (a launcher that wants it must pass
+`--control`); no progress notifications for long jobs over MCP (poll `jobs_list`).
 
 ### M7 Catalog from the network
 

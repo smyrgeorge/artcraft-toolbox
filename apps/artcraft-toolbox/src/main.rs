@@ -1,12 +1,19 @@
 //! ArtCraft Toolbox desktop app.
 //!
-//! Usage: `artcraft-toolbox [--version] [--help]`
+//! Usage: `artcraft-toolbox [--control <port>] [--control-token <64-hex> | --control-token-file <path>]
+//! [--version] [--help]`
+//!
+//! `--control <port>` (or `ARTCRAFT_TOOLBOX_CONTROL_PORT`) starts a localhost JSON-lines control
+//! server for agents and tests (`docs/control-protocol.md`): one request per line
+//! (`{"id":1,"method":"ui.get","params":{}}`), one reply per line, the first frame a bearer
+//! token. `artcraft-toolbox-cli mcp --bridge 127.0.0.1:<port>` wraps it as an MCP server.
 
 // Release builds on Windows are GUI-subsystem apps, so launching from the Start Menu or Explorer
 // doesn't open a console window. (`--version` output then only shows when redirected.)
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
+mod control_server;
 mod crash_guard;
 mod logging;
 mod notify;
@@ -14,6 +21,7 @@ mod popover;
 mod tray;
 
 use std::ffi::OsString;
+use std::path::PathBuf;
 use std::process::ExitCode;
 
 use artcraft_toolbox_engine::{build_info, setup};
@@ -25,27 +33,53 @@ use tray::{Tray, TrayAction};
 /// docks pick up the icon.
 const APP_ID: &str = "ai.storyteller.toolbox";
 
-const USAGE: &str = "usage: artcraft-toolbox [--version] [--help]";
+const USAGE: &str = "usage: artcraft-toolbox [--control <port>] [--control-token <64-hex> | --control-token-file <path>] [--version] [--help]";
+
+/// The control server's settings (`docs/control-protocol.md`).
+#[derive(Debug, Default, PartialEq, Eq)]
+struct Control {
+    /// `--control <port>` or `ARTCRAFT_TOOLBOX_CONTROL_PORT`; none: no server.
+    port: Option<u16>,
+    token: Option<String>,
+    token_file: Option<PathBuf>,
+}
 
 #[derive(Debug, PartialEq, Eq)]
 enum Action {
-    Run,
+    Run(Control),
     Version,
     Help,
 }
 
+/// A port, naming a bad value: a launcher must learn that its control server didn't start.
+fn parse_control_port(value: &str, source: &str) -> Result<u16, String> {
+    value.trim().parse::<u16>().map_err(|_| format!("{source}: `{}` is not a port (0 to 65535)", value.chars().take(40).collect::<String>()))
+}
+
 /// `args_os`, not `args`: a non-Unicode argument must be a usage error, not a panic.
-fn parse_args(args: &[OsString]) -> Result<Action, String> {
-    let mut action = Action::Run;
-    for a in args {
-        match a.to_str() {
-            Some("--version" | "-V") => action = Action::Version,
-            Some("--help" | "-h") => action = Action::Help,
-            Some(other) => return Err(format!("unknown argument `{}`", other.chars().take(80).collect::<String>())),
-            None => return Err(format!("argument is not valid UTF-8: {}", a.to_string_lossy())),
+fn parse_args(args: &[OsString], env_port: Option<&str>) -> Result<Action, String> {
+    let mut control = Control::default();
+    if let Some(v) = env_port.filter(|v| !v.trim().is_empty()) {
+        control.port = Some(parse_control_port(v, "ARTCRAFT_TOOLBOX_CONTROL_PORT")?);
+    }
+    let mut action = None;
+    let mut it = args.iter();
+    while let Some(a) = it.next() {
+        let text = a.to_str().ok_or_else(|| format!("argument is not valid UTF-8: {}", a.to_string_lossy()))?;
+        let value = |it: &mut std::slice::Iter<'_, OsString>, flag: &str| -> Result<String, String> {
+            let v = it.next().ok_or_else(|| format!("{flag} needs a value"))?;
+            v.to_str().map(str::to_string).ok_or_else(|| format!("{flag}: value is not valid UTF-8"))
+        };
+        match text {
+            "--version" | "-V" => action = Some(Action::Version),
+            "--help" | "-h" => action = Some(Action::Help),
+            "--control" => control.port = Some(parse_control_port(&value(&mut it, "--control")?, "--control")?),
+            "--control-token" => control.token = Some(value(&mut it, "--control-token")?),
+            "--control-token-file" => control.token_file = Some(PathBuf::from(value(&mut it, "--control-token-file")?)),
+            other => return Err(format!("unknown argument `{}`", other.chars().take(80).collect::<String>())),
         }
     }
-    Ok(action)
+    Ok(action.unwrap_or(Action::Run(control)))
 }
 
 /// The window icon (`assets/app-icon/`, rendered by `packaging/icons.sh`).
@@ -114,8 +148,9 @@ fn as_window(ctx: &egui::Context) {
 
 fn main() -> ExitCode {
     let args: Vec<OsString> = std::env::args_os().skip(1).collect();
-    match parse_args(&args) {
-        Ok(Action::Run) => {}
+    let env_port = std::env::var("ARTCRAFT_TOOLBOX_CONTROL_PORT").ok();
+    let control = match parse_args(&args, env_port.as_deref()) {
+        Ok(Action::Run(control)) => control,
         Ok(Action::Version) => {
             println!("ArtCraft Toolbox {}", build_info::long_version());
             return ExitCode::SUCCESS;
@@ -128,10 +163,33 @@ fn main() -> ExitCode {
             eprintln!("error: {e}\n{USAGE}");
             return ExitCode::from(2);
         }
-    }
+    };
     let logger = logging::install();
     crash_guard::install_hook();
     log::info!("ArtCraft Toolbox {} starting", build_info::long_version());
+    // The control server's token, before anything else: a bad one is a usage error.
+    let control = match control.port {
+        None => None,
+        Some(port) => {
+            use artcraft_toolbox_automation::security;
+            let (supplied, token_file) = security::token_inputs(control.token, control.token_file);
+            let token = match security::server_token(supplied.as_deref(), token_file.as_deref()) {
+                Ok(token) => token,
+                Err(e) => {
+                    eprintln!("error: cannot configure control authentication: {e}\n{USAGE}");
+                    return ExitCode::from(2);
+                }
+            };
+            // Where the token is, never the token itself in the log; a generated one goes to
+            // standard error only, for the terminal that started the app.
+            match (&token_file, supplied.is_some()) {
+                (Some(path), _) => log::info!("control token file: {}", path.display()),
+                (None, true) => log::info!("using the supplied control token"),
+                (None, false) => eprintln!("artcraft-toolbox: control token: {token}"),
+            }
+            Some((port, token))
+        }
+    };
     let mut opened = match setup::open_user_session() {
         Ok(o) => o,
         Err(e) => {
@@ -198,6 +256,9 @@ fn main() -> ExitCode {
             }
             let services = Services { notify: Some(Box::new(notify::show)), tray: tray.is_some(), popover, transparent: popover && TRANSPARENT };
             let mut app = ToolboxApp::with_services(session, services);
+            if let Some((port, token)) = control {
+                app = app.with_control(control_server::start(port, token, cc.egui_ctx.clone()));
+            }
             app.background();
             // A file that couldn't be read matters more than "checking started".
             if warning.is_some() {
@@ -323,16 +384,27 @@ mod tests {
 
     #[test]
     fn arguments() {
-        assert_eq!(parse_args(&[]), Ok(Action::Run));
-        assert_eq!(parse_args(&os(&["--version"])), Ok(Action::Version));
-        assert_eq!(parse_args(&os(&["-h"])), Ok(Action::Help));
-        assert!(parse_args(&os(&["--nope"])).unwrap_err().contains("unknown argument"));
+        assert_eq!(parse_args(&[], None), Ok(Action::Run(Control::default())));
+        assert_eq!(parse_args(&os(&["--version"]), None), Ok(Action::Version));
+        assert_eq!(parse_args(&os(&["-h"]), None), Ok(Action::Help));
+        assert!(parse_args(&os(&["--nope"]), None).unwrap_err().contains("unknown argument"));
+        // The control server: port from the argument or the environment, token or token file.
+        let run = parse_args(&os(&["--control", "7878", "--control-token-file", "/private/t"]), None).unwrap();
+        assert_eq!(run, Action::Run(Control { port: Some(7878), token: None, token_file: Some(PathBuf::from("/private/t")) }));
+        assert_eq!(parse_args(&[], Some("50494")).unwrap(), Action::Run(Control { port: Some(50494), ..Control::default() }));
+        assert_eq!(parse_args(&os(&["--control", "1"]), Some("2")).unwrap(), Action::Run(Control { port: Some(1), ..Control::default() }));
+        assert!(parse_args(&[], Some("  ")).is_ok(), "an empty variable is no port");
+        for bad in [&["--control", "nope"][..], &["--control", "78787"], &["--control"], &["--control-token"], &["--control-token-file"]] {
+            assert!(parse_args(&os(bad), None).is_err(), "{bad:?}");
+        }
+        assert!(parse_args(&[], Some("x")).unwrap_err().contains("ARTCRAFT_TOOLBOX_CONTROL_PORT"));
+        assert_eq!(parse_args(&os(&["--control", "7878", "--version"]), None), Ok(Action::Version));
     }
 
     #[cfg(unix)]
     #[test]
     fn non_unicode_argument_is_an_error() {
         use std::os::unix::ffi::OsStringExt;
-        assert!(parse_args(&[OsString::from_vec(vec![0x66, 0xff])]).unwrap_err().contains("UTF-8"));
+        assert!(parse_args(&[OsString::from_vec(vec![0x66, 0xff])], None).unwrap_err().contains("UTF-8"));
     }
 }

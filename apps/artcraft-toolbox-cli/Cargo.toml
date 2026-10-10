@@ -19,7 +19,10 @@ path = "src/main.rs"
 
 [dependencies]
 artcraft-toolbox-engine = { workspace = true }
+# `serve` (the JSON-lines control protocol) and `mcp` (the MCP server).
+artcraft-toolbox-automation = { workspace = true }
 serde_json = { workspace = true }
+tokio = { version = "1", features = ["rt-multi-thread"] }
 
 [dev-dependencies]
 sha2 = "0.10"

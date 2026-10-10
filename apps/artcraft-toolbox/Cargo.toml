@@ -13,6 +13,9 @@ workspace = true
 [dependencies]
 artcraft-toolbox-engine = { workspace = true }
 artcraft-toolbox-ui-egui = { workspace = true }
+# The control channel's transport primitives (tokens, bounded frames, reply budgets).
+artcraft-toolbox-automation = { workspace = true }
+serde_json = { workspace = true }
 # `links`: release-note and GitHub links open in the browser.
 eframe = { workspace = true, features = ["default_fonts", "wgpu", "accesskit", "wayland", "x11", "links"] }
 egui = { workspace = true }

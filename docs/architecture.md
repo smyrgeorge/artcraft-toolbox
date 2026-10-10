@@ -1,6 +1,6 @@
 # ArtCraft Toolbox architecture
 
-Status: v1.5 (2026-10-10, M1–M5, M8). The crates marked *planned* are designed here and registered in
+Status: v1.6 (2026-10-10, M1–M6, M8). The crates marked *planned* are designed here and registered in
 `xtask/src/layers.rs`, but not written yet; `docs/roadmap.md` says when each one lands.
 
 ## 1. Goals and principles
@@ -11,12 +11,13 @@ Status: v1.5 (2026-10-10, M1–M5, M8). The crates marked *planned* are designed
   to date, rolls it back, and launches it: one place to manage the whole suite.
 - Every craft stays independent. The toolbox manages them; it is never required to run one, and
   an app installed by hand keeps working.
-- Agents can do everything a person can (CLI today, control channel and MCP later).
+- Agents can do everything a person can: the CLI, the control channel and MCP drive the same
+  commands (§ 11).
 
 **Principles** (the same as PhotoCraft's, where they apply)
 
-1. **Engine-first, headless-first.** Every feature is reachable without a GUI: from tests, the CLI
-   and later MCP. The GUI is one client of the engine.
+1. **Engine-first, headless-first.** Every feature is reachable without a GUI: from tests, the CLI,
+   the control channel and MCP. The GUI is one client of the engine.
 2. **Everything is a command.** Each action has a stable id (`app.install`, `apps.status`) with
    JSON params, dispatched through `Session::execute`.
 3. **Data, not code, describes the suite.** The apps are `crates/catalog/catalog.toml`; how they
@@ -51,22 +52,26 @@ artcraft-toolbox/
 │  ├─ ui-egui/    L6             ToolboxApp: app list, details, settings; theme tokens (dark,
 │  │                             light), Inter, Lucide icons, widgets; i18n (catalogs, `tl!`),
 │  │                             wording, CJK fonts
-│  ├─ automation/ L6 planned     JSON control channel + MCP server over the command registry
+│  ├─ automation/ L6             the JSON-lines control protocol (tokens, limits, the headless
+│  │                             server, the bridge client) and the MCP server (rmcp) over the
+│  │                             command registry
 │  └─ testkit/       planned     fake feeds, temp install roots, a local HTTPS fixture server
 ├─ apps/
-│  ├─ artcraft-toolbox/          desktop binary (eframe + wgpu + ui-egui)
-│  └─ artcraft-toolbox-cli/      headless CLI over the same engine
+│  ├─ artcraft-toolbox/          desktop binary (eframe + wgpu + ui-egui); `--control <port>`
+│  │                             serves the window to agents
+│  └─ artcraft-toolbox-cli/      headless CLI over the same engine; `serve` and `mcp`
 └─ xtask/                        layers, ci, contract (live release check), version
 ```
 
-**What exists today** (M1–M5, M8): `release`, `catalog`, `model`, `feed`, `net`, `store`,
-`install`, `engine`, `ui-egui`, both apps and xtask. The toolbox checks GitHub for every app's
+**What exists today** (M1–M6, M8): `release`, `catalog`, `model`, `feed`, `net`, `store`,
+`install`, `engine`, `ui-egui`, `automation`, both apps and xtask. The toolbox checks GitHub for every app's
 releases in the background, caches them, persists its settings and inventory, shows what is
 available and what needs updating, and installs, updates (by hand or automatically), rolls back,
 adopts, uninstalls and opens any craft, checking platform signatures on the way. Its window is in
 15 languages, in a dark or light theme, at a chosen text size. It is packaged like a craft
-(`docs/releasing.md`) and updates itself through its own release feed (§ 7). The `jobs` crate
-stayed planned: installs and the self-update are engine jobs.
+(`docs/releasing.md`) and updates itself through its own release feed (§ 7). Agents drive it
+through the control channel and MCP (§ 11). The `jobs` crate stayed planned: installs and the
+self-update are engine jobs.
 
 ## 3. Layers (enforced)
 
@@ -339,3 +344,42 @@ language's script first. The desktop app rebuilds its tray menu labels on a lang
 Themes are two `Tokens` sets and their egui visuals, both installed at start; egui picks one from
 the preference (`system` follows the OS). Accessibility comes from egui's AccessKit tree: widgets
 get names (`WidgetInfo`), and the UI tests query that same tree.
+
+## 11. Automation (M6)
+
+Three doors into the same engine, all dispatching commands by id (`docs/control-protocol.md`,
+`docs/mcp.md`):
+
+- **The control channel of the desktop app.** `artcraft-toolbox --control <port>` starts a
+  loopback TCP server (`apps/artcraft-toolbox/src/control_server.rs`, PhotoCraft's pattern): one
+  thread accepts, one per connection reads bounded JSON lines, the first frame must carry the
+  bearer token, and every later request becomes a `ControlRequest` on a channel the window owns.
+  `ToolboxApp::tick` drains that channel between frames (`drain_control`, so requests run on the
+  UI thread with the window's state in hand, even while the window is hidden), and the handlers in
+  `ui-egui/src/control.rs` answer: `engine.execute` through `Session::start`, so a background
+  command's request waits in `control_waiters` and is answered by `poll` when its job's event
+  arrives; `ui.get`/`ui.set` read and write `UiState` and the banner, validating every field
+  before applying any; `app.quit` closes the window like its button. `ControlRequest` lives in
+  `ui-egui` because a crate may not depend sideways on `automation`; the transport primitives it
+  shares with the headless server (tokens, bounded reads, the connection limiter, the reply
+  budget) live in `automation::security` and `automation::budgets`, which only the app crate
+  (L7) pulls in.
+- **The headless server.** `artcraft-toolbox-cli serve` wraps a `Session` in
+  `automation::Headless` and answers the same envelope on stdio or loopback TCP
+  (`automation::rpc`). `Headless::handle` is the method table (`engine.execute`,
+  `engine.commands`, `jobs.list`, `jobs.cancel`, `batch`, `methods`); a background command runs to
+  completion with `Session::wait_job` unless `wait: false`, and every request first applies the
+  jobs that have finished. A poisoned session lock is recovered, so one panicking command (already
+  caught by `Session::execute`) never wedges the server.
+- **The MCP server.** `automation::ToolboxMcp` (rmcp's `#[tool_router]`) exposes nine tools
+  and two resources over a `Backend`: `Headless` (the session on a blocking thread) or `Bridge`
+  (`automation::BridgeClient`, a tokio client of the control protocol: one authenticated
+  connection, loopback only, 60-second replies, never a resend). The tool schemas are rewritten
+  for strict validators (`$ref`s inlined, `additionalProperties: false`), unknown arguments are
+  refused before execution, a malformed line gets `-32700` and the next one is served
+  (`server/transport.rs`), and every result is checked against the reply budget as encoded JSON.
+
+What an agent can't do is what the user can't do without elevation: nothing in these servers
+bypasses the engine's verification, and nothing elevates. The limits (1 MiB requests, 8 MiB
+replies, 16 connections, 256 batch steps) are constants in `automation::security` and
+`automation::budgets`, tested in both directions.
