@@ -231,7 +231,8 @@ signature" and accepts as the reference for later ones.
 
 ## Icons
 
-`assets/app-icon/artcraft-toolbox.svg` is the canonical icon (`assets/app-icon/README.md`).
+`assets/app-icon/artcraft-toolbox.svg` is the canonical icon (`assets/app-icon/README.md`): an
+engraved toolbox in the crafts' Ink-and-Paper style on a steel field.
 `packaging/icons.sh` regenerates the 1024 px PNG, the `.icns`, the `.ico` (packed by
 `cargo xtask ico`), the hicolor PNGs, the window icon and the tray icons from it. It needs
 `resvg`, plus `iconutil` on macOS. The outputs are committed, so packaging never needs those

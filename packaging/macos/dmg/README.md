@@ -8,7 +8,7 @@ installed in the signing job).
 
 | File | What |
 |---|---|
-| `background.svg` | Source of the background: a Studio-dark band with the toolbox mark on the left, the Paper field (`#efe9dc`) under the icons, and an arrow from the app to `Applications` in the accent violet. No text, so rendering it needs no fonts. |
+| `background.svg` | Source of the background: a band in the icon's steel field (`#4a6f9b`) with the app icon (`assets/app-icon/artcraft-toolbox.svg`, linked, not copied) on the left, the Paper field (`#efe9dc`) under the icons, and an arrow from the app to `Applications` in the same steel. No text, so rendering it needs no fonts. |
 | `background.tiff` | The background at 1x (660 × 400 px, 72 dpi) and 2x (1320 × 800 px, 144 dpi) in one HiDPI TIFF (16-colour palette, Deflate, sRGB). Goes to `.background/background.tiff`. |
 | `dmg-layout.DS_Store` | Finder's view settings for the volume: window size, icon size 128, `ArtCraft Toolbox.app` at (326, 205), `Applications` at (574, 205), and the background. Goes to `.DS_Store` in the image; named so it isn't mistaken for (or ignored like) a Finder-generated `.DS_Store`. |
 | `generate.py` | Writes `background.tiff` and `dmg-layout.DS_Store` from the SVG and the layout above. |

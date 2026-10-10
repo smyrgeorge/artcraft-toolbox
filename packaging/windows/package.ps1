@@ -98,8 +98,9 @@ Copy-Item (Join-Path $Bin 'artcraft-toolbox.exe'), (Join-Path $Bin 'artcraft-too
 # (their text sits on the right; the left 164 px are ours). Both must be 24-bit BMPs.
 function New-InstallerArt([string] $IconPng, [string] $BannerOut, [string] $DialogOut) {
   Add-Type -AssemblyName System.Drawing
-  $panel = [System.Drawing.ColorTranslator]::FromHtml('#1c1c21')
-  $accent = [System.Drawing.ColorTranslator]::FromHtml('#8b7cf6')
+  # The icon's own colours (assets/app-icon/README.md): Paper under the icon, the steel field as the stripe.
+  $panel = [System.Drawing.ColorTranslator]::FromHtml('#efe9dc')
+  $accent = [System.Drawing.ColorTranslator]::FromHtml('#4a6f9b')
   $icon = [System.Drawing.Image]::FromFile($IconPng)
   try {
     foreach ($spec in @(@($BannerOut, 493, 58), @($DialogOut, 493, 312))) {

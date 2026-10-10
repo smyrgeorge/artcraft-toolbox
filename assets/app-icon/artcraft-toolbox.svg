@@ -1,43 +1,75 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
-  <!-- ArtCraft Toolbox app icon: a toolbox in the Studio accent violet on the Studio dark tile.
-       Original work, MIT OR Apache-2.0 (assets/app-icon/README.md). The canonical master: every
-       rendered size comes from this file (packaging/icons.sh). -->
+  <!-- ArtCraft Toolbox app icon, in the Crafting Apps' engraving style (assets/app-icon/README.md):
+       Ink line work and hatching on a Paper figure, over a solid colour field (steel, the one hue
+       no craft uses), the figure filling the rounded tile. A classic metal toolbox, three-quarter
+       view: lid with rivets, a hasp and clasp, an arched handle, a pressed panel and corner caps
+       on the front, feet and a cast shadow. Three colours only: Ink #0b0b0c, Paper #efe9dc, the
+       field. The hatching is three Ink patterns of different density, and a touch of displacement
+       gives every line the waver of an etched plate. Original work, MIT OR Apache-2.0. The
+       canonical master: every rendered size comes from this file (packaging/icons.sh). -->
   <defs>
-    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#2c2c33"/>
-      <stop offset="1" stop-color="#131316"/>
-    </linearGradient>
-    <linearGradient id="lid" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#c6bdff"/>
-      <stop offset="1" stop-color="#a194fb"/>
-    </linearGradient>
-    <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#9a8cfa"/>
-      <stop offset="1" stop-color="#7363ea"/>
-    </linearGradient>
-    <linearGradient id="shine" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#ffffff" stop-opacity="0.10"/>
-      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
-    </linearGradient>
+    <clipPath id="tile"><rect width="512" height="512" rx="112"/></clipPath>
+    <clipPath id="under"><rect x="140" y="170" width="240" height="70"/></clipPath>
+    <pattern id="light" patternUnits="userSpaceOnUse" width="12" height="12" patternTransform="rotate(-34)">
+      <rect width="12" height="1.8" fill="#0b0b0c"/>
+    </pattern>
+    <pattern id="mid" patternUnits="userSpaceOnUse" width="8" height="8" patternTransform="rotate(-34)">
+      <rect width="8" height="2.2" fill="#0b0b0c"/>
+    </pattern>
+    <pattern id="cross" patternUnits="userSpaceOnUse" width="7" height="7" patternTransform="rotate(52)">
+      <rect width="7" height="2.1" fill="#0b0b0c"/>
+    </pattern>
+    <filter id="etch" x="-4%" y="-4%" width="108%" height="108%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.09" numOctaves="2" seed="11" result="noise"/>
+      <feDisplacementMap in="SourceGraphic" in2="noise" scale="2.2" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
   </defs>
-  <!-- the tile -->
-  <rect width="512" height="512" rx="112" fill="url(#tile)"/>
-  <rect x="3" y="3" width="506" height="506" rx="109" fill="none" stroke="#ffffff" stroke-opacity="0.07" stroke-width="3"/>
-  <!-- a soft glow behind the toolbox -->
-  <ellipse cx="256" cy="300" rx="200" ry="150" fill="#8b7cf6" opacity="0.10"/>
-  <!-- the handle -->
-  <path d="M190 182 V152 a66 66 0 0 1 132 0 V182" fill="none" stroke="#e8e6f6" stroke-width="28" stroke-linecap="round"/>
-  <!-- the lid -->
-  <rect x="88" y="168" width="336" height="92" rx="32" fill="url(#lid)"/>
-  <rect x="88" y="168" width="336" height="46" rx="32" fill="url(#shine)"/>
-  <!-- the body -->
-  <rect x="88" y="244" width="336" height="170" rx="36" fill="url(#body)"/>
-  <!-- the seam between lid and body -->
-  <rect x="88" y="244" width="336" height="16" fill="#131316" opacity="0.38"/>
-  <!-- the latch -->
-  <rect x="224" y="226" width="64" height="60" rx="16" fill="#e8e6f6"/>
-  <rect x="244" y="252" width="24" height="20" rx="6" fill="#7363ea"/>
-  <!-- the feet -->
-  <rect x="124" y="406" width="52" height="18" rx="9" fill="#5b4dd6"/>
-  <rect x="336" y="406" width="52" height="18" rx="9" fill="#5b4dd6"/>
+  <g clip-path="url(#tile)">
+    <rect width="512" height="512" fill="#4a6f9b"/>
+    <g filter="url(#etch)" stroke="#0b0b0c" stroke-linejoin="round" stroke-linecap="round">
+      <!-- the cast shadow on the ground -->
+      <polygon points="100,458 376,458 436,414 478,438 420,480 112,480" fill="url(#mid)" stroke="none"/>
+      <!-- the feet -->
+      <rect x="84" y="450" width="40" height="18" rx="6" fill="#0b0b0c" stroke-width="4"/>
+      <rect x="316" y="450" width="40" height="18" rx="6" fill="#0b0b0c" stroke-width="4"/>
+      <!-- the body: front and side -->
+      <rect x="64" y="284" width="312" height="168" fill="#efe9dc" stroke-width="7"/>
+      <polygon points="376,284 434,242 434,410 376,452" fill="#efe9dc" stroke-width="7"/>
+      <polygon points="376,284 434,242 434,410 376,452" fill="url(#mid)" stroke="none"/>
+      <polygon points="376,284 434,242 434,410 376,452" fill="url(#cross)" stroke="none"/>
+      <rect x="64" y="284" width="312" height="20" fill="url(#mid)" stroke="none"/>
+      <rect x="64" y="404" width="312" height="48" fill="url(#light)" stroke="none"/>
+      <!-- the pressed panel on the front -->
+      <rect x="92" y="310" width="256" height="118" rx="12" fill="none" stroke-width="4"/>
+      <rect x="94" y="312" width="252" height="14" fill="url(#light)" stroke="none"/>
+      <rect x="94" y="312" width="14" height="114" fill="url(#light)" stroke="none"/>
+      <!-- corner caps -->
+      <polygon points="64,414 64,452 102,452" fill="url(#cross)" stroke-width="5"/>
+      <polygon points="376,414 376,452 338,452" fill="url(#cross)" stroke-width="5"/>
+      <!-- the lid: top, side, front -->
+      <polygon points="56,228 384,228 442,186 114,186" fill="#efe9dc" stroke-width="7"/>
+      <polygon points="56,228 384,228 442,186 114,186" fill="url(#light)" stroke="none"/>
+      <polygon points="384,228 442,186 442,242 384,284" fill="#efe9dc" stroke-width="7"/>
+      <polygon points="384,228 442,186 442,242 384,284" fill="url(#mid)" stroke="none"/>
+      <polygon points="384,228 442,186 442,242 384,284" fill="url(#cross)" stroke="none"/>
+      <rect x="56" y="228" width="328" height="56" fill="#efe9dc" stroke-width="7"/>
+      <rect x="56" y="262" width="328" height="22" fill="url(#light)" stroke="none"/>
+      <!-- rivets along the lid -->
+      <g fill="#efe9dc" stroke-width="4">
+        <circle cx="90" cy="247" r="6"/><circle cx="142" cy="247" r="6"/><circle cx="194" cy="247" r="6"/>
+        <circle cx="302" cy="247" r="6"/><circle cx="354" cy="247" r="6"/>
+      </g>
+      <!-- the latch: a hasp on the lid over a clasp on the body -->
+      <rect x="226" y="268" width="60" height="54" rx="10" fill="#efe9dc" stroke-width="6"/>
+      <rect x="226" y="296" width="60" height="26" rx="6" fill="url(#mid)" stroke="none"/>
+      <rect x="236" y="254" width="40" height="30" rx="8" fill="#efe9dc" stroke-width="6"/>
+      <rect x="246" y="278" width="20" height="14" rx="4" fill="#0b0b0c" stroke="none"/>
+      <!-- the handle: a tube arched over the lid -->
+      <path d="M196 224 V176 a52 52 0 0 1 104 0 V224" fill="none" stroke-width="34"/>
+      <path d="M196 224 V176 a52 52 0 0 1 104 0 V224" fill="none" stroke="#efe9dc" stroke-width="22"/>
+      <path d="M196 224 V176 a52 52 0 0 1 104 0 V224" fill="none" stroke="url(#mid)" stroke-width="22" clip-path="url(#under)"/>
+      <ellipse cx="196" cy="222" rx="20" ry="9" fill="#efe9dc" stroke-width="5"/>
+      <ellipse cx="300" cy="222" rx="20" ry="9" fill="#efe9dc" stroke-width="5"/>
+    </g>
+  </g>
 </svg>
