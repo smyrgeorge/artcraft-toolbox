@@ -104,12 +104,13 @@ folder for it with `ARTCRAFT_TOOLBOX_CONFIG_DIR=<dir> artcraft-toolbox-cli check
 `… run icons.refresh`.
 
 The README's screenshots (`docs/images/toolbox-*.png`) are rendered this way from a data folder
-with PhotoCraft installed and every feed and icon cached (`check`, `run icons.refresh`), at 2×:
+with every feed and icon cached (`check`, `run icons.refresh`), PhotoCraft drawn as installed
+and signed (`--installed`, `--signed`: no real install needed), at 2×:
 
 ```sh
 D="$HOME/Library/Application Support/ArtCraft Toolbox"   # or a scratch folder
 snap() { cargo run -q -p artcraft-toolbox-ui-egui --example snapshot -- --size 440x620 --scale 2 \
-  --online --popover --data-dir "$D" "$@"; }
+  --online --popover --data-dir "$D" --installed photocraft=0.6.0 --signed "$@"; }
 snap --out docs/images/toolbox-apps-dark.png
 snap --out docs/images/toolbox-apps-light.png --theme light
 snap --out docs/images/toolbox-details.png --details photocraft

@@ -26,11 +26,11 @@
 <table>
   <tr>
     <td width="50%" valign="top">
-      <img src="docs/images/toolbox-apps-dark.png" alt="The ArtCraft Toolbox popover in the dark theme: PhotoCraft 0.5.0 installed and up to date with an Open button and a menu, then the available apps (VectorCraft, FilmCraft, LightCraft, PdfCraft) with their descriptions, Install buttons and versions" width="100%">
+      <img src="docs/images/toolbox-apps-dark.png" alt="The ArtCraft Toolbox popover in the dark theme: PhotoCraft 0.6.0 installed and up to date with an Open button and a menu, then the available apps (VectorCraft, FilmCraft, LightCraft, PdfCraft) with their engraved icons, descriptions, Install buttons and versions" width="100%">
       <br><sub>Installed apps first, then everything you can install. Click the menu-bar icon to open it.</sub>
     </td>
     <td width="50%" valign="top">
-      <img src="docs/images/toolbox-details.png" alt="PhotoCraft's page: version 0.5.0, up to date, signed by Learning Machines LLC and notarized; links to GitHub, Releases and the website; Open and Uninstall; its own channel, update and version settings; the start of its versions list" width="100%">
+      <img src="docs/images/toolbox-details.png" alt="PhotoCraft's page: version 0.6.0, up to date, signed by Learning Machines LLC and notarized; links to GitHub, Releases and the website; Open and Uninstall; its own channel, update and version settings; the start of its versions list" width="100%">
       <br><sub>Each app's page: its signature, its own update settings and every version, with release notes.</sub>
     </td>
   </tr>

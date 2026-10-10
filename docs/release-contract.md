@@ -113,20 +113,21 @@ makes its inventory drift. The toolbox never passes its own `ARTCRAFT_TOOLBOX_*`
 GitHub token among them) to an app. Started any other way (the Dock, the Start Menu), a craft gets
 no signal; the toolbox notices a self-update on its next look at the disk (Gotchas 4).
 
-## Measured state (2026-10-09)
+## Measured state (2026-10-10)
 
-`cargo xtask contract`: all 12 catalog apps pass (22 assets per latest release, every host
-installable, every asset listed in `SHA256SUMS.txt`).
+`cargo xtask contract`: all 12 catalog apps pass (22 assets per latest release, 24 for PdfCraft,
+every host installable, every asset listed in `SHA256SUMS.txt`). Every craft released again on
+2026-10-10; the toolbox's own cached feeds followed without a code change.
 
 | App | Latest | | App | Latest |
 |---|---|---|---|---|
-| PhotoCraft | v0.5.0 | | CADCraft | v0.3.0 |
-| VectorCraft | v0.7.0 | | DeckCraft | v0.3.0 |
-| FilmCraft | v0.4.0 | | GridCraft | v0.3.0 |
-| LightCraft | v0.4.0 | | SoundCraft | v0.3.0 |
-| PdfCraft | v0.4.0 | | WordCraft | v0.3.0 |
-| EffectCraft | v0.6.0 | | | |
-| DesignCraft | v0.4.0 | | | |
+| PhotoCraft | v0.6.0 | | CADCraft | v0.4.0 |
+| VectorCraft | v0.8.0 | | DeckCraft | v0.4.0 |
+| FilmCraft | v0.5.0 | | GridCraft | v0.4.0 |
+| LightCraft | v0.5.0 | | SoundCraft | v0.4.0 |
+| PdfCraft | v0.5.0 | | WordCraft | v0.4.0 |
+| EffectCraft | v0.7.0 | | | |
+| DesignCraft | v0.5.0 | | | |
 
 ## Gotchas
 
