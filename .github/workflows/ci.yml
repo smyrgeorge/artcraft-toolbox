@@ -32,7 +32,7 @@ jobs:
     outputs:
       os: ${{ steps.pick.outputs.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - id: pick
@@ -61,7 +61,7 @@ jobs:
       matrix:
         os: ${{ fromJSON(needs.platforms.outputs.os) }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install Linux system dependencies (egui/winit)
         if: runner.os == 'Linux'
