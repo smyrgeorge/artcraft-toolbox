@@ -382,7 +382,7 @@ mod tests {
     #[test]
     fn builtin_catalog_is_valid() {
         let c = Catalog::builtin().unwrap();
-        assert_eq!(c.apps.len(), 13, "the twelve Crafting Apps and ArtCraft itself");
+        assert_eq!(c.apps.len(), 14, "the thirteen Crafting Apps and ArtCraft itself");
         assert!(c.revision >= 1);
         let remote = c.remote.as_ref().expect("a [remote] section");
         assert!(remote.catalog.ends_with("/artcraft-catalog.json") && remote.feed.ends_with("/artcraft-feed.json"));
@@ -430,6 +430,8 @@ mod tests {
             ("gridcraft", 7887),
             ("cadcraft", 7888),
             ("soundcraft", 7889),
+            // Not in the Launcher's suite: the next port after it.
+            ("figcraft", 7890),
         ] {
             assert_eq!(port(id), Some(p), "{id}");
         }

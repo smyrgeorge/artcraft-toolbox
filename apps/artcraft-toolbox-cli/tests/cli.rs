@@ -83,7 +83,7 @@ fn list_and_commands() {
     assert!(r.out.lines().any(|l| l.starts_with("photocraft") && l.contains("PhotoCraft")));
     let r = cli(&["list", "--json"]);
     let v: serde_json::Value = serde_json::from_str(&r.out).unwrap();
-    assert_eq!(v.as_array().map(Vec::len), Some(13));
+    assert_eq!(v.as_array().map(Vec::len), Some(14));
     let r = cli(&["commands", "--json"]);
     assert_eq!(r.code, 0);
     let v: serde_json::Value = serde_json::from_str(&r.out).unwrap();
@@ -99,7 +99,7 @@ fn check_then_status_reads_the_cache() {
     assert_eq!(r.code, 0, "{}", r.err);
     assert!(r.out.contains("Checked just now."), "{}", r.out);
     assert!(r.out.lines().any(|l| l.starts_with("toolbox") && l.contains("ArtCraft Toolbox") && l.contains("running")), "the toolbox's own line: {}", r.out);
-    assert_eq!(*net.requests.lock().unwrap(), 16, "the publisher's two documents (this fake has none), 13 apps and the toolbox's own feed");
+    assert_eq!(*net.requests.lock().unwrap(), 17, "the publisher's two documents (this fake has none), 14 apps and the toolbox's own feed");
     assert!(dir.join("feeds/photocraft.json").exists());
 
     // A later run (a new process, in effect) reads the cached feeds without the network.
@@ -129,7 +129,7 @@ fn a_partial_check_exits_1_and_says_why() {
     assert!(r.err.contains("Couldn't check VectorCraft: the server took too long to answer"), "{}", r.err);
     let v: serde_json::Value = serde_json::from_str(&r.out).unwrap();
     assert_eq!(v["check"]["failed"][0]["app"], "vectorcraft");
-    assert_eq!(v["apps"].as_array().map(Vec::len), Some(13));
+    assert_eq!(v["apps"].as_array().map(Vec::len), Some(14));
     let _ = std::fs::remove_dir_all(&dir);
 }
 
@@ -613,7 +613,7 @@ fn serve_answers_authenticated_control_requests_on_loopback() {
     assert_eq!(v["result"]["authenticated"], true);
     let v = send(&mut stream, &mut reader, serde_json::json!({"id": 2, "method": "engine.execute", "params": {"command": "catalog.list"}}));
     assert_eq!((v["id"].as_u64(), v["ok"].as_bool()), (Some(2), Some(true)), "{v}");
-    assert_eq!(v["result"].as_array().map(Vec::len), Some(13));
+    assert_eq!(v["result"].as_array().map(Vec::len), Some(14));
     let v = send(
         &mut stream,
         &mut reader,

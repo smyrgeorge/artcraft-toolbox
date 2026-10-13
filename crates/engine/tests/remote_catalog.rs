@@ -189,14 +189,14 @@ fn one_check_costs_two_requests_and_a_newer_catalog_adds_apps() {
     let fake = Fake::new();
     publish(&fake, "W/\"c2\"", "W/\"f1\"", true);
     let mut s = session(&fake, Some(store.clone()));
-    assert_eq!(s.catalog().apps.len(), 13);
+    assert_eq!(s.catalog().apps.len(), 14);
     assert_eq!(s.catalog_source(), CatalogSource::Builtin);
     let summary = check(&mut s);
     assert_eq!(summary.catalog, RemoteState::Applied { revision: newer() }, "{summary:?}");
     assert_eq!(summary.feed, RemoteState::Fetched);
     assert_eq!((fake.raw_requests(), fake.api_requests()), (2, 0), "{:?}", fake.requests());
-    assert_eq!(summary.aggregated.len(), 16, "13 + 2 added apps + the toolbox: {:?}", summary.aggregated);
-    assert_eq!(summary.fetched.len(), 16);
+    assert_eq!(summary.aggregated.len(), 17, "14 + 2 added apps + the toolbox: {:?}", summary.aggregated);
+    assert_eq!(summary.fetched.len(), 17);
     assert!(summary.failed.is_empty() && summary.skipped.is_empty());
     // The catalog grew, the rows follow, the feeds are in.
     assert_eq!(s.catalog().revision, newer());
@@ -217,13 +217,13 @@ fn one_check_costs_two_requests_and_a_newer_catalog_adds_apps() {
     assert_eq!((summary.catalog.clone(), summary.feed.clone()), (RemoteState::Unchanged, RemoteState::Unchanged), "{summary:?}");
     assert_eq!((fake.raw_requests(), fake.api_requests()), (2, 0));
     assert!(fake.requests().iter().all(|(_, etag)| etag.is_some()), "{:?}", fake.requests());
-    assert_eq!(summary.unchanged.len(), 16);
+    assert_eq!(summary.unchanged.len(), 17);
     assert_eq!(s.app_status("testcraft").unwrap().checked_at, Some(t1()));
     assert_eq!(s.catalog_source(), CatalogSource::Remote { fetched_at: t1() });
     // Minutes later everything is fresh: not even the publisher is asked.
     fake.reset();
     let summary = check(&mut s);
-    assert_eq!((summary.fresh.len(), fake.requests().len()), (16, 0));
+    assert_eq!((summary.fresh.len(), fake.requests().len()), (17, 0));
     assert_eq!(summary.catalog, RemoteState::Off);
     // A new session on the same folder starts from the cached remote catalog, offline.
     let (mut again, warnings) = Session::open(Catalog::parse(&builtin_text()).unwrap(), Some(store), None);
@@ -250,8 +250,8 @@ fn bad_documents_fall_back_to_the_api_and_keep_the_built_in_catalog() {
     let RemoteState::Failed { error } = &summary.catalog else { panic!("{summary:?}") };
     assert!(error.contains("another key"), "{error}");
     assert!(matches!(&summary.feed, RemoteState::Failed { error } if error.contains("another key")), "{summary:?}");
-    assert_eq!((fake.raw_requests(), fake.api_requests()), (2, 14), "every app from the API: {:?}", fake.requests());
-    assert_eq!(summary.fetched.len(), 14);
+    assert_eq!((fake.raw_requests(), fake.api_requests()), (2, 15), "every app from the API: {:?}", fake.requests());
+    assert_eq!(summary.fetched.len(), 15);
     assert!(summary.aggregated.is_empty());
     assert_eq!((s.catalog().revision, s.catalog_source()), (builtin_revision(), CatalogSource::Builtin));
     assert_eq!(s.app_status("photocraft").unwrap().status, Status::NotInstalled { latest: Version::new(0, 5, 0) }, "from the API");
@@ -283,7 +283,7 @@ fn bad_documents_fall_back_to_the_api_and_keep_the_built_in_catalog() {
     let summary = check(&mut s);
     assert!(matches!(&summary.catalog, RemoteState::Failed { error } if error.contains("not published")), "{summary:?}");
     assert!(matches!(&summary.feed, RemoteState::Failed { error } if error.contains("not published")), "{summary:?}");
-    assert_eq!(fake.api_requests(), 14);
+    assert_eq!(fake.api_requests(), 15);
     // The setting off: the publisher is never asked.
     let fake = Fake::new();
     publish(&fake, "c", "f", true);
@@ -292,7 +292,7 @@ fn bad_documents_fall_back_to_the_api_and_keep_the_built_in_catalog() {
     assert!(!s.remote_enabled());
     let summary = check(&mut s);
     assert_eq!((summary.catalog, summary.feed), (RemoteState::Off, RemoteState::Off));
-    assert_eq!((fake.raw_requests(), fake.api_requests()), (0, 14));
+    assert_eq!((fake.raw_requests(), fake.api_requests()), (0, 15));
     assert_eq!(s.execute("catalog.status", json!({})).unwrap()["enabled"], false);
 }
 
@@ -358,11 +358,13 @@ fn a_stale_feed_is_confirmed_with_the_api_for_installed_apps() {
     fake.answer(PHOTOCRAFT_API, PHOTOCRAFT.into(), "p");
     let mut s = with_photocraft_0_3(&fake, Some(Store::open(&root).unwrap()));
     let summary = check(&mut s);
-    let api: Vec<String> = fake.requests().into_iter().map(|(u, _)| u).filter(|u| u.starts_with("https://api.github.com/")).collect();
-    assert_eq!(api, [PHOTOCRAFT_API, TOOLBOX_API], "only what is installed: {:?}", fake.requests());
+    let mut api: Vec<String> = fake.requests().into_iter().map(|(u, _)| u).filter(|u| u.starts_with("https://api.github.com/")).collect();
+    // Parallel workers: in whichever order they finish.
+    api.sort();
+    assert_eq!(api, [TOOLBOX_API, PHOTOCRAFT_API], "only what is installed: {:?}", fake.requests());
     assert_eq!(s.app_status("photocraft").unwrap().status, update_to_0_5());
     assert!(!summary.aggregated.iter().any(|a| a == "photocraft" || a == "artcraft-toolbox"), "{summary:?}");
-    assert_eq!(summary.aggregated.len(), 12, "the apps that aren't installed still come from the feed: {summary:?}");
+    assert_eq!(summary.aggregated.len(), 13, "the apps that aren't installed still come from the feed: {summary:?}");
     assert!(summary.failed.is_empty(), "{summary:?}");
 
     // An hour later the feed is unchanged (304) and older still: GitHub says PhotoCraft is

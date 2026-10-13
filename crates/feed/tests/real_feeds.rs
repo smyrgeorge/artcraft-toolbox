@@ -1,12 +1,14 @@
 //! Real GitHub "list releases" responses (trimmed: notes replaced, four releases each), captured
-//! 2026-10-09. They pin the release contract as the crafts actually publish it.
+//! 2026-10-09 (FigCraft's 2026-10-13). They pin the release contract as the crafts actually
+//! publish it.
 
 use artcraft_toolbox_feed::{Status, parse_releases, status};
 use artcraft_toolbox_model::Channel;
-use artcraft_toolbox_release::{Arch, Os, PackageKind, Target, Version};
+use artcraft_toolbox_release::{Arch, Component, Os, PackageKind, Target, Version};
 
 const PHOTOCRAFT: &str = include_str!("fixtures/photocraft-releases.json");
 const PDFCRAFT: &str = include_str!("fixtures/pdfcraft-releases.json");
+const FIGCRAFT: &str = include_str!("fixtures/figcraft-releases.json");
 
 const HOSTS: &[(Os, Arch, PackageKind)] = &[
     (Os::Macos, Arch::Aarch64, PackageKind::Dmg),
@@ -32,6 +34,22 @@ fn photocraft_feed_follows_the_contract() {
         assert_eq!(r.version, Version::new(0, 5, 0), "{host}");
         assert_eq!(a.name.kind, *kind, "{host}");
         assert!(a.url.starts_with("https://github.com/storytold/photocraft/releases/download/v0.5.0/"), "{}", a.url);
+    }
+}
+
+#[test]
+fn figcraft_servers_and_riscv_builds_are_assets_never_installed() {
+    let releases = parse_releases(FIGCRAFT, &["figcraft"]).unwrap();
+    let newest = &releases[0];
+    assert_eq!(newest.version, Version::new(0, 5, 1));
+    assert!(newest.unrecognized.is_empty(), "{:?}", newest.unrecognized);
+    let servers: Vec<&str> = newest.assets.iter().filter(|a| a.name.component == Component::Server).map(|a| a.file.as_str()).collect();
+    assert_eq!(servers, ["figcraft-server-0.5.1-linux-aarch64.tar.gz", "figcraft-server-0.5.1-linux-x86_64.tar.gz"]);
+    assert!(newest.assets.iter().any(|a| a.name.target == Some(Target::new(Os::Linux, Arch::Riscv64))));
+    for (os, arch, kind) in HOSTS {
+        let host = Target::new(*os, *arch);
+        let (_, a) = artcraft_toolbox_feed::latest(&releases, Channel::Stable, host, None).unwrap_or_else(|| panic!("no build for {host}"));
+        assert_eq!((a.name.component, a.name.kind), (Component::App, *kind), "{host}");
     }
 }
 

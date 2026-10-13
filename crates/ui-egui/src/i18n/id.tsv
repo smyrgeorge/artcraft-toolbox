@@ -160,6 +160,7 @@
 	Spreadsheets	Lembar kerja
 	Audio recording, editing and mixing	Perekaman, penyuntingan, dan pencampuran audio
 	Word processing	Pengolah kata
+	Interface design and prototyping	Desain antarmuka dan pembuatan prototipe
 
 # == Plurals
 @plural	The app is removed, with {n} earlier version kept for rollback.|The app is removed, with {n} earlier versions kept for rollback.	Aplikasi akan dihapus, beserta {n} versi sebelumnya yang disimpan untuk dikembalikan.

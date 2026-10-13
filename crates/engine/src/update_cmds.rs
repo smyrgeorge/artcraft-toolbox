@@ -527,10 +527,10 @@ mod tests {
         let mut s = session(Arc::clone(&fake), Some(store.clone()));
         let r = s.execute(CHECK, json!({})).unwrap();
         let summary: CheckSummary = serde_json::from_value(r.clone()).unwrap();
-        assert_eq!(summary.fetched.len(), 14, "13 apps and the toolbox itself: {summary:?}");
+        assert_eq!(summary.fetched.len(), 15, "14 apps and the toolbox itself: {summary:?}");
         assert!(summary.failed.is_empty() && summary.rate_limited_until.is_none());
         assert_eq!((summary.catalog.clone(), summary.feed.clone()), (RemoteState::Off, RemoteState::Off));
-        assert_eq!(fake.requests().len(), 14);
+        assert_eq!(fake.requests().len(), 15);
         assert!(fake.requests().iter().any(|(url, _)| url.contains("/artcraft-toolbox/releases")), "the toolbox's own feed");
         assert!(fake.requests().iter().all(|(url, etag)| url.ends_with("/releases?per_page=20") && etag.is_none()));
         assert_eq!(s.app_status("photocraft").unwrap().status, Status::NotInstalled { latest: artcraft_toolbox_release::Version::new(0, 5, 0) });
@@ -549,7 +549,7 @@ mod tests {
         s.execute(CHECK, json!({})).unwrap();
         // Seconds later: everything is fresh, nothing is requested.
         let r: CheckSummary = serde_json::from_value(s.execute(CHECK, json!({})).unwrap()).unwrap();
-        assert_eq!((r.fresh.len(), fake.requests().len()), (14, 14));
+        assert_eq!((r.fresh.len(), fake.requests().len()), (15, 15));
         // An hour later: requested again, with the ETag.
         s.set_clock(t1);
         let fake2 = Fake::new(vec![("photocraft", Ok(Response::NotModified { rate: RateLimit::default() }))]);
@@ -578,7 +578,7 @@ mod tests {
         assert_eq!(summary.rate_limited_until, Some(t0() + 1200));
         assert!(!summary.skipped.is_empty(), "apps after the refusal are not requested: {summary:?}");
         assert!(fake.requests().len() <= WORKERS, "{} requests", fake.requests().len());
-        assert_eq!(summary.done(), 14);
+        assert_eq!(summary.done(), 15);
         let notice = s.check_notice(&r).unwrap();
         assert!(notice.contains("request limit") && notice.contains("in 20 min") && notice.contains("ARTCRAFT_TOOLBOX_GITHUB_TOKEN"), "{notice}");
         let err = s.execute(CHECK, json!({})).unwrap_err().to_string();
@@ -623,7 +623,7 @@ mod tests {
         let mut s = session(fake, None);
         let Started::Job(id) = s.start(CHECK, json!({})).unwrap() else { panic!("a job") };
         assert!(s.has_jobs());
-        assert_eq!(s.jobs()[0].total, 14);
+        assert_eq!(s.jobs()[0].total, 15);
         assert!(s.execute(CHECK, json!({})).unwrap_err().to_string().contains("already running"));
         let mut events = Vec::new();
         for _ in 0..500 {

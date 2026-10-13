@@ -160,6 +160,7 @@
 	Spreadsheets	試算表
 	Audio recording, editing and mixing	錄音、音訊編輯與混音
 	Word processing	文書處理
+	Interface design and prototyping	介面設計與原型製作
 
 # == Plurals
 @plural	The app is removed, with {n} earlier version kept for rollback.|The app is removed, with {n} earlier versions kept for rollback.	將移除此應用程式，以及為回復而保留的 {n} 個舊版本。

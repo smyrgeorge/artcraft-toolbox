@@ -88,7 +88,7 @@ fn check_for_updates_fills_in_the_rows() {
     let (mut session, _) = Session::open(Catalog::builtin().unwrap(), None, Some(Arc::new(Fake)));
     session.set_host(Target::from_consts("linux", "x86_64"));
     let mut h = harness_with(session);
-    h.get_by_label("Not checked yet · 13 apps · linux-x86_64");
+    h.get_by_label("Not checked yet · 14 apps · linux-x86_64");
     h.get_by_label("Check for updates").click();
     // A frame first: the click only starts the check when the next frame handles it. Then frames
     // until it is done, by a deadline, not a frame count: CI machines differ.

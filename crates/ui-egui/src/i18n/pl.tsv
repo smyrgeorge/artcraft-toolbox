@@ -160,6 +160,7 @@
 	Spreadsheets	Arkusze kalkulacyjne
 	Audio recording, editing and mixing	Nagrywanie, edycja i miksowanie dźwięku
 	Word processing	Edytor tekstu
+	Interface design and prototyping	Projektowanie interfejsów i prototypowanie
 
 # == Plurals
 @plural	The app is removed, with {n} earlier version kept for rollback.|The app is removed, with {n} earlier versions kept for rollback.	Aplikacja zostanie usunięta razem z {n} poprzednią wersją zachowaną do przywrócenia.|Aplikacja zostanie usunięta razem z {n} poprzednimi wersjami zachowanymi do przywrócenia.|Aplikacja zostanie usunięta razem z {n} poprzednimi wersjami zachowanymi do przywrócenia.

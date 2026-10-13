@@ -160,6 +160,7 @@
 	Spreadsheets	Tabulky
 	Audio recording, editing and mixing	Nahrávání, úprava a mixování zvuku
 	Word processing	Zpracování textu
+	Interface design and prototyping	Návrh rozhraní a prototypování
 
 # == Plurals
 @plural	The app is removed, with {n} earlier version kept for rollback.|The app is removed, with {n} earlier versions kept for rollback.	Aplikace bude odebrána spolu s {n} předchozí verzí uchovanou pro návrat.|Aplikace bude odebrána spolu s {n} předchozími verzemi uchovanými pro návrat.|Aplikace bude odebrána spolu s {n} předchozími verzemi uchovanými pro návrat.

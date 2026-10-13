@@ -160,6 +160,7 @@
 	Spreadsheets	Υπολογιστικά φύλλα
 	Audio recording, editing and mixing	Ηχογράφηση, επεξεργασία και μίξη ήχου
 	Word processing	Επεξεργασία κειμένου
+	Interface design and prototyping	Σχεδιασμός διεπαφών και πρωτοτύπων
 
 # == Plurals
 @plural	The app is removed, with {n} earlier version kept for rollback.|The app is removed, with {n} earlier versions kept for rollback.	Η εφαρμογή θα αφαιρεθεί, μαζί με {n} προηγούμενη έκδοση που κρατήθηκε για επαναφορά.|Η εφαρμογή θα αφαιρεθεί, μαζί με {n} προηγούμενες εκδόσεις που κρατήθηκαν για επαναφορά.

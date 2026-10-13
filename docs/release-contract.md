@@ -73,11 +73,14 @@ runs it before uploading).
 | `<id>-<v>-linux-{x86_64,aarch64}.{deb,rpm,flatpak}` | | not used (system package managers own those) |
 | `<id>-<v>-linux-{x86_64,aarch64}.tar.gz` | | fallback when no AppImage |
 | `<id>-<v>-freebsd-x86_64.tar.gz` | FreeBSD 14 | installed on FreeBSD |
+| `<id>-<v>-linux-riscv64.{tar.gz,deb,rpm}` | RISC-V | not used (the toolbox has no RISC-V build) |
 | `<id>-cli-<v>-macos-universal.zip` | | not used (the CLI ships inside the other packages) |
+| `<id>-server-<v>-linux-{x86_64,aarch64}.tar.gz` | | not used (FigCraft's self-hosted collaboration server) |
 | `<id>-web-<v>.zip` | static site | not used |
 | `SHA256SUMS.txt` | | **required**: verifies every download |
 
-Windows architecture tokens are `x64`/`x86`/`arm64`; Linux and FreeBSD use `x86_64`/`aarch64`.
+Windows architecture tokens are `x64`/`x86`/`arm64`; Linux and FreeBSD use `x86_64`/`aarch64`
+(and `riscv64`).
 `release::Arch::from_token` accepts both.
 
 ## Icons
@@ -88,7 +91,7 @@ toolbox reads the 128 px one from
 `https://raw.githubusercontent.com/<repo>/HEAD/assets/app-icon/hicolor/128x128/apps/<bundle id>.png`
 (`App::icon_url`; a catalog `icon` field overrides it). `raw.githubusercontent.com` is not the
 rate-limited API and never receives a token. Checked 2026-10-09: all 12 apps serve both the 64 and
-128 px icons there.
+128 px icons there; FigCraft too, 2026-10-13.
 
 ## Integrity
 
@@ -127,22 +130,25 @@ otherwise; PdfCraft's `--control <file>`, which picks a free port and writes `{"
 "pid"}` to `<file>` without making its folder. Changing a flag means changing the catalog entry
 (and its revision) in the same release. Checked against PhotoCraft's `docs/control-protocol.md`
 on 2026-10-13; the other crafts' styles and ports are ArtCraft Launcher's (its commit 5308279).
+FigCraft, which the Launcher doesn't list, takes `--control <port>` (its own
+`docs/control-protocol.md`, 2026-10-13) on the next port after the Launcher's, 7890.
 
-## Measured state (2026-10-10)
+## Measured state (2026-10-13)
 
-`cargo xtask contract`: all 12 catalog apps pass (22 assets per latest release, 24 for PdfCraft,
-every host installable, every asset listed in `SHA256SUMS.txt`). Every craft released again on
-2026-10-10; the toolbox's own cached feeds followed without a code change.
+`cargo xtask contract`: all 13 crafts pass (23 to 27 assets per latest release, every host
+installable, every asset listed in `SHA256SUMS.txt`), and ArtCraft through its pattern. FigCraft
+joined that day. Before, every craft failed on its new RISC-V builds; those and FigCraft's server
+made the contract learn `riscv64` and `-server-` (Gotchas 9).
 
 | App | Latest | | App | Latest |
 |---|---|---|---|---|
-| PhotoCraft | v0.6.0 | | CADCraft | v0.4.0 |
-| VectorCraft | v0.8.0 | | DeckCraft | v0.4.0 |
-| FilmCraft | v0.5.0 | | GridCraft | v0.4.0 |
-| LightCraft | v0.5.0 | | SoundCraft | v0.4.0 |
-| PdfCraft | v0.5.0 | | WordCraft | v0.4.0 |
-| EffectCraft | v0.7.0 | | | |
-| DesignCraft | v0.5.0 | | | |
+| PhotoCraft | v0.8.2 | | CADCraft | v0.6.2 |
+| VectorCraft | v0.10.0 | | DeckCraft | v0.6.1 |
+| FilmCraft | v0.7.2 | | GridCraft | v0.6.1 |
+| LightCraft | v0.7.1 | | SoundCraft | v0.6.1 |
+| PdfCraft | v0.7.1 | | WordCraft | v0.6.1 |
+| EffectCraft | v0.9.2 | | FigCraft | v0.5.1 |
+| DesignCraft | v0.7.1 | | | |
 
 ## Gotchas
 
@@ -182,6 +188,13 @@ every host installable, every asset listed in `SHA256SUMS.txt`). Every craft rel
    gives files HFS type and creator codes by extension (`.icns`, `.txt`, …), stored as that
    xattr; the staged folder has none. `makehybrid` has no option to turn that off, so fixing it
    means another DMG builder; until then `--strict` can't be used on any craft's bundle.
+9. **RISC-V builds and FigCraft's server** (measured 2026-10-13). Every craft now publishes
+   Linux RISC-V builds (`<id>-<v>-linux-riscv64.tar.gz`, most also `.deb` and `.rpm`), and
+   FigCraft a self-hosted collaboration server (`figcraft-server-<v>-linux-{x86_64,aarch64}.tar.gz`).
+   The parser knows both (`Arch::Riscv64`, `Component::Server`) so the contract check stays
+   strict about unknown names; neither is ever installed: `select` takes only the app, and the
+   toolbox runs on no RISC-V machine (`Target::host`). Fixture:
+   `crates/feed/tests/fixtures/figcraft-releases.json`.
 
 ## Apps outside the contract
 

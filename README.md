@@ -60,6 +60,7 @@ folder (PhotoCraft installed by the toolbox); see [docs/development.md](docs/dev
 | **GridCraft** | Spreadsheets | [storytold/gridcraft](https://github.com/storytold/gridcraft) |
 | **SoundCraft** | Audio recording, editing and mixing | [storytold/soundcraft](https://github.com/storytold/soundcraft) |
 | **WordCraft** | Word processing | [storytold/wordcraft](https://github.com/storytold/wordcraft) |
+| **FigCraft** | Interface design and prototyping | [storytold/figcraft](https://github.com/storytold/figcraft) |
 | **ArtCraft** | The AI creative studio (publishes differently: matched by name patterns, macOS for now) | [storytold/artcraft](https://github.com/storytold/artcraft) |
 
 The list is data ([`crates/catalog/catalog.toml`](crates/catalog/catalog.toml)): adding a craft
@@ -74,7 +75,7 @@ assets named `<app>-<version>-<os>-<arch>.<ext>`, and a `SHA256SUMS.txt`. The to
 feeds, picks the right per-user package for your machine (DMG on macOS, the portable zip on
 Windows, the AppImage on Linux), verifies it, installs it side by side with the previous version
 so you can roll back, and keeps it up to date. `cargo xtask contract` checks every craft's latest
-release against that contract; on 2026-10-10 all twelve pass, and ArtCraft through its patterns.
+release against that contract; on 2026-10-13 all thirteen pass, and ArtCraft through its patterns.
 
 Checks are cheap: a signed, aggregated feed of every app's releases is fetched with one request
 (no GitHub API quota; the API, one request per app, is only the fallback), and the same signed
@@ -100,6 +101,7 @@ cargo run -p artcraft-toolbox-cli -- list          # the catalog, headless
 cargo run -p artcraft-toolbox-cli -- check         # check GitHub for new releases
 cargo run -p artcraft-toolbox-cli -- install photocraft   # download, verify, install
 cargo run -p artcraft-toolbox-cli -- update --all         # update everything, keeping the old versions
+cargo run -p artcraft-toolbox-cli -- open photocraft --control   # open it for an agent to drive
 cargo run -p artcraft-toolbox-cli -- status \
   --feed photocraft=crates/feed/tests/fixtures/photocraft-releases.json
 cargo run -p artcraft-toolbox-cli -- mcp           # an MCP server over every command, for agents
@@ -118,7 +120,10 @@ drive the same code. Non-test code never panics.
 Agents get the same commands: `artcraft-toolbox-cli mcp` is an MCP server over the registry
 (headless, or bridged to the running app with `--bridge`), and `artcraft-toolbox --control <port>`
 serves the window itself in JSON lines behind a token, so an agent can read and set every bit of
-the window's state (`docs/mcp.md`, `docs/control-protocol.md`).
+the window's state ([docs/mcp.md](docs/mcp.md), [docs/control-protocol.md](docs/control-protocol.md)).
+The toolbox can also open a Crafting App with that app's own control channel (an Agent control
+switch per app, off by default), so an agent can drive the app while you watch. Each app gets a
+port of its own, so several can be open for agents at once.
 
 | Read | |
 |---|---|

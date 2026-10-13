@@ -1,0 +1,556 @@
+[
+ {
+  "tag_name": "v0.5.1",
+  "name": "FigCraft v0.5.1",
+  "draft": false,
+  "prerelease": false,
+  "published_at": "2026-10-12T15:51:49Z",
+  "html_url": "https://github.com/storytold/figcraft/releases/tag/v0.5.1",
+  "body": "Release notes trimmed for this test fixture.",
+  "assets": [
+   {
+    "name": "figcraft-0.5.1-freebsd-x86_64.tar.gz",
+    "size": 84999386,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.5.1/figcraft-0.5.1-freebsd-x86_64.tar.gz"
+   },
+   {
+    "name": "figcraft-0.5.1-linux-aarch64.AppImage",
+    "size": 77654536,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.5.1/figcraft-0.5.1-linux-aarch64.AppImage"
+   },
+   {
+    "name": "figcraft-0.5.1-linux-aarch64.AppImage.zsync",
+    "size": 265671,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.5.1/figcraft-0.5.1-linux-aarch64.AppImage.zsync"
+   },
+   {
+    "name": "figcraft-0.5.1-linux-aarch64.deb",
+    "size": 84310144,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.5.1/figcraft-0.5.1-linux-aarch64.deb"
+   },
+   {
+    "name": "figcraft-0.5.1-linux-aarch64.flatpak",
+    "size": 56845936,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.5.1/figcraft-0.5.1-linux-aarch64.flatpak"
+   },
+   {
+    "name": "figcraft-0.5.1-linux-aarch64.rpm",
+    "size": 83802732,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.5.1/figcraft-0.5.1-linux-aarch64.rpm"
+   },
+   {
+    "name": "figcraft-0.5.1-linux-aarch64.tar.gz",
+    "size": 82387995,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.5.1/figcraft-0.5.1-linux-aarch64.tar.gz"
+   },
+   {
+    "name": "figcraft-0.5.1-linux-riscv64.tar.gz",
+    "size": 83728442,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.5.1/figcraft-0.5.1-linux-riscv64.tar.gz"
+   },
+   {
+    "name": "figcraft-0.5.1-linux-x86_64.AppImage",
+    "size": 80243192,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.5.1/figcraft-0.5.1-linux-x86_64.AppImage"
+   },
+   {
+    "name": "figcraft-0.5.1-linux-x86_64.AppImage.zsync",
+    "size": 274517,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.5.1/figcraft-0.5.1-linux-x86_64.AppImage.zsync"
+   },
+   {
+    "name": "figcraft-0.5.1-linux-x86_64.deb",
+    "size": 86398736,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.5.1/figcraft-0.5.1-linux-x86_64.deb"
+   },
+   {
+    "name": "figcraft-0.5.1-linux-x86_64.flatpak",
+    "size": 60100616,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.5.1/figcraft-0.5.1-linux-x86_64.flatpak"
+   },
+   {
+    "name": "figcraft-0.5.1-linux-x86_64.rpm",
+    "size": 86009282,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.5.1/figcraft-0.5.1-linux-x86_64.rpm"
+   },
+   {
+    "name": "figcraft-0.5.1-linux-x86_64.tar.gz",
+    "size": 85166689,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.5.1/figcraft-0.5.1-linux-x86_64.tar.gz"
+   },
+   {
+    "name": "figcraft-0.5.1-macos-universal.dmg",
+    "size": 92210194,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.5.1/figcraft-0.5.1-macos-universal.dmg"
+   },
+   {
+    "name": "figcraft-0.5.1-windows-arm64-portable.zip",
+    "size": 82509395,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.5.1/figcraft-0.5.1-windows-arm64-portable.zip"
+   },
+   {
+    "name": "figcraft-0.5.1-windows-arm64.msi",
+    "size": 65093632,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.5.1/figcraft-0.5.1-windows-arm64.msi"
+   },
+   {
+    "name": "figcraft-0.5.1-windows-x64-portable.zip",
+    "size": 85126995,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.5.1/figcraft-0.5.1-windows-x64-portable.zip"
+   },
+   {
+    "name": "figcraft-0.5.1-windows-x64.msi",
+    "size": 68141056,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.5.1/figcraft-0.5.1-windows-x64.msi"
+   },
+   {
+    "name": "figcraft-0.5.1-windows-x86-portable.zip",
+    "size": 82506855,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.5.1/figcraft-0.5.1-windows-x86-portable.zip"
+   },
+   {
+    "name": "figcraft-0.5.1-windows-x86.msi",
+    "size": 66781184,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.5.1/figcraft-0.5.1-windows-x86.msi"
+   },
+   {
+    "name": "figcraft-cli-0.5.1-macos-universal.zip",
+    "size": 76593235,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.5.1/figcraft-cli-0.5.1-macos-universal.zip"
+   },
+   {
+    "name": "figcraft-server-0.5.1-linux-aarch64.tar.gz",
+    "size": 3812918,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.5.1/figcraft-server-0.5.1-linux-aarch64.tar.gz"
+   },
+   {
+    "name": "figcraft-server-0.5.1-linux-x86_64.tar.gz",
+    "size": 4156574,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.5.1/figcraft-server-0.5.1-linux-x86_64.tar.gz"
+   },
+   {
+    "name": "figcraft-web-0.5.1.zip",
+    "size": 8625525,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.5.1/figcraft-web-0.5.1.zip"
+   },
+   {
+    "name": "SHA256SUMS.txt",
+    "size": 2558,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.5.1/SHA256SUMS.txt"
+   }
+  ]
+ },
+ {
+  "tag_name": "v0.5.0",
+  "name": "FigCraft v0.5.0",
+  "draft": false,
+  "prerelease": false,
+  "published_at": "2026-10-12T13:07:53Z",
+  "html_url": "https://github.com/storytold/figcraft/releases/tag/v0.5.0",
+  "body": "Release notes trimmed for this test fixture.",
+  "assets": [
+   {
+    "name": "figcraft-0.5.0-freebsd-x86_64.tar.gz",
+    "size": 84671958,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.5.0/figcraft-0.5.0-freebsd-x86_64.tar.gz"
+   },
+   {
+    "name": "figcraft-0.5.0-linux-aarch64.AppImage",
+    "size": 77396488,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.5.0/figcraft-0.5.0-linux-aarch64.AppImage"
+   },
+   {
+    "name": "figcraft-0.5.0-linux-aarch64.AppImage.zsync",
+    "size": 264789,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.5.0/figcraft-0.5.0-linux-aarch64.AppImage.zsync"
+   },
+   {
+    "name": "figcraft-0.5.0-linux-aarch64.deb",
+    "size": 84111430,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.5.0/figcraft-0.5.0-linux-aarch64.deb"
+   },
+   {
+    "name": "figcraft-0.5.0-linux-aarch64.flatpak",
+    "size": 56723224,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.5.0/figcraft-0.5.0-linux-aarch64.flatpak"
+   },
+   {
+    "name": "figcraft-0.5.0-linux-aarch64.rpm",
+    "size": 83622214,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.5.0/figcraft-0.5.0-linux-aarch64.rpm"
+   },
+   {
+    "name": "figcraft-0.5.0-linux-aarch64.tar.gz",
+    "size": 82206874,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.5.0/figcraft-0.5.0-linux-aarch64.tar.gz"
+   },
+   {
+    "name": "figcraft-0.5.0-linux-riscv64.tar.gz",
+    "size": 83582816,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.5.0/figcraft-0.5.0-linux-riscv64.tar.gz"
+   },
+   {
+    "name": "figcraft-0.5.0-linux-x86_64.AppImage",
+    "size": 79972856,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.5.0/figcraft-0.5.0-linux-x86_64.AppImage"
+   },
+   {
+    "name": "figcraft-0.5.0-linux-x86_64.AppImage.zsync",
+    "size": 273593,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.5.0/figcraft-0.5.0-linux-x86_64.AppImage.zsync"
+   },
+   {
+    "name": "figcraft-0.5.0-linux-x86_64.deb",
+    "size": 86057456,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.5.0/figcraft-0.5.0-linux-x86_64.deb"
+   },
+   {
+    "name": "figcraft-0.5.0-linux-x86_64.flatpak",
+    "size": 59902568,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.5.0/figcraft-0.5.0-linux-x86_64.flatpak"
+   },
+   {
+    "name": "figcraft-0.5.0-linux-x86_64.rpm",
+    "size": 85671830,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.5.0/figcraft-0.5.0-linux-x86_64.rpm"
+   },
+   {
+    "name": "figcraft-0.5.0-linux-x86_64.tar.gz",
+    "size": 84835146,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.5.0/figcraft-0.5.0-linux-x86_64.tar.gz"
+   },
+   {
+    "name": "figcraft-0.5.0-macos-universal.dmg",
+    "size": 91873751,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.5.0/figcraft-0.5.0-macos-universal.dmg"
+   },
+   {
+    "name": "figcraft-0.5.0-windows-arm64-portable.zip",
+    "size": 82208795,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.5.0/figcraft-0.5.0-windows-arm64-portable.zip"
+   },
+   {
+    "name": "figcraft-0.5.0-windows-arm64.msi",
+    "size": 64888832,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.5.0/figcraft-0.5.0-windows-arm64.msi"
+   },
+   {
+    "name": "figcraft-0.5.0-windows-x64-portable.zip",
+    "size": 84902310,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.5.0/figcraft-0.5.0-windows-x64-portable.zip"
+   },
+   {
+    "name": "figcraft-0.5.0-windows-x64.msi",
+    "size": 67948544,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.5.0/figcraft-0.5.0-windows-x64.msi"
+   },
+   {
+    "name": "figcraft-0.5.0-windows-x86-portable.zip",
+    "size": 82388339,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.5.0/figcraft-0.5.0-windows-x86-portable.zip"
+   },
+   {
+    "name": "figcraft-0.5.0-windows-x86.msi",
+    "size": 66695168,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.5.0/figcraft-0.5.0-windows-x86.msi"
+   },
+   {
+    "name": "figcraft-cli-0.5.0-macos-universal.zip",
+    "size": 76400058,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.5.0/figcraft-cli-0.5.0-macos-universal.zip"
+   },
+   {
+    "name": "figcraft-server-0.5.0-linux-aarch64.tar.gz",
+    "size": 3796482,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.5.0/figcraft-server-0.5.0-linux-aarch64.tar.gz"
+   },
+   {
+    "name": "figcraft-server-0.5.0-linux-x86_64.tar.gz",
+    "size": 4139866,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.5.0/figcraft-server-0.5.0-linux-x86_64.tar.gz"
+   },
+   {
+    "name": "figcraft-web-0.5.0.zip",
+    "size": 8596024,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.5.0/figcraft-web-0.5.0.zip"
+   },
+   {
+    "name": "SHA256SUMS.txt",
+    "size": 2558,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.5.0/SHA256SUMS.txt"
+   }
+  ]
+ },
+ {
+  "tag_name": "v0.4.0",
+  "name": "FigCraft v0.4.0",
+  "draft": false,
+  "prerelease": false,
+  "published_at": "2026-10-12T05:39:52Z",
+  "html_url": "https://github.com/storytold/figcraft/releases/tag/v0.4.0",
+  "body": "Release notes trimmed for this test fixture.",
+  "assets": [
+   {
+    "name": "figcraft-0.4.0-freebsd-x86_64.tar.gz",
+    "size": 84209480,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.4.0/figcraft-0.4.0-freebsd-x86_64.tar.gz"
+   },
+   {
+    "name": "figcraft-0.4.0-linux-aarch64.AppImage",
+    "size": 77027848,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.4.0/figcraft-0.4.0-linux-aarch64.AppImage"
+   },
+   {
+    "name": "figcraft-0.4.0-linux-aarch64.AppImage.zsync",
+    "size": 263529,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.4.0/figcraft-0.4.0-linux-aarch64.AppImage.zsync"
+   },
+   {
+    "name": "figcraft-0.4.0-linux-aarch64.deb",
+    "size": 83662276,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.4.0/figcraft-0.4.0-linux-aarch64.deb"
+   },
+   {
+    "name": "figcraft-0.4.0-linux-aarch64.flatpak",
+    "size": 56154520,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.4.0/figcraft-0.4.0-linux-aarch64.flatpak"
+   },
+   {
+    "name": "figcraft-0.4.0-linux-aarch64.rpm",
+    "size": 83164645,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.4.0/figcraft-0.4.0-linux-aarch64.rpm"
+   },
+   {
+    "name": "figcraft-0.4.0-linux-aarch64.tar.gz",
+    "size": 81750257,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.4.0/figcraft-0.4.0-linux-aarch64.tar.gz"
+   },
+   {
+    "name": "figcraft-0.4.0-linux-riscv64.tar.gz",
+    "size": 83118826,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.4.0/figcraft-0.4.0-linux-riscv64.tar.gz"
+   },
+   {
+    "name": "figcraft-0.4.0-linux-x86_64.AppImage",
+    "size": 79534584,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.4.0/figcraft-0.4.0-linux-x86_64.AppImage"
+   },
+   {
+    "name": "figcraft-0.4.0-linux-x86_64.AppImage.zsync",
+    "size": 272095,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.4.0/figcraft-0.4.0-linux-x86_64.AppImage.zsync"
+   },
+   {
+    "name": "figcraft-0.4.0-linux-x86_64.deb",
+    "size": 85608830,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.4.0/figcraft-0.4.0-linux-x86_64.deb"
+   },
+   {
+    "name": "figcraft-0.4.0-linux-x86_64.flatpak",
+    "size": 59319136,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.4.0/figcraft-0.4.0-linux-x86_64.flatpak"
+   },
+   {
+    "name": "figcraft-0.4.0-linux-x86_64.rpm",
+    "size": 85218775,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.4.0/figcraft-0.4.0-linux-x86_64.rpm"
+   },
+   {
+    "name": "figcraft-0.4.0-linux-x86_64.tar.gz",
+    "size": 84384875,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.4.0/figcraft-0.4.0-linux-x86_64.tar.gz"
+   },
+   {
+    "name": "figcraft-0.4.0-macos-universal.dmg",
+    "size": 91041899,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.4.0/figcraft-0.4.0-macos-universal.dmg"
+   },
+   {
+    "name": "figcraft-0.4.0-windows-arm64-portable.zip",
+    "size": 82059954,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.4.0/figcraft-0.4.0-windows-arm64-portable.zip"
+   },
+   {
+    "name": "figcraft-0.4.0-windows-arm64.msi",
+    "size": 64643072,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.4.0/figcraft-0.4.0-windows-arm64.msi"
+   },
+   {
+    "name": "figcraft-0.4.0-windows-x64-portable.zip",
+    "size": 84741186,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.4.0/figcraft-0.4.0-windows-x64-portable.zip"
+   },
+   {
+    "name": "figcraft-0.4.0-windows-x64.msi",
+    "size": 67649536,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.4.0/figcraft-0.4.0-windows-x64.msi"
+   },
+   {
+    "name": "figcraft-0.4.0-windows-x86-portable.zip",
+    "size": 82227259,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.4.0/figcraft-0.4.0-windows-x86-portable.zip"
+   },
+   {
+    "name": "figcraft-0.4.0-windows-x86.msi",
+    "size": 66441216,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.4.0/figcraft-0.4.0-windows-x86.msi"
+   },
+   {
+    "name": "figcraft-cli-0.4.0-macos-universal.zip",
+    "size": 76398427,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.4.0/figcraft-cli-0.4.0-macos-universal.zip"
+   },
+   {
+    "name": "figcraft-server-0.4.0-linux-aarch64.tar.gz",
+    "size": 3796904,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.4.0/figcraft-server-0.4.0-linux-aarch64.tar.gz"
+   },
+   {
+    "name": "figcraft-server-0.4.0-linux-x86_64.tar.gz",
+    "size": 4140346,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.4.0/figcraft-server-0.4.0-linux-x86_64.tar.gz"
+   },
+   {
+    "name": "figcraft-web-0.4.0.zip",
+    "size": 8595072,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.4.0/figcraft-web-0.4.0.zip"
+   },
+   {
+    "name": "SHA256SUMS.txt",
+    "size": 2558,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.4.0/SHA256SUMS.txt"
+   }
+  ]
+ },
+ {
+  "tag_name": "v0.3.1",
+  "name": "FigCraft v0.3.1",
+  "draft": false,
+  "prerelease": false,
+  "published_at": "2026-10-11T02:04:36Z",
+  "html_url": "https://github.com/storytold/figcraft/releases/tag/v0.3.1",
+  "body": "Release notes trimmed for this test fixture.",
+  "assets": [
+   {
+    "name": "figcraft-0.3.1-freebsd-x86_64.tar.gz",
+    "size": 77237307,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.3.1/figcraft-0.3.1-freebsd-x86_64.tar.gz"
+   },
+   {
+    "name": "figcraft-0.3.1-linux-aarch64.AppImage",
+    "size": 71227912,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.3.1/figcraft-0.3.1-linux-aarch64.AppImage"
+   },
+   {
+    "name": "figcraft-0.3.1-linux-aarch64.AppImage.zsync",
+    "size": 243705,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.3.1/figcraft-0.3.1-linux-aarch64.AppImage.zsync"
+   },
+   {
+    "name": "figcraft-0.3.1-linux-aarch64.deb",
+    "size": 76945330,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.3.1/figcraft-0.3.1-linux-aarch64.deb"
+   },
+   {
+    "name": "figcraft-0.3.1-linux-aarch64.flatpak",
+    "size": 52054032,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.3.1/figcraft-0.3.1-linux-aarch64.flatpak"
+   },
+   {
+    "name": "figcraft-0.3.1-linux-aarch64.rpm",
+    "size": 76507372,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.3.1/figcraft-0.3.1-linux-aarch64.rpm"
+   },
+   {
+    "name": "figcraft-0.3.1-linux-aarch64.tar.gz",
+    "size": 75336105,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.3.1/figcraft-0.3.1-linux-aarch64.tar.gz"
+   },
+   {
+    "name": "figcraft-0.3.1-linux-riscv64.tar.gz",
+    "size": 77059105,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.3.1/figcraft-0.3.1-linux-riscv64.tar.gz"
+   },
+   {
+    "name": "figcraft-0.3.1-linux-x86_64.AppImage",
+    "size": 73185784,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.3.1/figcraft-0.3.1-linux-x86_64.AppImage"
+   },
+   {
+    "name": "figcraft-0.3.1-linux-x86_64.AppImage.zsync",
+    "size": 250395,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.3.1/figcraft-0.3.1-linux-x86_64.AppImage.zsync"
+   },
+   {
+    "name": "figcraft-0.3.1-linux-x86_64.deb",
+    "size": 78401832,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.3.1/figcraft-0.3.1-linux-x86_64.deb"
+   },
+   {
+    "name": "figcraft-0.3.1-linux-x86_64.flatpak",
+    "size": 54466136,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.3.1/figcraft-0.3.1-linux-x86_64.flatpak"
+   },
+   {
+    "name": "figcraft-0.3.1-linux-x86_64.rpm",
+    "size": 78058888,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.3.1/figcraft-0.3.1-linux-x86_64.rpm"
+   },
+   {
+    "name": "figcraft-0.3.1-linux-x86_64.tar.gz",
+    "size": 77354914,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.3.1/figcraft-0.3.1-linux-x86_64.tar.gz"
+   },
+   {
+    "name": "figcraft-0.3.1-macos-universal.dmg",
+    "size": 83535895,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.3.1/figcraft-0.3.1-macos-universal.dmg"
+   },
+   {
+    "name": "figcraft-0.3.1-windows-arm64-portable.zip",
+    "size": 75550995,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.3.1/figcraft-0.3.1-windows-arm64-portable.zip"
+   },
+   {
+    "name": "figcraft-0.3.1-windows-arm64.msi",
+    "size": 59727872,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.3.1/figcraft-0.3.1-windows-arm64.msi"
+   },
+   {
+    "name": "figcraft-0.3.1-windows-x64-portable.zip",
+    "size": 77518677,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.3.1/figcraft-0.3.1-windows-x64-portable.zip"
+   },
+   {
+    "name": "figcraft-0.3.1-windows-x64.msi",
+    "size": 62160896,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.3.1/figcraft-0.3.1-windows-x64.msi"
+   },
+   {
+    "name": "figcraft-0.3.1-windows-x86-portable.zip",
+    "size": 76054919,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.3.1/figcraft-0.3.1-windows-x86-portable.zip"
+   },
+   {
+    "name": "figcraft-0.3.1-windows-x86.msi",
+    "size": 61579264,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.3.1/figcraft-0.3.1-windows-x86.msi"
+   },
+   {
+    "name": "figcraft-cli-0.3.1-macos-universal.zip",
+    "size": 70622372,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.3.1/figcraft-cli-0.3.1-macos-universal.zip"
+   },
+   {
+    "name": "figcraft-web-0.3.1.zip",
+    "size": 7250549,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.3.1/figcraft-web-0.3.1.zip"
+   },
+   {
+    "name": "SHA256SUMS.txt",
+    "size": 2341,
+    "browser_download_url": "https://github.com/storytold/figcraft/releases/download/v0.3.1/SHA256SUMS.txt"
+   }
+  ]
+ }
+]

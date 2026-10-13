@@ -160,6 +160,7 @@
 	Spreadsheets	表計算
 	Audio recording, editing and mixing	音声の録音、編集、ミキシング
 	Word processing	文書作成
+	Interface design and prototyping	インターフェースデザインとプロトタイピング
 
 # == Plurals
 @plural	The app is removed, with {n} earlier version kept for rollback.|The app is removed, with {n} earlier versions kept for rollback.	アプリと、ロールバック用に保持していた以前のバージョン {n} 個を削除します。

@@ -78,7 +78,7 @@ mod tests {
     fn list_and_info() {
         let mut s = Session::new().unwrap();
         let list = s.execute("catalog.list", json!({})).unwrap();
-        assert_eq!(list.as_array().map(Vec::len), Some(13));
+        assert_eq!(list.as_array().map(Vec::len), Some(14));
         assert_eq!(list[0]["bundleId"], "ai.storyteller.photocraft");
         assert_eq!(list[0]["followsContract"], true);
         assert_eq!(list[0]["control"], json!({"style": "port-and-token-file", "port": 7878}));
@@ -88,7 +88,7 @@ mod tests {
             (Some(false), Some("ArtCraft_{version}_universal.dmg"))
         );
         let status = s.execute("catalog.status", json!({})).unwrap();
-        assert_eq!((status["source"].as_str(), status["revision"].as_u64(), status["apps"].as_u64()), (Some("builtin"), Some(2), Some(13)));
+        assert_eq!((status["source"].as_str(), status["revision"].as_u64(), status["apps"].as_u64()), (Some("builtin"), Some(3), Some(14)));
         assert_eq!(status["enabled"], true);
         assert!(status["remote"]["feed"].as_str().unwrap().ends_with("/artcraft-feed.json"));
         assert!(s.execute("catalog.status", json!({"x": 1})).is_err());

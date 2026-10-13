@@ -21,11 +21,11 @@
 #                 "file" (no port) is --control <file>, the app picking its own port. Each app has
 #                 a port of its own, the same as ArtCraft Launcher gives it.
 #
-# Checked against GitHub on 2026-10-09: all twelve crafts publish the contract's full asset set.
+# Checked against GitHub on 2026-10-13: all thirteen crafts publish the contract's full asset set.
 schema = 1
 # Bumped on every published change. A remote catalog replaces the built-in one only when its
 # revision is not older (docs/architecture.md § 12).
-revision = 2
+revision = 3
 
 # Where a newer catalog and the suite's aggregated release feed are published, signed with this
 # key (`cargo xtask feed`, docs/releasing.md › The feed). One request per check instead of one
@@ -138,6 +138,15 @@ name = "WordCraft"
 tagline = "Word processing"
 repo = "storytold/wordcraft"
 control = { style = "port", port = 7885 }
+
+# Not in ArtCraft Launcher's suite: its port is the next one after the suite's (7878–7889).
+[[app]]
+id = "figcraft"
+name = "FigCraft"
+tagline = "Interface design and prototyping"
+repo = "storytold/figcraft"
+website = "https://getartcraft.com/apps/figcraft"
+control = { style = "port", port = 7890 }
 
 # ArtCraft itself (the AI studio) is a different stack and doesn't follow the contract: tags
 # `artcraft-v<version>`, Tauri-style asset names, no Linux build, no SHA256SUMS.txt. Its builds

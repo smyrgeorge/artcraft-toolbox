@@ -51,6 +51,9 @@ pub enum Arch {
     X86,
     /// A macOS universal binary (Apple silicon + Intel in one file).
     Universal,
+    /// 64-bit RISC-V (the crafts' Linux builds). Recognized in asset names; the toolbox itself
+    /// doesn't run there ([`Target::from_consts`]).
+    Riscv64,
 }
 
 impl Arch {
@@ -62,6 +65,7 @@ impl Arch {
             Arch::Aarch64 => "aarch64",
             Arch::X86 => "x86",
             Arch::Universal => "universal",
+            Arch::Riscv64 => "riscv64",
         }
     }
 
@@ -71,6 +75,7 @@ impl Arch {
             "aarch64" | "arm64" => Arch::Aarch64,
             "x86" | "i686" => Arch::X86,
             "universal" => Arch::Universal,
+            "riscv64" => Arch::Riscv64,
             _ => return None,
         })
     }
@@ -88,7 +93,8 @@ impl Target {
         Target { os, arch }
     }
 
-    /// The machine this process runs on; `None` on a platform no craft ships for.
+    /// The machine this process runs on; `None` on a platform the toolbox ships no build for
+    /// (RISC-V among them, although the crafts publish builds for it).
     pub fn host() -> Option<Target> {
         Target::from_consts(std::env::consts::OS, std::env::consts::ARCH)
     }
@@ -123,6 +129,7 @@ impl Target {
             (Os::Windows, _) => &[Arch::X86],
             (_, Arch::Aarch64) => &[Arch::Aarch64],
             (_, Arch::X86) => &[Arch::X86],
+            (_, Arch::Riscv64) => &[Arch::Riscv64],
             (_, _) => &[Arch::X86_64],
         }
     }
@@ -148,7 +155,7 @@ mod tests {
         for os in [Os::Macos, Os::Windows, Os::Linux, Os::Freebsd] {
             assert_eq!(Os::from_token(os.token()), Some(os));
         }
-        for a in [Arch::X86_64, Arch::Aarch64, Arch::X86, Arch::Universal] {
+        for a in [Arch::X86_64, Arch::Aarch64, Arch::X86, Arch::Universal, Arch::Riscv64] {
             assert_eq!(Arch::from_token(a.token()), Some(a));
         }
         assert_eq!(Arch::from_token("x64"), Some(Arch::X86_64));

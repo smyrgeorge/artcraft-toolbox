@@ -160,6 +160,7 @@
 	Spreadsheets	스프레드시트
 	Audio recording, editing and mixing	오디오 녹음, 편집, 믹싱
 	Word processing	문서 작성
+	Interface design and prototyping	인터페이스 디자인과 프로토타이핑
 
 # == Plurals
 @plural	The app is removed, with {n} earlier version kept for rollback.|The app is removed, with {n} earlier versions kept for rollback.	앱과 롤백용으로 보관한 이전 버전 {n}개를 제거합니다.

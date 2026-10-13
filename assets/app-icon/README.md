@@ -17,7 +17,7 @@ Exactly three colours, two of them the family's:
 |---|---|---|
 | Ink | `#0b0b0c` | line work, hatching, the feet |
 | Paper | `#efe9dc` | the toolbox |
-| Steel (the toolbox's own colour) | `#4a6f9b` | the full-bleed field: the one hue no craft uses (measured 2026-10-10 from the twelve icons; FilmCraft has the Studio violet) |
+| Steel (the toolbox's own colour) | `#4a6f9b` | the full-bleed field: the one hue no craft uses (measured 2026-10-10 from the twelve icons, and FigCraft's mint 2026-10-13; FilmCraft has the Studio violet) |
 
 Tone is hatching, not grey: three Ink patterns of different density (`light`, `mid`, `cross`)
 shade the lid, the body and the dark side, and a slight displacement filter gives every line the

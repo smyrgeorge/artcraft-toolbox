@@ -160,6 +160,7 @@
 	Spreadsheets	Электронные таблицы
 	Audio recording, editing and mixing	Запись, редактирование и сведение звука
 	Word processing	Обработка текстов
+	Interface design and prototyping	Дизайн интерфейсов и прототипирование
 
 # == Plurals
 @plural	The app is removed, with {n} earlier version kept for rollback.|The app is removed, with {n} earlier versions kept for rollback.	Приложение будет удалено вместе с {n} предыдущей версией, сохранённой для отката.|Приложение будет удалено вместе с {n} предыдущими версиями, сохранёнными для отката.|Приложение будет удалено вместе с {n} предыдущими версиями, сохранёнными для отката.

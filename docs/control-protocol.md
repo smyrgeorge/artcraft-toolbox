@@ -160,7 +160,7 @@ craft needs a catalog entry, not code:
 
 | Style | Opened with | What an agent needs | Apps |
 |---|---|---|---|
-| `port` | `--control <port>` | The port | VectorCraft, FilmCraft, LightCraft, EffectCraft, DesignCraft, WordCraft, DeckCraft, GridCraft, CADCraft, SoundCraft |
+| `port` | `--control <port>` | The port | VectorCraft, FilmCraft, LightCraft, EffectCraft, DesignCraft, WordCraft, DeckCraft, GridCraft, CADCraft, SoundCraft, FigCraft |
 | `port-and-token-file` | `--control <port> --control-token-file <file>` | The token PhotoCraft writes to `<file>` (mode `0600` on Unix) when it isn't there | PhotoCraft |
 | `file` | `--control <file>` | The port and token PdfCraft writes to `<file>` as `{"port","token","pid"}`: it picks a free port itself | PdfCraft |
 
@@ -173,8 +173,8 @@ first opens for agents.
 for agents at once and an agent finds an app on the same port whichever of the two opened it:
 PhotoCraft 7878, VectorCraft 7879, FilmCraft 7880, LightCraft 7881, EffectCraft 7883, DesignCraft
 7884, WordCraft 7885, DeckCraft 7886, GridCraft 7887, CADCraft 7888, SoundCraft 7889 (PdfCraft
-picks its own). The toolbox's own channel needs a port none of them uses: the examples here use
-7877.
+picks its own). FigCraft, which the Launcher doesn't list, takes the next one: 7890. The toolbox's
+own channel needs a port none of them uses: the examples here use 7877.
 
 **An app already open.** On macOS, Launch Services hands arguments only to a copy it starts: an
 app already running without its channel would just come forward, leaving the agent nothing to
@@ -186,5 +186,6 @@ is the app's own business.
 
 **Security.** An app's channel is as powerful as the app: whoever reaches it can edit, save and
 export the user's documents. PhotoCraft and PdfCraft require their token; the apps that take only
-a port follow their own rules (WordCraft writes a key to its own settings folder). Keep the channel
+a port follow their own rules (WordCraft writes a key to its own settings folder; FigCraft's
+protocol documents none, 2026-10-13, so any program of the user's can drive it). Keep the channel
 off for apps no agent needs, and treat the token files like the toolbox's own.

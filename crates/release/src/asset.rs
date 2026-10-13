@@ -7,6 +7,7 @@
 //! photocraft-0.5.0-windows-x64.msi              photocraft-0.5.0-linux-x86_64.{deb,rpm,tar.gz,flatpak}
 //! photocraft-0.5.0-windows-x64-portable.zip     photocraft-0.5.0-freebsd-x86_64.tar.gz
 //! photocraft-cli-0.5.0-macos-universal.zip      photocraft-web-0.5.0.zip
+//! photocraft-0.8.2-linux-riscv64.tar.gz         figcraft-server-0.5.1-linux-x86_64.tar.gz
 //! ```
 //!
 //! Names are parsed from the right (extension, arch, os), so a pre-release version with its own
@@ -27,6 +28,8 @@ pub enum Component {
     App,
     /// The headless CLI (`<slug>-cli-…`).
     Cli,
+    /// A self-hosted server (`<slug>-server-…`, FigCraft's collaboration server).
+    Server,
     /// The static web build (`<slug>-web-<version>.zip`).
     Web,
 }
@@ -115,6 +118,8 @@ pub fn parse(file: &str, slugs: &[&str]) -> Option<AssetName> {
     let (slug, rest) = slugs.iter().filter(|s| !s.is_empty()).find_map(|s| Some((*s, file.strip_prefix(s)?.strip_prefix('-')?)))?;
     let (component, rest) = if let Some(r) = rest.strip_prefix("cli-") {
         (Component::Cli, r)
+    } else if let Some(r) = rest.strip_prefix("server-") {
+        (Component::Server, r)
     } else if let Some(r) = rest.strip_prefix("web-") {
         (Component::Web, r)
     } else {
@@ -207,6 +212,9 @@ mod tests {
         let a = p("photocraft-web-0.5.0.zip");
         assert_eq!((a.component, a.kind, a.target), (Component::Web, PackageKind::Zip, None));
         assert_eq!(p("photocraft-0.5.0-linux-x86_64.AppImage.zsync").kind, PackageKind::AppImageZsync);
+        let a = p("photocraft-server-0.5.0-linux-aarch64.tar.gz");
+        assert_eq!((a.component, a.kind, a.target), (Component::Server, PackageKind::TarGz, Some(Target::new(Os::Linux, Arch::Aarch64))));
+        assert_eq!(p("photocraft-0.5.0-linux-riscv64.tar.gz").target, Some(Target::new(Os::Linux, Arch::Riscv64)));
     }
 
     #[test]
@@ -283,11 +291,16 @@ mod tests {
     }
 
     #[test]
-    fn never_selects_cli_web_or_zsync() {
-        let only: Vec<AssetName> = ["photocraft-cli-0.5.0-macos-universal.zip", "photocraft-web-0.5.0.zip", "photocraft-0.5.0-linux-x86_64.AppImage.zsync"]
-            .iter()
-            .map(|n| p(n))
-            .collect();
+    fn never_selects_cli_server_web_or_zsync() {
+        let only: Vec<AssetName> = [
+            "photocraft-cli-0.5.0-macos-universal.zip",
+            "photocraft-server-0.5.0-linux-x86_64.tar.gz",
+            "photocraft-web-0.5.0.zip",
+            "photocraft-0.5.0-linux-x86_64.AppImage.zsync",
+        ]
+        .iter()
+        .map(|n| p(n))
+        .collect();
         for (os, arch) in [(Os::Macos, Arch::Aarch64), (Os::Linux, Arch::X86_64)] {
             assert!(select(&only, Target::new(os, arch), |a| a).is_none());
         }

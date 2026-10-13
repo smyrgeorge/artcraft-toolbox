@@ -160,6 +160,7 @@
 	Spreadsheets	Planilhas
 	Audio recording, editing and mixing	Gravação, edição e mixagem de áudio
 	Word processing	Processamento de texto
+	Interface design and prototyping	Design de interfaces e prototipagem
 
 # == Plurals
 @plural	The app is removed, with {n} earlier version kept for rollback.|The app is removed, with {n} earlier versions kept for rollback.	O app será removido, junto com {n} versão anterior mantida para reverter.|O app será removido, junto com {n} versões anteriores mantidas para reverter.
