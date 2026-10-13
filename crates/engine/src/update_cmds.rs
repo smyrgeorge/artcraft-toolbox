@@ -4,8 +4,9 @@
 //! First, when the settings follow the publisher (`remoteCatalog`), the signed remote catalog
 //! and the aggregated feed are fetched with two conditional GETs that don't touch the API
 //! (`remote`, docs/architecture.md § 12): a newer catalog replaces the session's, and every app
-//! the feed covers is done. The rest, or everything when the feed can't be used, goes to GitHub:
-//! per app, one conditional GET of `/repos/<repo>/releases?per_page=20` with the cached ETag.
+//! the feed covers is done, except, when the feed is stale, the installed apps and the toolbox.
+//! The rest, or everything when the feed can't be used, goes to GitHub: per app, one
+//! conditional GET of `/repos/<repo>/releases?per_page=20` with the cached ETag.
 //! A new body is parsed on the worker and cached (raw, with its ETag) before it reaches the
 //! session; a `304` only moves the check time.
 //!
@@ -31,7 +32,7 @@ use serde_json::Value;
 
 use crate::commands::CommandSpec;
 use crate::jobs::{JobMsg, JobState, PoolTask, Running, spawn_pool};
-use crate::remote::{self, RemoteTask};
+use crate::remote::{self, Fallback, RemoteTask};
 use crate::{CatalogSource, EngineError, Feed, JobId, Result, Session, params, setup, time};
 
 pub const CHECK: &str = "updates.check";
@@ -184,6 +185,8 @@ struct Task {
     url: String,
     slugs: Vec<String>,
     etag: Option<String>,
+    /// Set when a stale aggregated feed left this app to the API: used if GitHub can't answer.
+    fallback: Option<Fallback>,
 }
 
 impl PoolTask for Task {
@@ -222,6 +225,7 @@ fn start(s: &mut Session, p: &Value) -> Result<JobId> {
             url: format!("{}?per_page={PER_PAGE}", app.releases_api_url()),
             slugs: app.slugs().iter().map(|x| x.to_string()).collect(),
             etag: feed.and_then(|f| f.etag.clone()),
+            fallback: None,
         });
     }
     s.last_check_started = Some(now);
@@ -230,7 +234,16 @@ fn start(s: &mut Session, p: &Value) -> Result<JobId> {
     let (store, clock) = (s.store.clone(), s.clock);
     // The publisher's documents first, when followed and when something is to be checked.
     let remote_task = match (s.remote_enabled() && !tasks.is_empty(), s.pinned_key.clone()) {
-        (true, Some(key)) => Some(RemoteTask { catalog: s.catalog.clone(), key, have_feed: s.feeds.keys().cloned().collect() }),
+        (true, Some(key)) => Some(RemoteTask {
+            catalog: s.catalog.clone(),
+            key,
+            have_feed: s.feeds.keys().cloned().collect(),
+            confirm: ids
+                .iter()
+                .filter(|id| !s.inventory.versions(id).is_empty() || s.catalog.toolbox.as_ref().is_some_and(|t| &t.id == *id))
+                .cloned()
+                .collect(),
+        }),
         _ => None,
     };
     if remote_task.is_none() {
@@ -239,26 +252,29 @@ fn start(s: &mut Session, p: &Value) -> Result<JobId> {
     }
     let pool_cancel = Arc::clone(&cancel);
     let spawned = std::thread::Builder::new().name("updates-check".into()).spawn(move || {
-        let mut covered = BTreeSet::new();
+        let mut outcome = remote::Outcome::default();
         if let Some(task) = remote_task {
-            let outcome = catch_unwind(AssertUnwindSafe(|| remote::run(&task, transport.as_ref(), store.as_ref(), clock, &pool_cancel)));
-            let (msgs, done) = outcome.unwrap_or_else(|_| {
+            outcome = catch_unwind(AssertUnwindSafe(|| remote::run(&task, transport.as_ref(), store.as_ref(), clock, &pool_cancel))).unwrap_or_else(|_| {
                 log::error!("the remote catalog phase panicked");
-                (vec![CheckMsg::FeedFailed { error: "internal error (logged)".into() }], BTreeSet::new())
+                remote::Outcome { msgs: vec![CheckMsg::FeedFailed { error: "internal error (logged)".into() }], ..Default::default() }
             });
-            for m in msgs {
+            for m in std::mem::take(&mut outcome.msgs) {
                 if tx.send(JobMsg::Check(m)).is_err() {
                     return;
                 }
             }
-            covered = done;
         }
-        let tasks: Vec<Task> = tasks.into_iter().filter(|t| !covered.contains(&t.app)).collect();
+        let tasks: Vec<Task> =
+            tasks.into_iter().filter(|t| !outcome.covered.contains(&t.app)).map(|t| Task { fallback: outcome.fallback.remove(&t.app), ..t }).collect();
         // Set once GitHub refuses: the remaining apps are skipped, not requested.
         let stop = AtomicBool::new(false);
         spawn_pool("updates-check", tasks, WORKERS, pool_cancel, tx, move |task: &Task| {
             if stop.load(Ordering::Relaxed) {
-                return vec![JobMsg::Check(CheckMsg::Skipped(task.app.clone()))];
+                let msg = match &task.fallback {
+                    Some(fallback) => fallback.msg(&task.app, store.as_ref(), clock()),
+                    None => CheckMsg::Skipped(task.app.clone()),
+                };
+                return vec![JobMsg::Check(msg)];
             }
             check_one(task, transport.as_ref(), store.as_ref(), clock, &stop).into_iter().map(JobMsg::Check).collect()
         });
@@ -428,6 +444,16 @@ fn check_one(task: &Task, transport: &dyn Transport, store: Option<&Store>, cloc
             out.push(CheckMsg::Failed { app, error: format!("GitHub rejected the token in {} ({message})", setup::ENV_GITHUB_TOKEN) })
         }
         Err(e) => out.push(CheckMsg::Failed { app, error: e.to_string() }),
+    }
+    // A stale aggregated feed left this app to GitHub, which couldn't answer: the feed's list
+    // (or the session's) is still better than an error. A rate limit still stops the check.
+    if let Some(fallback) = &task.fallback {
+        for msg in &mut out {
+            if let CheckMsg::Failed { app, error } = msg {
+                log::warn!("{app}: {error}; using the aggregated feed");
+                *msg = fallback.msg(&task.app, store, now);
+            }
+        }
     }
     out
 }

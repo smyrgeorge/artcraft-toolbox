@@ -3,12 +3,17 @@
 //! GitHub's API limit, verified against the pinned key (`release::signing`), and applied
 //! through the check job's messages. Runs on the check's coordinator thread, before the per-app
 //! workers; whatever it can't cover goes to the GitHub API as before.
+//!
+//! The feed is rebuilt every hour, but GitHub runs scheduled workflows late, by hours at a time,
+//! so a feed can predate an app's newest release. One older than [`FEED_MAX_AGE_SECS`] doesn't
+//! vouch for the apps whose updates matter (the installed ones and the toolbox): those go to
+//! the API too, with the feed's list as their [`Fallback`] if GitHub can't answer.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use artcraft_toolbox_catalog::Catalog;
-use artcraft_toolbox_feed::{parse_aggregate, parse_releases_for};
+use artcraft_toolbox_feed::{Release, parse_aggregate, parse_releases_for};
 use artcraft_toolbox_net::{NetError, Request, Response, Transport};
 use artcraft_toolbox_release::signing::{self, Kind, MAX_ENVELOPE_BYTES, PublicKey};
 use artcraft_toolbox_store::{CachedFeed, Store};
@@ -18,8 +23,13 @@ use crate::update_cmds::CheckMsg;
 
 /// The store's name for the cached catalog envelope.
 pub const CATALOG_DOC: &str = "catalog";
-/// The store's name for the aggregated feed's ETag and time.
+/// The store's name for the aggregated feed's ETag and time. Its body is the feed's `generated`
+/// time (Unix seconds), so an unchanged feed (`304`) still knows how old it is.
 pub const FEED_DOC: &str = "feed";
+/// An aggregated feed built longer ago than this missed at least one hourly rebuild (with
+/// margin for the run and raw.githubusercontent.com's five-minute cache): installed apps and the
+/// toolbox are confirmed with the API. Issue #3: the feed was 5 hours behind a PhotoCraft release.
+pub const FEED_MAX_AGE_SECS: u64 = 90 * 60;
 const ACCEPT: &str = "application/json";
 
 /// A snapshot of what the coordinator needs from the session.
@@ -29,20 +39,65 @@ pub(crate) struct RemoteTask {
     pub key: PublicKey,
     /// Apps whose feed the session already holds: an unchanged aggregated feed keeps them.
     pub have_feed: BTreeSet<String>,
+    /// Apps whose updates matter (installed, or the toolbox): a stale feed doesn't cover them.
+    pub confirm: BTreeSet<String>,
 }
 
-/// Fetch both documents. Returns the messages for the session and the apps the feed covered
-/// (which the per-app workers then skip).
-pub(crate) fn run(
-    task: &RemoteTask,
-    transport: &dyn Transport,
-    store: Option<&Store>,
-    clock: fn() -> u64,
-    cancel: &AtomicBool,
-) -> (Vec<CheckMsg>, BTreeSet<String>) {
+/// What the publisher's documents did for a check.
+#[derive(Default)]
+pub(crate) struct Outcome {
+    /// For the session, in order.
+    pub msgs: Vec<CheckMsg>,
+    /// Apps the feed covered: the per-app workers skip them.
+    pub covered: BTreeSet<String>,
+    /// Apps a stale feed left to the API, and what they get if GitHub can't answer.
+    pub fallback: BTreeMap<String, Fallback>,
+}
+
+/// What a confirmed app falls back to when GitHub can't answer: a stale feed is still better
+/// than an error.
+pub(crate) enum Fallback {
+    /// The aggregated feed's list for it.
+    Feed { releases: Vec<Release>, body: String },
+    /// The aggregated feed is unchanged (`304`): the session's list stands.
+    Keep,
+}
+
+impl Fallback {
+    /// The message that applies it (and caches it, like the feed would have).
+    pub(crate) fn msg(&self, app: &str, store: Option<&Store>, at: u64) -> CheckMsg {
+        match self {
+            Fallback::Feed { releases, body } => {
+                if let Some(store) = store
+                    && let Err(e) = store.save_feed(app, &CachedFeed { etag: None, fetched_at: at, body: body.clone() })
+                {
+                    log::warn!("{e}");
+                }
+                CheckMsg::Fetched { app: app.into(), releases: releases.clone(), etag: None, at }
+            }
+            Fallback::Keep => {
+                if let Some(store) = store
+                    && let Err(e) = store.touch_feed(app, at)
+                {
+                    log::warn!("{e}");
+                }
+                CheckMsg::Unchanged { app: app.into(), at }
+            }
+        }
+    }
+}
+
+/// Is a feed built at `generated` (unknown: a cache from before it was recorded) too old at `now`?
+fn stale(generated: Option<u64>, now: u64) -> bool {
+    generated.is_none_or(|g| now.saturating_sub(g) > FEED_MAX_AGE_SECS)
+}
+
+/// Fetch both documents.
+pub(crate) fn run(task: &RemoteTask, transport: &dyn Transport, store: Option<&Store>, clock: fn() -> u64, cancel: &AtomicBool) -> Outcome {
     let mut msgs = Vec::new();
     let mut covered = BTreeSet::new();
-    let Some(remote) = task.catalog.remote.clone() else { return (msgs, covered) };
+    let mut fallback = BTreeMap::new();
+    let Some(remote) = task.catalog.remote.clone() else { return Outcome { msgs, covered, fallback } };
     // 1. The catalog: a newer one is used for the feed step right away.
     let mut catalog = task.catalog.clone();
     match fetch(transport, store, clock, CATALOG_DOC, &remote.catalog) {
@@ -74,14 +129,20 @@ pub(crate) fn run(
         }
     }
     if cancel.load(Ordering::Relaxed) {
-        return (msgs, covered);
+        return Outcome { msgs, covered, fallback };
     }
     // 2. The aggregated feed, from wherever the (possibly new) catalog says.
-    let Some(remote) = catalog.remote.clone() else { return (msgs, covered) };
+    let Some(remote) = catalog.remote.clone() else { return Outcome { msgs, covered, fallback } };
     match fetch(transport, store, clock, FEED_DOC, &remote.feed) {
         Fetched::Unchanged(at) => {
+            let generated = store.and_then(|s| s.load_remote(FEED_DOC).ok().flatten()).and_then(|d| d.body.trim().parse().ok());
+            let stale = stale(generated, at);
             for app in catalog.apps.iter().chain(&catalog.toolbox) {
                 if task.have_feed.contains(&app.id) {
+                    if stale && task.confirm.contains(&app.id) {
+                        fallback.insert(app.id.clone(), Fallback::Keep);
+                        continue;
+                    }
                     if let Some(store) = store
                         && let Err(e) = store.touch_feed(&app.id, at)
                     {
@@ -107,9 +168,13 @@ pub(crate) fn run(
                     msgs.push(CheckMsg::FeedFailed { error });
                 }
                 Ok(aggregate) => {
+                    let stale = stale(Some(aggregate.generated), at);
                     for app in catalog.apps.iter().chain(&catalog.toolbox) {
                         let Some(text) = aggregate.apps.get(&app.id) else { continue };
                         match parse_releases_for(text, &app.slugs(), &patterns_of(app)) {
+                            Ok(releases) if stale && task.confirm.contains(&app.id) => {
+                                fallback.insert(app.id.clone(), Fallback::Feed { releases, body: text.clone() });
+                            }
                             Ok(releases) => {
                                 if let Some(store) = store
                                     && let Err(e) = store.save_feed(&app.id, &CachedFeed { etag: None, fetched_at: at, body: text.clone() })
@@ -124,7 +189,7 @@ pub(crate) fn run(
                         }
                     }
                     if let Some(store) = store
-                        && let Err(e) = store.save_remote(FEED_DOC, &CachedFeed { etag, fetched_at: at, body: String::new() })
+                        && let Err(e) = store.save_remote(FEED_DOC, &CachedFeed { etag, fetched_at: at, body: aggregate.generated.to_string() })
                     {
                         log::warn!("{e}");
                     }
@@ -133,7 +198,14 @@ pub(crate) fn run(
             }
         }
     }
-    (msgs, covered)
+    if !fallback.is_empty() {
+        log::info!(
+            "the aggregated feed is more than {} minutes old: asking GitHub for {}",
+            FEED_MAX_AGE_SECS / 60,
+            fallback.keys().cloned().collect::<Vec<_>>().join(", ")
+        );
+    }
+    Outcome { msgs, covered, fallback }
 }
 
 enum Fetched {

@@ -407,7 +407,12 @@ Three things come from the publisher instead of from a toolbox release, all as s
   (not the API: no 60-per-hour limit, and a 304 costs nothing) replaces one API request per app;
   each list is parsed, cached per app and applied exactly as a direct response, so everything
   downstream is unchanged. Apps the feed doesn't cover, or the whole set when the feed can't be
-  fetched or verified, go to the API as before. `CheckSummary` says what happened
+  fetched or verified, go to the API as before. A feed built more than
+  `remote::FEED_MAX_AGE_SECS` (90 minutes) ago missed a rebuild (GitHub runs the hourly
+  schedule hours late, `docs/release-contract.md` › The aggregated feed), so it doesn't vouch
+  for the apps whose updates matter: the installed ones and the toolbox go to the API too, and
+  keep the feed's list only if GitHub can't answer (issue #3). The feed's `generated` time is
+  cached with its ETag, so an unchanged feed is aged too. `CheckSummary` says what happened
   (`catalog`, `feed`, `aggregated`).
 - **Apps outside the contract.** `[app.assets]` patterns name an app's builds per target;
   the feed generator hashes each matched build and writes `sha256` on it, and `app.install`

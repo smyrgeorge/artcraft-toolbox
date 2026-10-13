@@ -39,7 +39,8 @@ runs it before uploading).
   hour from the API. Hence the toolbox's back-off (`engine::update_cmds`) and, since M7, the
   publisher's aggregated feed: one request to `raw.githubusercontent.com` (no such limit) per
   check, the API only for what the feed doesn't cover (§ Apps outside the contract, and
-  docs/architecture.md § 12).
+  docs/architecture.md § 12) and, when the feed is stale, for the installed apps and the
+  toolbox (one request each).
 - With a token (`ARTCRAFT_TOOLBOX_GITHUB_TOKEN`) the limit is 5,000 per hour. Observed: the first
   authenticated request with an ETag from an anonymous response got a full `200`, not a `304`.
 - A refusal is `403` with `x-ratelimit-remaining: 0` and `x-ratelimit-reset` (Unix seconds), or
@@ -204,7 +205,12 @@ icon = "https://raw.githubusercontent.com/storytold/artcraft/HEAD/crates/desktop
 ## The aggregated feed and the remote catalog
 
 Published by the Feed workflow (`.github/workflows/feed.yml`, hourly) on this repository's
-`feed` branch and served by `raw.githubusercontent.com`:
+`feed` branch and served by `raw.githubusercontent.com`. **Hourly is what the schedule asks for,
+not what GitHub delivers**: measured 2026-10-10 to 10-13, the scheduled runs came 3.3 to 10.5
+hours apart (5.9 on average), so the feed can miss a release for hours (issue #3: PhotoCraft
+0.8.2 was out for almost 5 hours before the feed had it). The toolbox therefore treats a feed
+older than 90 minutes as stale and asks the API about the installed apps and itself
+(docs/architecture.md § 12).
 
 | Document | Payload | Use |
 |---|---|---|

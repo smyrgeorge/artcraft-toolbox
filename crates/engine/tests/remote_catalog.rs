@@ -1,8 +1,9 @@
 //! M7: the publisher's signed catalog and aggregated feed (docs/architecture.md § 12), against a
 //! fake GitHub keyed by URL and a test signing key. One check costs two requests instead of one
 //! per app, a newer catalog adds apps without a toolbox release, bad or foreign documents fall
-//! back to the API and keep the built-in catalog, and an app outside the contract installs from
-//! the feed's digest and never without one.
+//! back to the API and keep the built-in catalog, a stale feed is confirmed with the API for the
+//! installed apps, and an app outside the contract installs from the feed's digest and never
+//! without one.
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -13,6 +14,8 @@ use artcraft_toolbox_engine::net::{Download, NetError, RateLimit, Request, Respo
 use artcraft_toolbox_engine::update_cmds::{CHECK, CheckSummary, RemoteState};
 use artcraft_toolbox_engine::{Catalog, CatalogSource, Layout, Session, Status, Target, Version};
 use artcraft_toolbox_feed::aggregate;
+use artcraft_toolbox_model::{Installation, Inventory};
+use artcraft_toolbox_release::PackageKind;
 use artcraft_toolbox_release::signing::{Kind, SecretKey, sign};
 use artcraft_toolbox_store::Store;
 use serde_json::json;
@@ -279,6 +282,108 @@ fn bad_documents_fall_back_to_the_api_and_keep_the_built_in_catalog() {
     assert_eq!((summary.catalog, summary.feed), (RemoteState::Off, RemoteState::Off));
     assert_eq!((fake.raw_requests(), fake.api_requests()), (0, 14));
     assert_eq!(s.execute("catalog.status", json!({})).unwrap()["enabled"], false);
+}
+
+fn t2() -> u64 {
+    1_000_000 + 2 * 3600
+}
+
+const PHOTOCRAFT_API: &str = "https://api.github.com/repos/storytold/photocraft/releases?per_page=20";
+const TOOLBOX_API: &str = "https://api.github.com/repos/smyrgeorge/artcraft-toolbox/releases?per_page=20";
+
+/// An aggregated feed built at `generated`, before PhotoCraft's newest release (v0.5.0) was
+/// published: the built-in apps, PhotoCraft's real feed without v0.5.0, nothing for the rest.
+fn feed_before_photocraft_0_5(generated: u64) -> String {
+    let mut photocraft: Vec<serde_json::Value> = serde_json::from_str(PHOTOCRAFT).unwrap();
+    photocraft.retain(|r| r["tag_name"] != "v0.5.0");
+    let catalog = Catalog::parse(&builtin_text()).unwrap();
+    let apps = catalog.apps.iter().chain(&catalog.toolbox).map(|a| (a.id.clone(), if a.id == "photocraft" { json!(photocraft) } else { json!([]) })).collect();
+    aggregate::build(generated, apps)
+}
+
+/// A session with PhotoCraft 0.3.0 installed.
+fn with_photocraft_0_3(fake: &Arc<Fake>, store: Option<Store>) -> Session {
+    let mut s = session(fake, store);
+    let mut inv = Inventory::default();
+    inv.record(Installation {
+        app: "photocraft".into(),
+        version: Version::new(0, 3, 0),
+        kind: PackageKind::AppImage,
+        path: "/x".into(),
+        installed_at: 0,
+        active: true,
+        trust: None,
+    })
+    .unwrap();
+    s.set_inventory(inv);
+    s
+}
+
+fn update_to_0_5() -> Status {
+    Status::UpdateAvailable { installed: Version::new(0, 3, 0), latest: Version::new(0, 5, 0) }
+}
+
+/// Issue #3: GitHub runs the hourly Feed workflow hours late, so a check can find a feed built
+/// before an app's newest release. Installed apps (and the toolbox) are then confirmed with the
+/// API; a feed younger than `remote::FEED_MAX_AGE_SECS` is trusted as is.
+#[test]
+fn a_stale_feed_is_confirmed_with_the_api_for_installed_apps() {
+    // A current feed: two requests, no API, and PhotoCraft as the feed says.
+    let fake = Fake::new();
+    fake.answer(CATALOG_URL, sign(&publisher(), Kind::Catalog, &builtin_text()), "c");
+    fake.answer(FEED_URL, sign(&publisher(), Kind::Feed, &feed_before_photocraft_0_5(t0() - 10 * 60)), "f");
+    fake.answer(PHOTOCRAFT_API, PHOTOCRAFT.into(), "p");
+    let mut s = with_photocraft_0_3(&fake, None);
+    check(&mut s);
+    assert_eq!((fake.raw_requests(), fake.api_requests()), (2, 0), "{:?}", fake.requests());
+    assert_eq!(s.app_status("photocraft").unwrap().status, Status::UpToDate { installed: Version::new(0, 3, 0) });
+
+    // Five hours old: PhotoCraft and the toolbox are asked from GitHub, which knows v0.5.0.
+    let root = temp("stale");
+    let fake = Fake::new();
+    fake.answer(CATALOG_URL, sign(&publisher(), Kind::Catalog, &builtin_text()), "c");
+    fake.answer(FEED_URL, sign(&publisher(), Kind::Feed, &feed_before_photocraft_0_5(t0() - 5 * 3600)), "f1");
+    fake.answer(PHOTOCRAFT_API, PHOTOCRAFT.into(), "p");
+    let mut s = with_photocraft_0_3(&fake, Some(Store::open(&root).unwrap()));
+    let summary = check(&mut s);
+    let api: Vec<String> = fake.requests().into_iter().map(|(u, _)| u).filter(|u| u.starts_with("https://api.github.com/")).collect();
+    assert_eq!(api, [PHOTOCRAFT_API, TOOLBOX_API], "only what is installed: {:?}", fake.requests());
+    assert_eq!(s.app_status("photocraft").unwrap().status, update_to_0_5());
+    assert!(!summary.aggregated.iter().any(|a| a == "photocraft" || a == "artcraft-toolbox"), "{summary:?}");
+    assert_eq!(summary.aggregated.len(), 12, "the apps that aren't installed still come from the feed: {summary:?}");
+    assert!(summary.failed.is_empty(), "{summary:?}");
+
+    // An hour later the feed is unchanged (304) and older still: GitHub says PhotoCraft is
+    // unchanged too, and v0.5.0 stays (the feed's older list doesn't come back).
+    fake.reset();
+    s.set_clock(t1);
+    let summary = check(&mut s);
+    assert_eq!(summary.feed, RemoteState::Unchanged, "{summary:?}");
+    assert!(fake.requests().contains(&(PHOTOCRAFT_API.to_string(), Some("p".into()))), "{:?}", fake.requests());
+    assert!(summary.unchanged.contains(&"photocraft".to_string()), "{summary:?}");
+    assert_eq!(s.app_status("photocraft").unwrap().status, update_to_0_5());
+
+    // A new feed, still built before v0.5.0 and late again: the same.
+    fake.reset();
+    fake.answer(FEED_URL, sign(&publisher(), Kind::Feed, &feed_before_photocraft_0_5(t2() - 3 * 3600)), "f2");
+    s.set_clock(t2);
+    let summary = check(&mut s);
+    assert_eq!(summary.feed, RemoteState::Fetched, "{summary:?}");
+    assert_eq!(fake.api_requests(), 2, "{:?}", fake.requests());
+    assert_eq!(s.app_status("photocraft").unwrap().status, update_to_0_5());
+    let _ = std::fs::remove_dir_all(&root);
+
+    // GitHub can't answer: the stale feed is still better than nothing, and no error shows.
+    let fake = Fake::new();
+    fake.answer(CATALOG_URL, sign(&publisher(), Kind::Catalog, &builtin_text()), "c");
+    fake.answer(FEED_URL, sign(&publisher(), Kind::Feed, &feed_before_photocraft_0_5(t0() - 5 * 3600)), "f");
+    fake.status(PHOTOCRAFT_API, 502);
+    let mut s = with_photocraft_0_3(&fake, None);
+    let summary = check(&mut s);
+    assert_eq!(fake.api_requests(), 2, "{:?}", fake.requests());
+    assert!(summary.failed.is_empty() && summary.fetched.contains(&"photocraft".to_string()), "{summary:?}");
+    let row = s.app_status("photocraft").unwrap();
+    assert_eq!((row.status, row.checked_at), (Status::UpToDate { installed: Version::new(0, 3, 0) }, Some(t0())));
 }
 
 #[test]

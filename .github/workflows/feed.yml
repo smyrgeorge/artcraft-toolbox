@@ -2,7 +2,9 @@
 # (artcraft-catalog.json) and the suite's aggregated release feed (artcraft-feed.json), rebuilt
 # every hour from the live releases of every catalog app and published on the `feed` branch,
 # which raw.githubusercontent.com serves to every toolbox (one request per check instead of
-# one GitHub API request per app). Needs the ARTCRAFT_TOOLBOX_SIGNING_KEY secret
+# one GitHub API request per app). GitHub runs the schedule hours late (docs/release-contract.md
+# › The aggregated feed), so toolboxes ask the API about installed apps when the feed is more
+# than 90 minutes old (remote::FEED_MAX_AGE_SECS). Needs the ARTCRAFT_TOOLBOX_SIGNING_KEY secret
 # (`cargo xtask keygen`, docs/releasing.md › The feed); without it the job says so and publishes
 # nothing, so a fork never serves an unsigned feed.
 name: Feed
