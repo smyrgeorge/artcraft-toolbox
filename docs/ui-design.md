@@ -43,8 +43,10 @@ in the snapshot example.
 ```
 
 - **The window.** On macOS and Windows a popover under (or above) the menu-bar or tray icon,
-  440 × 700 points (shorter on a short screen), without a title bar, above other windows and out
-  of the taskbar; on macOS a menu-bar app without a Dock icon, and its corners are rounded. A
+  440 × 700 points (shorter on a short screen, or with little room beside the icon, as in
+  Windows' hidden-icons flyout; always kept on the screen), without a title bar, above other
+  windows and out of the taskbar; on macOS a menu-bar app without a Dock icon, and its corners
+  are rounded. A
   click on the icon shows or hides it; it hides when it loses the focus (a click elsewhere,
   launching an app) and on Escape (unless Escape is for the search, a dialog or an open menu);
   Cmd+Q quits. Linux, or a computer whose tray icon couldn't be made: a normal window, 440 × 720

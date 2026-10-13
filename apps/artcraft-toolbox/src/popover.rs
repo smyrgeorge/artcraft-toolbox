@@ -9,8 +9,11 @@ use std::time::{Duration, Instant};
 
 use egui::{Pos2, Rect, Vec2, ViewportCommand};
 
-/// The popover's size, in points (shorter on a short screen, [`size_for`]).
+/// The popover's size, in points (shorter on a short screen, [`size_for`], or with little room
+/// beside its icon, [`fit`]).
 pub const SIZE: Vec2 = Vec2::new(440.0, 700.0);
+/// The shortest it gets.
+const MIN_HEIGHT: f32 = 360.0;
 /// Between the icon and the popover.
 const GAP: f32 = 6.0;
 /// Between the popover and a screen edge.
@@ -34,16 +37,40 @@ pub const SUPPORTED: bool = cfg!(any(target_os = "macos", windows));
 /// The popover's size on a screen of `screen` points: [`SIZE`], or less tall to fit.
 pub fn size_for(screen: Option<Vec2>) -> Vec2 {
     match screen {
-        Some(s) => Vec2::new(SIZE.x, SIZE.y.min(s.y - 80.0).max(360.0)),
+        Some(s) => Vec2::new(SIZE.x, SIZE.y.min(s.y - 80.0).max(MIN_HEIGHT)),
         None => SIZE,
     }
 }
 
-/// Where the popover's top-left corner goes, in points: under the icon when it is in the top
-/// half of the screen (a menu bar), above it otherwise (a taskbar), centred on it and kept on the
-/// screen. `top`: the platform's bar is usually at the top (macOS's menu bar), which decides when
-/// the screen isn't known. Without the icon's position: the screen's top-right corner (`top`) or
-/// its bottom-right corner.
+/// Does the popover open under the icon (in the top half of the screen: a menu bar) or above it
+/// (a taskbar)? `top`: the platform's bar is usually at the top, which decides when the screen
+/// isn't known.
+fn opens_below(icon: Rect, screen: Option<Vec2>, top: bool) -> bool {
+    screen.map_or(top, |s| icon.center().y < s.y / 2.0)
+}
+
+/// Is the icon on the screen we know the size of? (An icon on another monitor has coordinates
+/// outside it, and the popover is left where the icon is.)
+fn on_screen(icon: Rect, screen: Vec2) -> bool {
+    (0.0..=screen.x).contains(&icon.center().x) && (0.0..=screen.y).contains(&icon.center().y)
+}
+
+/// `size`, no taller than the room between the icon and the screen's edge on the side it opens
+/// to (down to [`MIN_HEIGHT`]). A Windows tray icon in the hidden-icons flyout sits well above
+/// the taskbar, where a full-height popover would run off the top of the screen (issue #1).
+pub fn fit(icon: Option<Rect>, size: Vec2, screen: Option<Vec2>, top: bool) -> Vec2 {
+    let (Some(icon), Some(s)) = (icon, screen) else { return size };
+    if !on_screen(icon, s) {
+        return size;
+    }
+    let room = if opens_below(icon, screen, top) { s.y - icon.bottom() } else { icon.top() } - GAP - MARGIN;
+    Vec2::new(size.x, size.y.min(room.max(MIN_HEIGHT)))
+}
+
+/// Where the popover's top-left corner goes, in points: under the icon or above it
+/// ([`opens_below`]), centred on it and kept on the screen (overlapping the icon only when even
+/// a [`fit`] popover has no room beside it). Without the icon's position: the screen's top-right
+/// corner (`top`) or its bottom-right corner.
 pub fn place(icon: Option<Rect>, size: Vec2, screen: Option<Vec2>, top: bool) -> Pos2 {
     let Some(icon) = icon else {
         let s = screen.unwrap_or(Vec2::new(1440.0, 900.0));
@@ -51,15 +78,13 @@ pub fn place(icon: Option<Rect>, size: Vec2, screen: Option<Vec2>, top: bool) ->
         let y = if top { 32.0 } else { s.y - size.y - 56.0 };
         return Pos2::new(x.max(0.0), y.max(0.0));
     };
-    let below = screen.map_or(top, |s| icon.center().y < s.y / 2.0);
-    let y = if below { icon.bottom() + GAP } else { icon.top() - GAP - size.y };
+    let mut y = if opens_below(icon, screen, top) { icon.bottom() + GAP } else { icon.top() - GAP - size.y };
     let mut x = icon.center().x - size.x / 2.0;
-    // Kept on the screen we know the size of, when the icon is on it (an icon on another monitor
-    // has coordinates outside it, and is left alone).
     if let Some(s) = screen
-        && (0.0..=s.x).contains(&icon.center().x)
+        && on_screen(icon, s)
     {
         x = x.clamp(MARGIN, (s.x - size.x - MARGIN).max(MARGIN));
+        y = y.clamp(MARGIN, (s.y - size.y - MARGIN).max(MARGIN));
     }
     Pos2::new(x, y)
 }
@@ -142,9 +167,10 @@ impl Popover {
     /// Size and move the window for `icon`. Returns whether the screen's size was known.
     fn place(&mut self, ctx: &egui::Context, icon: Option<tray_icon::Rect>) -> bool {
         let (ppp, screen) = ctx.input(|i| (i.viewport().native_pixels_per_point, i.viewport().monitor_size));
-        let size = size_for(screen);
+        let top = cfg!(target_os = "macos");
         let icon_points = icon.map(|r| icon_rect(&r, ppp.unwrap_or(1.0)));
-        let pos = place(icon_points, size, screen, cfg!(target_os = "macos"));
+        let size = fit(icon_points, size_for(screen), screen, top);
+        let pos = place(icon_points, size, screen, top);
         if self.placed != Some((pos, size)) {
             log::info!("popover at {pos:?}, {size:?} (icon {icon_points:?} in points, scale {ppp:?}, screen {screen:?})");
             ctx.send_viewport_cmd(ViewportCommand::InnerSize(size));
@@ -230,6 +256,43 @@ mod tests {
         assert_eq!(place(icon(4.0, 0.0), SIZE, Some(SCREEN), true).x, MARGIN);
         // On another monitor (outside the known screen): left where the icon is.
         assert_eq!(place(icon(2000.0, 0.0), SIZE, Some(SCREEN), true).x, 2012.0 - SIZE.x / 2.0);
+    }
+
+    /// Issue #1: Windows at 125% on a 1920×1080 screen (1536×864 points), the tray icon in the
+    /// hidden-icons flyout, well above the taskbar: the full-height popover ran off the top.
+    #[test]
+    fn a_tray_icon_in_the_hidden_icons_flyout_keeps_the_popover_on_the_screen() {
+        let screen = Some(Vec2::new(1536.0, 864.0));
+        let flyout = icon(1200.0, 684.0);
+        assert_eq!(place(flyout, size_for(screen), screen, false).y, MARGIN, "never off the top, even at full height");
+        // Shorter instead, to stay clear of the icon.
+        let size = fit(flyout, size_for(screen), screen, false);
+        assert_eq!(size, Vec2::new(SIZE.x, 684.0 - GAP - MARGIN));
+        let p = place(flyout, size, screen, false);
+        assert_eq!((p.y, p.y + size.y), (MARGIN, 684.0 - GAP));
+        // The same icon on the taskbar has room: full height, right above it.
+        let taskbar = icon(1200.0, 826.0);
+        assert_eq!(fit(taskbar, SIZE, screen, false), SIZE);
+        assert_eq!(place(taskbar, SIZE, screen, false).y, 826.0 - GAP - SIZE.y);
+    }
+
+    #[test]
+    fn without_room_beside_the_icon_it_stays_on_the_screen_over_it() {
+        let screen = Some(Vec2::new(1536.0, 600.0));
+        let size = fit(icon(1200.0, 320.0), size_for(screen), screen, false);
+        assert_eq!(size.y, MIN_HEIGHT);
+        let p = place(icon(1200.0, 320.0), size, screen, false);
+        assert_eq!(p.y, MARGIN);
+        assert!(p.y + size.y <= 600.0 - MARGIN);
+    }
+
+    #[test]
+    fn a_menu_bar_icon_has_room_and_another_monitor_is_left_alone() {
+        assert_eq!(fit(icon(700.0, 0.0), SIZE, Some(SCREEN), true), SIZE);
+        // A monitor below the known screen: nothing is clamped to the wrong one.
+        assert_eq!(fit(icon(300.0, 1500.0), SIZE, Some(SCREEN), false), SIZE);
+        assert_eq!(place(icon(300.0, 1500.0), SIZE, Some(SCREEN), false).y, 1500.0 - GAP - SIZE.y);
+        assert_eq!(fit(icon(300.0, 900.0), SIZE, None, false), SIZE, "unknown screen: as is");
     }
 
     #[test]
