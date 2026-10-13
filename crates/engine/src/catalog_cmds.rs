@@ -18,7 +18,7 @@ fn describe(a: &App) -> Value {
     json!({
         "id": a.id, "name": a.name, "tagline": a.tagline, "repo": a.repo, "repoUrl": a.repo_url(),
         "website": a.website, "bundleId": a.bundle_id(), "formerSlugs": a.former_slugs,
-        "followsContract": a.follows_contract(), "assets": a.assets,
+        "followsContract": a.follows_contract(), "assets": a.assets, "control": a.control(),
     })
 }
 
@@ -81,13 +81,14 @@ mod tests {
         assert_eq!(list.as_array().map(Vec::len), Some(13));
         assert_eq!(list[0]["bundleId"], "ai.storyteller.photocraft");
         assert_eq!(list[0]["followsContract"], true);
+        assert_eq!(list[0]["control"], json!({"style": "port-and-token-file", "port": 7878}));
         let artcraft = list.as_array().unwrap().iter().find(|a| a["id"] == "artcraft").unwrap();
         assert_eq!(
             (artcraft["followsContract"].as_bool(), artcraft["assets"]["macos-universal"].as_str()),
             (Some(false), Some("ArtCraft_{version}_universal.dmg"))
         );
         let status = s.execute("catalog.status", json!({})).unwrap();
-        assert_eq!((status["source"].as_str(), status["revision"].as_u64(), status["apps"].as_u64()), (Some("builtin"), Some(1), Some(13)));
+        assert_eq!((status["source"].as_str(), status["revision"].as_u64(), status["apps"].as_u64()), (Some("builtin"), Some(2), Some(13)));
         assert_eq!(status["enabled"], true);
         assert!(status["remote"]["feed"].as_str().unwrap().ends_with("/artcraft-feed.json"));
         assert!(s.execute("catalog.status", json!({"x": 1})).is_err());

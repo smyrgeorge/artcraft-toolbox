@@ -187,3 +187,11 @@
 	ArtCraft Toolbox couldn't start	Не удалось запустить ArtCraft Toolbox
 	Metal graphics aren't available on this Mac; ArtCraft Toolbox and the Crafting Apps need them.	Графика Metal недоступна на этом Mac, а она нужна ArtCraft Toolbox и Crafting Apps.
 	Details are in the log: {path}	Подробности в журнале: {path}
+	Agent control	Управление агентом
+	{app} opens with --control, so an agent can drive its window over a local JSON connection while you watch. It applies the next time {app} opens.	{app} запускается с --control, и агент может управлять его окном через локальное JSON-соединение, пока вы наблюдаете. Вступает в силу при следующем открытии {app}.
+	Port	Порт
+	Port {port}	Порт {port}
+	{app} picks its own port	{app} выбирает порт сам
+	{app} picks a free port and writes it, with a token, to {file}	{app} выбирает свободный порт и записывает его вместе с токеном в {file}
+	Agents connect to {address} with the token in {file}	Агенты подключаются к {address} с токеном из {file}
+	Agents connect to {address}	Агенты подключаются к {address}

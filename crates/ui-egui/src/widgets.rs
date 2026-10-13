@@ -150,11 +150,18 @@ pub fn primary_button(label: &str, t: &Tokens) -> egui::Button<'static> {
 }
 
 /// A setting that is on or off: its label on the left (wrapping), a switch on the right. Clicking
-/// either flips it; screen readers hear a checkbox. Returns whether it changed.
+/// either flips it; screen readers hear a checkbox. Returns whether it changed. In a menu, as wide
+/// as the menu.
 pub fn toggle_row(ui: &mut egui::Ui, on: &mut bool, label: &str, t: &Tokens) -> Response {
     let enabled = ui.is_enabled();
     let switch = egui::vec2(34.0, 20.0);
-    let width = ui.available_width();
+    // While a menu measures its contents, only as wide as itself, or the menu would fill the
+    // screen.
+    let width = if ui.is_sizing_pass() {
+        ui.painter().layout_no_wrap(label.to_string(), FontId::proportional(13.0), Color32::PLACEHOLDER).size().x + switch.x + 12.0
+    } else {
+        ui.available_width()
+    };
     let galley = ui.painter().layout(label.to_string(), FontId::proportional(13.0), Color32::PLACEHOLDER, (width - switch.x - 12.0).max(40.0));
     let height = galley.size().y.max(switch.y) + 8.0;
     let (rect, mut response) = ui.allocate_exact_size(egui::vec2(width, height), Sense::click());

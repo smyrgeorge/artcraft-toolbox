@@ -45,7 +45,10 @@ commands:
   versions <app> [--json]            the versions installed and kept, and their signatures
   adopt <app> [--json]               take over a copy installed outside the toolbox
   uninstall <app> [--json]           remove an app and its kept versions (its documents stay)
-  open <app>                         open an installed app
+  open <app> [--control | --no-control]
+                                     open an installed app; --control: with its control
+                                     channel, for an agent to drive it (says where it listens),
+                                     --no-control: without, whatever its agentControl setting
   self-update [--json]               download and verify a newer ArtCraft Toolbox; it is used
                                      the next time the toolbox starts (`run toolbox.apply` swaps
                                      it in now, while the toolbox isn't running)
@@ -202,12 +205,34 @@ pub fn run(args: &[&str], out: &mut dyn Write, err: &mut dyn Write, env: impl Fn
         Cmd::Uninstall { app, json } => {
             s.execute(UNINSTALL, json!({ "app": app })).map_err(|e| e.to_string()).and_then(|v| report_change(out, json, &v, "removed"))
         }
-        Cmd::Open { app } => s.execute(LAUNCH, json!({ "app": app })).map(|_| ()).map_err(|e| e.to_string()),
+        Cmd::Open { app, control } => {
+            let mut params = json!({ "app": app });
+            if let Some(on) = control {
+                params["control"] = json!(on);
+            }
+            s.execute(LAUNCH, params).map_err(|e| e.to_string()).map(|v| {
+                if let Some(line) = control_line(&v) {
+                    let _ = writeln!(out, "{line}");
+                }
+            })
+        }
         Cmd::Run { id, params } => s.execute(&id, params).map_err(|e| e.to_string()).and_then(|v| print_json(out, &v)),
         // Answered above, before the session was borrowed.
         Cmd::Commands { .. } | Cmd::Serve { .. } | Cmd::Mcp { .. } => Ok(()),
     };
     report(result, err)
+}
+
+/// Where an app opened with its control channel (`app.launch`'s `control`) listens, for an agent.
+fn control_line(launched: &Value) -> Option<String> {
+    let c = launched.get("control").filter(|c| c.is_object())?;
+    let app = launched["app"].as_str().unwrap_or("the app");
+    Some(match (c["address"].as_str(), c["file"].as_str()) {
+        (Some(address), Some(file)) => format!("{app} listens on {address}; its token is in {file}"),
+        (Some(address), None) => format!("{app} listens on {address}"),
+        (None, Some(file)) => format!("{app} writes its port and token to {file}"),
+        (None, None) => format!("{app} opened with its control channel"),
+    })
 }
 
 fn report(result: Result<(), String>, err: &mut dyn Write) -> i32 {
@@ -268,6 +293,8 @@ enum Cmd {
     },
     Open {
         app: String,
+        /// `--control` / `--no-control`; neither follows the app's `agentControl` setting.
+        control: Option<bool>,
     },
     SelfUpdate {
         json: bool,
@@ -364,11 +391,16 @@ fn parse(args: &[&str]) -> Result<Parsed, String> {
                 _ if cmd == "update" => return Err("update needs an app id (see `list`), or --all".into()),
                 _ => return Err(format!("{cmd} needs an app id (see `list`)")),
             };
-            let mut version = None;
+            let (mut version, mut control) = (None, None);
             let mut it = rest.iter();
             while let Some(a) = it.next() {
                 match (cmd, *a) {
                     (c, "--json") if c != "open" => flag(&mut json, "--json")?,
+                    ("open", which @ ("--control" | "--no-control")) => {
+                        if control.replace(which == "--control").is_some() {
+                            return Err("give one of --control and --no-control, once".into());
+                        }
+                    }
                     ("install" | "update" | "rollback", "--version") => {
                         let v = it.next().ok_or("--version needs a version, like 0.5.0")?;
                         if version.replace(v.to_string()).is_some() {
@@ -385,7 +417,7 @@ fn parse(args: &[&str]) -> Result<Parsed, String> {
                 "versions" => Cmd::Versions { app, json },
                 "adopt" => Cmd::Adopt { app, json },
                 "uninstall" => Cmd::Uninstall { app, json },
-                _ => Cmd::Open { app },
+                _ => Cmd::Open { app, control },
             }
         }
         "serve" | "mcp" => {
@@ -705,4 +737,22 @@ fn versions(out: &mut dyn Write, json: bool, v: &Value) -> Result<(), String> {
         let _ = writeln!(out, "{} isn't installed", v["app"].as_str().unwrap_or(""));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::control_line;
+    use serde_json::json;
+
+    #[test]
+    fn an_app_opened_for_agents_says_where_it_listens() {
+        let line = |control| control_line(&json!({"app": "photocraft", "control": control}));
+        assert_eq!(line(json!(null)), None);
+        assert_eq!(
+            line(json!({"address": "127.0.0.1:7878", "file": "/d/control/photocraft-control.token"})).as_deref(),
+            Some("photocraft listens on 127.0.0.1:7878; its token is in /d/control/photocraft-control.token")
+        );
+        assert_eq!(line(json!({"address": "127.0.0.1:7879", "file": null})).as_deref(), Some("photocraft listens on 127.0.0.1:7879"));
+        assert_eq!(line(json!({"address": null, "file": "/d/x.json"})).as_deref(), Some("photocraft writes its port and token to /d/x.json"));
+    }
 }

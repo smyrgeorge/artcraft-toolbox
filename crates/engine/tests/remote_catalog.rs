@@ -58,10 +58,22 @@ fn builtin_text() -> String {
         + "\n"
 }
 
+/// The built-in catalog's revision, and the next one.
+fn builtin_revision() -> u64 {
+    Catalog::builtin().unwrap().revision
+}
+
+fn newer() -> u64 {
+    builtin_revision() + 1
+}
+
 /// Revision `revision` of the catalog: the built-in apps plus `testcraft` (a contract app) and
 /// `patterncraft` (outside the contract, a Linux build matched by a pattern).
 fn remote_text(revision: u64) -> String {
-    builtin_text().replace("revision = 1\n", &format!("revision = {revision}\n"))
+    let revised: Vec<String> =
+        builtin_text().lines().map(|l| if l.starts_with("revision = ") { format!("revision = {revision}") } else { l.to_string() }).collect();
+    revised.join("\n")
+        + "\n"
         + "\n[[app]]\nid = \"testcraft\"\nname = \"TestCraft\"\ntagline = \"Added by the remote catalog\"\nrepo = \"storytold/testcraft\"\n"
         + "\n[[app]]\nid = \"patterncraft\"\nname = \"PatternCraft\"\ntagline = \"Outside the contract\"\nrepo = \"o/patterncraft\"\n[app.assets]\n\"linux-x86_64\" = \"PatternCraft_{version}_amd64.AppImage\"\n"
 }
@@ -162,10 +174,10 @@ fn check(s: &mut Session) -> CheckSummary {
     serde_json::from_value(s.execute(CHECK, json!({})).unwrap()).unwrap()
 }
 
-/// The publisher's documents as the fake serves them: catalog revision 2 and a feed for it.
+/// The publisher's documents as the fake serves them: the next catalog revision and a feed for it.
 fn publish(fake: &Fake, catalog_etag: &str, feed_etag: &str, with_digest: bool) -> Catalog {
-    let catalog = Catalog::parse(&remote_text(2)).unwrap();
-    fake.answer(CATALOG_URL, sign(&publisher(), Kind::Catalog, &remote_text(2)), catalog_etag);
+    let catalog = Catalog::parse(&remote_text(newer())).unwrap();
+    fake.answer(CATALOG_URL, sign(&publisher(), Kind::Catalog, &remote_text(newer())), catalog_etag);
     fake.answer(FEED_URL, sign(&publisher(), Kind::Feed, &feed_text(&catalog, with_digest)), feed_etag);
     catalog
 }
@@ -180,14 +192,14 @@ fn one_check_costs_two_requests_and_a_newer_catalog_adds_apps() {
     assert_eq!(s.catalog().apps.len(), 13);
     assert_eq!(s.catalog_source(), CatalogSource::Builtin);
     let summary = check(&mut s);
-    assert_eq!(summary.catalog, RemoteState::Applied { revision: 2 }, "{summary:?}");
+    assert_eq!(summary.catalog, RemoteState::Applied { revision: newer() }, "{summary:?}");
     assert_eq!(summary.feed, RemoteState::Fetched);
     assert_eq!((fake.raw_requests(), fake.api_requests()), (2, 0), "{:?}", fake.requests());
     assert_eq!(summary.aggregated.len(), 16, "13 + 2 added apps + the toolbox: {:?}", summary.aggregated);
     assert_eq!(summary.fetched.len(), 16);
     assert!(summary.failed.is_empty() && summary.skipped.is_empty());
     // The catalog grew, the rows follow, the feeds are in.
-    assert_eq!(s.catalog().revision, 2);
+    assert_eq!(s.catalog().revision, newer());
     assert_eq!(s.catalog_source(), CatalogSource::Remote { fetched_at: t0() });
     let ids: Vec<String> = s.statuses().into_iter().map(|r| r.id).collect();
     assert!(ids.contains(&"testcraft".to_string()) && ids.contains(&"patterncraft".to_string()), "{ids:?}");
@@ -196,7 +208,7 @@ fn one_check_costs_two_requests_and_a_newer_catalog_adds_apps() {
     assert!(matches!(s.app_status("artcraft").unwrap().status, Status::Unsupported { .. }), "no Linux build");
     assert_eq!(s.app_status("testcraft").unwrap().checked_at, Some(t0()));
     let status = s.execute("catalog.status", json!({})).unwrap();
-    assert_eq!((status["source"].as_str(), status["revision"].as_u64(), status["feedFetchedAt"].as_u64()), (Some("remote"), Some(2), Some(t0())));
+    assert_eq!((status["source"].as_str(), status["revision"].as_u64(), status["feedFetchedAt"].as_u64()), (Some("remote"), Some(newer()), Some(t0())));
     assert!(root.join("remote/catalog.json").is_file() && root.join("remote/feed.json").is_file() && root.join("feeds/photocraft.json").is_file());
     // An hour later both documents are unchanged: two conditional requests, every app unchanged.
     fake.reset();
@@ -217,7 +229,7 @@ fn one_check_costs_two_requests_and_a_newer_catalog_adds_apps() {
     let (mut again, warnings) = Session::open(Catalog::parse(&builtin_text()).unwrap(), Some(store), None);
     assert!(warnings.is_empty());
     again.set_host(Target::from_consts("linux", "x86_64"));
-    assert_eq!((again.catalog().revision, again.catalog_source()), (2, CatalogSource::Remote { fetched_at: t1() }));
+    assert_eq!((again.catalog().revision, again.catalog_source()), (newer(), CatalogSource::Remote { fetched_at: t1() }));
     assert!(again.catalog().get("testcraft").is_some());
     assert_eq!(again.app_status("patterncraft").unwrap().status, Status::NotInstalled { latest: Version::new(9, 0, 0) });
     assert_eq!(again.feed_fetched_at(), Some(t1()));
@@ -228,9 +240,9 @@ fn one_check_costs_two_requests_and_a_newer_catalog_adds_apps() {
 fn bad_documents_fall_back_to_the_api_and_keep_the_built_in_catalog() {
     let fake = Fake::new();
     let other = SecretKey::from_seed([1; 32]);
-    let catalog2 = Catalog::parse(&remote_text(2)).unwrap();
+    let catalog2 = Catalog::parse(&remote_text(newer())).unwrap();
     // Signed by someone else.
-    fake.answer(CATALOG_URL, sign(&other, Kind::Catalog, &remote_text(2)), "c");
+    fake.answer(CATALOG_URL, sign(&other, Kind::Catalog, &remote_text(newer())), "c");
     fake.answer(FEED_URL, sign(&other, Kind::Feed, &feed_text(&catalog2, true)), "f");
     fake.answer("https://api.github.com/repos/storytold/photocraft/releases?per_page=20", PHOTOCRAFT.into(), "p");
     let mut s = session(&fake, None);
@@ -241,14 +253,14 @@ fn bad_documents_fall_back_to_the_api_and_keep_the_built_in_catalog() {
     assert_eq!((fake.raw_requests(), fake.api_requests()), (2, 14), "every app from the API: {:?}", fake.requests());
     assert_eq!(summary.fetched.len(), 14);
     assert!(summary.aggregated.is_empty());
-    assert_eq!((s.catalog().revision, s.catalog_source()), (1, CatalogSource::Builtin));
+    assert_eq!((s.catalog().revision, s.catalog_source()), (builtin_revision(), CatalogSource::Builtin));
     assert_eq!(s.app_status("photocraft").unwrap().status, Status::NotInstalled { latest: Version::new(0, 5, 0) }, "from the API");
     // A tampered payload, an older revision, a catalog that names another key, nothing published.
     let cases: Vec<(String, &str)> = vec![
-        (sign(&publisher(), Kind::Catalog, &remote_text(2)).replace("TestCraft", "EvilCraft"), "doesn't match"),
+        (sign(&publisher(), Kind::Catalog, &remote_text(newer())).replace("TestCraft", "EvilCraft"), "doesn't match"),
         (sign(&publisher(), Kind::Catalog, &remote_text(0)), "older"),
-        (sign(&publisher(), Kind::Catalog, &remote_text(2).replace(&publisher().public().to_string(), &other.public().to_string())), "pinned"),
-        (sign(&publisher(), Kind::Feed, &remote_text(2)), "not a `catalog`"),
+        (sign(&publisher(), Kind::Catalog, &remote_text(newer()).replace(&publisher().public().to_string(), &other.public().to_string())), "pinned"),
+        (sign(&publisher(), Kind::Feed, &remote_text(newer())), "not a `catalog`"),
         ("{\"schema\":1}".into(), "not a signed document"),
     ];
     for (doc, want) in cases {
@@ -262,7 +274,7 @@ fn bad_documents_fall_back_to_the_api_and_keep_the_built_in_catalog() {
         assert!(error.contains(want), "{want}: {error}");
         assert_eq!(summary.feed, RemoteState::Fetched, "a good feed still serves: {summary:?}");
         assert_eq!(fake.api_requests(), 0);
-        assert_eq!(s.catalog().revision, 1);
+        assert_eq!(s.catalog().revision, builtin_revision());
     }
     let fake = Fake::new();
     fake.status(CATALOG_URL, 404);

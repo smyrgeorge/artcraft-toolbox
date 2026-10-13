@@ -38,7 +38,7 @@ artcraft-toolbox/
 ├─ Cargo.toml                 [workspace], shared deps, lints, profiles
 ├─ crates/
 │  ├─ release/    L0 standalone  Version (semver order), asset names, Target (os/arch), SHA256SUMS
-│  ├─ catalog/    L0 standalone  App { id, name, tagline, repo, former_slugs, … } + catalog.toml
+│  ├─ catalog/    L0 standalone  App { id, name, tagline, repo, former_slugs, control, … } + catalog.toml
 │  ├─ model/      L1             Inventory (installed versions, active one), Settings (channel, …)
 │  ├─ feed/       L2             GitHub "list releases" JSON -> Release; Status per app; latest()
 │  ├─ net/        L3             HTTPS (ureq + rustls, OS trust store): host policy checked per
@@ -134,6 +134,7 @@ icons/<app>.png        the app's icon, and icons/<app>.json (ETag, fetch time)
 downloads/             partial and verified downloads, until they are installed
 self-update/           a newer toolbox placed for the next start, and previous/ with the replaced one (§ 7)
 logs/                  artcraft-toolbox.log, .1.log, .2.log (desktop app)
+control/               apps opened for agents keep their control tokens here (made when first needed, owner only; § 11)
 ```
 
 Installed apps (`install::Layout::platform`):
@@ -175,7 +176,9 @@ The rules, on every OS:
 `Settings::install_dir` replaces the apps folder (the Start Menu shortcut and desktop entry stay in
 their standard places). Opening an app (`app.launch`) is `open --env` on macOS and a detached
 process elsewhere; the app finds `ARTCRAFT_TOOLBOX_MANAGED=1` and none of the toolbox's own
-`ARTCRAFT_TOOLBOX_*` variables (release contract › Managed apps).
+`ARTCRAFT_TOOLBOX_*` variables (release contract › Managed apps). With its control channel on
+(§ 11), it also gets the `--control …` arguments its catalog entry names (`open … --args` on
+macOS).
 
 **Updates, rollback, versions.** `app.update` installs the newest version the app's channel and
 pin offer (or any release asked for) beside the one in use, and keeps the replaced one: after an
@@ -209,12 +212,13 @@ accessors (`statuses()`, `app_status()`) serve the UI; commands serve everyone e
 | `settings.get` | `{}` | M0 |
 | `settings.set` | any subset of `channel`, `checkIntervalHours`, `autoUpdate`, `keepPrevious`, `installDir`, `notifications`, `closeToTray`, `language`, `theme`, `textSize` | M0, M4, M8 |
 | `app.settings.get` | `{"app":"<id>"}` | M4 |
-| `app.settings.set` | `{"app":"<id>","channel"?:…\|null,"autoUpdate"?:bool\|null,"pinned"?:"x.y.z"\|null}` | M4 |
+| `app.settings.set` | `{"app":"<id>","channel"?:…\|null,"autoUpdate"?:bool\|null,"pinned"?:"x.y.z"\|null,"agentControl"?:bool\|null,"controlPort"?:1024..65535\|null}` | M4, M6 |
 | `app.releases` | `{"app":"<id>","limit"?:1..100}` | M4 |
 | `icons.refresh` (background) | `{"force"?:bool}` | M4 |
 | `updates.check` (background) | `{"app"?:"<id>","force"?:bool}` | M1 |
 | `app.install` (background) | `{"app":"<id>","version"?:"x.y.z"}` (default: the newest the channel and pin offer) | M2 |
-| `app.uninstall`, `app.launch` | `{"app":"<id>"}` | M2 |
+| `app.uninstall` | `{"app":"<id>"}` | M2 |
+| `app.launch` | `{"app":"<id>","control"?:bool}` (default: the app's `agentControl` setting) | M2, M6 |
 | `app.update` (background) | `{"app":"<id>","version"?:"x.y.z"}` | M3 |
 | `app.rollback` | `{"app":"<id>","version"?:"x.y.z"}` (default: the newest kept version older than the one in use) | M3 |
 | `app.versions` | `{"app":"<id>"}` | M3 |
@@ -382,6 +386,16 @@ Three doors into the same engine, all dispatching commands by id (`docs/control-
   for strict validators (`$ref`s inlined, `additionalProperties: false`), unknown arguments are
   refused before execution, a malformed line gets `-32700` and the next one is served
   (`server/transport.rs`), and every result is checked against the reply budget as encoded JSON.
+
+A fourth door leads past the toolbox, into the apps: **a Crafting App opened for agents**.
+`engine::agent_control` opens an app with its own control channel when its `agentControl`
+setting is on (the ⋮ menu's switch) or `app.launch` asks for it, on the port its catalog entry
+names (`control = { style, port }`, the same ports ArtCraft Launcher uses) or the one the user
+picked (`controlPort`), with its token file in `<data>/control/`. `Session::control_info` says
+how an app would open, for the UI and `app.settings.get`; `app.launch`'s reply says where it
+listens. On macOS an app already open without its channel is refused rather than brought forward
+(Launch Services hands arguments only to a copy it starts). `docs/control-protocol.md` › Opening
+a Crafting App for agents.
 
 What an agent can't do is what the user can't do without elevation: nothing in these servers
 bypasses the engine's verification, and nothing elevates. The limits (1 MiB requests, 8 MiB

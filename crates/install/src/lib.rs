@@ -39,7 +39,7 @@ use sha2::Digest;
 pub use dmg::bundle_version;
 pub use layout::Layout;
 pub use portable::{Limits, extract as extract_zip};
-pub use process::{MANAGED_ENV, is_running, launch};
+pub use process::{MANAGED_ENV, is_running, launch, port_answers};
 pub use trust::verify as verify_signature;
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]

@@ -44,6 +44,9 @@ pub const MAX_KEEP_PREVIOUS: u32 = 5;
 pub const MAX_APP_OVERRIDES: usize = 256;
 /// The text sizes offered, in percent of the normal size.
 pub const TEXT_SIZES: [u32; 5] = [90, 100, 110, 125, 150];
+/// The lowest port an app's control channel may be moved to (below it, a port needs administrator
+/// rights); the catalog's `MIN_CONTROL_PORT`.
+pub const MIN_CONTROL_PORT: u16 = 1024;
 
 /// Light or dark: the system's, or one chosen.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -99,6 +102,13 @@ pub struct AppSettings {
     /// Never offer a version newer than this one.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pinned: Option<Version>,
+    /// Open it with its control channel on, for an agent to drive its window (the catalog's
+    /// `control`). Not an override: there is no global setting.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub agent_control: bool,
+    /// The port its control channel listens on, instead of the catalog's.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub control_port: Option<u16>,
 }
 
 impl AppSettings {
@@ -184,6 +194,9 @@ impl Settings {
         if !TEXT_SIZES.contains(&self.text_size) {
             self.text_size = 100;
         }
+        for a in self.apps.values_mut() {
+            a.control_port = a.control_port.filter(|p| *p >= MIN_CONTROL_PORT);
+        }
         self.apps.retain(|id, a| valid_app_key(id) && !a.is_default());
         while self.apps.len() > MAX_APP_OVERRIDES {
             self.apps.pop_last();
@@ -206,8 +219,19 @@ impl Settings {
         self.apps.get(app).and_then(|a| a.pinned.as_ref())
     }
 
-    /// Validate and set one of `app`'s overrides by its JSON key (`channel`, `autoUpdate`,
-    /// `pinned`); `null` clears it, so the app follows the global setting again.
+    /// Whether `app` opens with its control channel on.
+    pub fn agent_control(&self, app: &str) -> bool {
+        self.apps.get(app).is_some_and(|a| a.agent_control)
+    }
+
+    /// The port `app`'s control channel was moved to, if it was.
+    pub fn control_port(&self, app: &str) -> Option<u16> {
+        self.apps.get(app).and_then(|a| a.control_port)
+    }
+
+    /// Validate and set one of `app`'s settings by its JSON key (`channel`, `autoUpdate`,
+    /// `pinned`, `agentControl`, `controlPort`); `null` clears it, so the app follows the global
+    /// setting (or for the last two, the catalog) again.
     pub fn set_app(&mut self, app: &str, key: &str, value: &serde_json::Value) -> Result<()> {
         let bad = |m: String| Err(Error::Invalid(m));
         if !valid_app_key(app) {
@@ -234,6 +258,16 @@ impl Settings {
                 (false, Some(Ok(v))) => entry.pinned = Some(v),
                 (false, Some(Err(e))) => return bad(format!("pinned: {e}")),
                 (false, None) => return bad("pinned must be a version like \"0.5.0\" or null".into()),
+            },
+            "agentControl" => match (null, value.as_bool()) {
+                (true, _) => entry.agent_control = false,
+                (false, Some(b)) => entry.agent_control = b,
+                (false, None) => return bad("agentControl must be true, false or null".into()),
+            },
+            "controlPort" => match (null, value.as_u64().and_then(|n| u16::try_from(n).ok()).filter(|p| *p >= MIN_CONTROL_PORT)) {
+                (true, _) => entry.control_port = None,
+                (false, Some(p)) => entry.control_port = Some(p),
+                (false, None) => return bad(format!("controlPort must be a port from {MIN_CONTROL_PORT} to 65535, or null")),
             },
             other => return bad(format!("unknown app setting `{}`", other.chars().take(40).collect::<String>())),
         }
@@ -383,6 +417,30 @@ mod tests {
             assert!(s.set_app(app, k, &v).is_err(), "{app} {k} = {v}");
         }
         assert_eq!(s, before, "a rejected override changes nothing");
+    }
+
+    #[test]
+    fn agent_control_per_app() {
+        let mut s = Settings::default();
+        assert!(!s.agent_control("photocraft"));
+        s.set_app("photocraft", "agentControl", &json!(true)).unwrap();
+        s.set_app("photocraft", "controlPort", &json!(9000)).unwrap();
+        assert!(s.agent_control("photocraft") && !s.agent_control("vectorcraft"));
+        assert_eq!(s.control_port("photocraft"), Some(9000));
+        assert_eq!(serde_json::to_value(&s.apps["photocraft"]).unwrap(), json!({"agentControl": true, "controlPort": 9000}));
+        assert_eq!(Settings::from_json(&s.to_json().unwrap()).unwrap(), s);
+        // Off (false or null) and the catalog's port again: nothing left to keep.
+        s.set_app("photocraft", "agentControl", &json!(false)).unwrap();
+        s.set_app("photocraft", "controlPort", &json!(null)).unwrap();
+        assert!(s.apps.is_empty());
+        for v in [json!(80), json!(0), json!(65536), json!("7878"), json!(-1), json!(7878.5)] {
+            assert!(s.set_app("photocraft", "controlPort", &v).is_err(), "{v}");
+        }
+        assert!(s.set_app("photocraft", "agentControl", &json!("yes")).is_err());
+        assert!(s.apps.is_empty(), "a rejected value changes nothing");
+        // A port below 1024 in a file is dropped; the switch stays.
+        let loaded = Settings::from_json(r#"{"apps":{"photocraft":{"agentControl":true,"controlPort":22}}}"#).unwrap();
+        assert_eq!((loaded.agent_control("photocraft"), loaded.control_port("photocraft")), (true, None));
     }
 
     #[test]

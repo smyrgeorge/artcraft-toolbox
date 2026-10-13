@@ -1,6 +1,6 @@
 # Roadmap
 
-Status legend: ✅ done · 🟡 in progress · ⬜ not started. Updated 2026-10-10.
+Status legend: ✅ done · 🟡 in progress · ⬜ not started. Updated 2026-10-13.
 
 | M | Status | Goal |
 |---|---|---|
@@ -135,6 +135,7 @@ rename-and-copy swap and the Linux AppImage exec have only run in tests.
 - [x] JSON control channel (port PhotoCraft's control-server pattern: localhost, bearer token): `artcraft-toolbox --control <port>` with `--control-token[-file]` or the `ARTCRAFT_TOOLBOX_CONTROL_*` variables; `engine.execute` (waiting for a job or not), `engine.commands`, `jobs.list`, `jobs.cancel`, `app.quit`; the headless `artcraft-toolbox-cli serve` on stdio or a port, with `batch` (docs/control-protocol.md)
 - [x] MCP server exposing the command registry: `artcraft-toolbox-cli mcp` (headless) and `mcp --bridge` (the running app); tools `apps_status`, `command_list`, `command_run`, `command_batch`, `jobs_list`, `jobs_cancel`, `ui_get`, `ui_set`, `control_call`; resources `artcraft-toolbox://apps` and `://commands` (docs/mcp.md)
 - [x] Every UI state readable and settable (`ui.get`, `ui.set`): the tab, search text and field, the folded panel, the open app page, the uninstall question, the banner; validated as a whole before anything changes
+- [x] Open a Crafting App with its own control channel, for agents (2026-10-13, ArtCraft Launcher's launch option ported): an **Agent control** switch in each app's ⋮ menu and on its page (with the port), `app.settings.set {agentControl, controlPort}`, `app.launch {"control":true}`, CLI `open --control`; how each craft takes it is the catalog's `control` (`port`, `port-and-token-file`, `file`), on the launcher's ports from 7878 (docs/control-protocol.md › Opening a Crafting App for agents)
 
 New crate `automation` (L6: tokens, bounded frames, reply budgets, the headless server, the
 bridge client, the MCP server on rmcp), `ui-egui/src/control.rs` (the handlers, run between

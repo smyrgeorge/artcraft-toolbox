@@ -184,6 +184,9 @@ fn usage_errors_exit_2_and_touch_nothing() {
         vec!["uninstall", "photocraft", "--version", "1.0.0"],
         vec!["open"],
         vec!["open", "photocraft", "--json"],
+        vec!["open", "photocraft", "--control", "--control"],
+        vec!["open", "photocraft", "--control", "--no-control"],
+        vec!["install", "photocraft", "--control"],
         vec!["update"],
         vec!["update", "--json"],
         vec!["update", "--all", "photocraft"],
@@ -301,6 +304,8 @@ fn opening_or_removing_what_isnt_installed_fails_cleanly() {
         assert!(r.err.contains("isn't installed"), "{args:?}: {}", r.err);
     }
     assert!(cli(&["open", "nope"]).err.contains("unknown app"));
+    let r = cli(&["open", "photocraft", "--control"]);
+    assert!(r.code == 1 && r.err.contains("isn't installed"), "{}", r.err);
 }
 
 /// A GitHub with PhotoCraft 8.0.0 and 9.0.0 for Linux.

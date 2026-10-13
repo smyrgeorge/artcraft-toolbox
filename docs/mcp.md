@@ -5,8 +5,8 @@ official Rust SDK `rmcp`) that gives an agent the toolbox's whole command regist
 
 - **Headless** (`artcraft-toolbox-cli mcp`): an in-process engine session on the toolbox's data
   folder. No window. Checks, installs, updates, rollbacks and the toolbox's own update all work.
-- **Bridge** (`artcraft-toolbox-cli mcp --bridge 127.0.0.1:7878 --control-token-file <path>`):
-  every tool is forwarded to a running `artcraft-toolbox --control 7878 --control-token-file
+- **Bridge** (`artcraft-toolbox-cli mcp --bridge 127.0.0.1:7877 --control-token-file <path>`):
+  every tool is forwarded to a running `artcraft-toolbox --control 7877 --control-token-file
   <path>` over the control protocol (`docs/control-protocol.md`), so the agent also sees and
   drives the live window, and the user sees what the agent does.
 
@@ -20,7 +20,7 @@ A client configuration, for Claude Code, Claude Desktop or any client that start
 }
 ```
 
-For bridge mode, add `"--bridge", "127.0.0.1:7878", "--control-token-file", "/private/path/artcraft-toolbox.token"`
+For bridge mode, add `"--bridge", "127.0.0.1:7877", "--control-token-file", "/private/path/artcraft-toolbox.token"`
 to `args`, or set `ARTCRAFT_TOOLBOX_CONTROL_TOKEN_FILE` in the client's environment for the server.
 The bridge accepts loopback addresses only, as the app listens on loopback only.
 
@@ -50,6 +50,9 @@ Command parameters are the engine's (`docs/architecture.md` § 6). Typical sessi
 - Install a specific version: `command_run {id: "app.releases", params: {app: "photocraft"}}`
   to see what is published, then `command_run {id: "app.install", params: {app: "photocraft", version: "0.5.0"}}`.
 - Something went wrong: `command_run {id: "app.versions", params: {app: …}}`, then `app.rollback`.
+- Drive a craft's window: `command_run {id: "app.launch", params: {app: "photocraft", control: true}}`
+  opens it with its own control channel; the reply's `control` names the address and the token
+  file to connect with (docs/control-protocol.md › Opening a Crafting App for agents).
 - Keep the toolbox current: `command_run {id: "toolbox.update"}`; the new version is used at the
   next start (`toolbox.apply` swaps it in while the app isn't running; in bridge mode the window
   offers "Restart to update").

@@ -7,7 +7,7 @@
 //! by exact match ([`engine`]).
 
 use artcraft_toolbox_engine::update_cmds::CheckSummary;
-use artcraft_toolbox_engine::{SelfStatus, Session, Status, Trust, Version};
+use artcraft_toolbox_engine::{ControlInfo, ControlStyle, SelfStatus, Session, Status, Trust, Version};
 use serde_json::Value;
 
 use crate::theme::Tokens;
@@ -62,6 +62,37 @@ pub fn startup_failure(error: &str, graphics: bool, log: Option<&str>) -> (Strin
         message.push_str(&fmt(tl!("Details are in the log: {path}"), &[("path", log)]));
     }
     (tl!("ArtCraft Toolbox couldn't start").to_string(), message)
+}
+
+/// What switching an app's control channel on does: the tooltip of its switch.
+pub fn agent_control_tip(app: &str) -> String {
+    fmt(
+        tl!("{app} opens with --control, so an agent can drive its window over a local JSON connection while you watch. It applies the next time {app} opens."),
+        &[("app", app)],
+    )
+}
+
+/// The port an app's control channel listens on: `Port 7878`, or that the app picks its own.
+pub fn control_port(app: &str, control: &ControlInfo) -> String {
+    match control.port {
+        Some(port) => fmt(tl!("Port {port}"), &[("port", &port.to_string())]),
+        None => fmt(tl!("{app} picks its own port"), &[("app", app)]),
+    }
+}
+
+/// How an agent connects to `app` opened with its control channel: the address, and the file
+/// that holds the token or the connection details. `None` while the file has no place (a session
+/// without a data folder).
+pub fn agent_hint(app: &str, control: &ControlInfo) -> Option<String> {
+    let file = control.file.as_ref().map(|f| f.display().to_string());
+    Some(match (control.style, control.address(), file) {
+        (ControlStyle::File, _, Some(file)) => fmt(tl!("{app} picks a free port and writes it, with a token, to {file}"), &[("app", app), ("file", &file)]),
+        (ControlStyle::PortAndTokenFile, Some(address), Some(file)) => {
+            fmt(tl!("Agents connect to {address} with the token in {file}"), &[("address", &address), ("file", &file)])
+        }
+        (ControlStyle::Port, Some(address), _) => fmt(tl!("Agents connect to {address}"), &[("address", &address)]),
+        _ => return None,
+    })
 }
 
 /// An app's one-line description from the catalog (`catalog.toml`), in the current language.

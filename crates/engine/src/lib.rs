@@ -13,6 +13,7 @@
 #![forbid(unsafe_code)]
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
+pub mod agent_control;
 mod app_settings_cmds;
 pub mod build_info;
 mod catalog_cmds;
@@ -46,7 +47,8 @@ use artcraft_toolbox_store::Store;
 use serde::Serialize;
 use serde_json::Value;
 
-pub use artcraft_toolbox_catalog::Catalog;
+pub use agent_control::ControlInfo;
+pub use artcraft_toolbox_catalog::{Catalog, ControlStyle};
 pub use artcraft_toolbox_feed::Status;
 pub use artcraft_toolbox_install::Layout;
 pub use artcraft_toolbox_model::Trust;

@@ -15,12 +15,17 @@
 #   icon          optional PNG URL, when the icon isn't at the crafts' usual path
 #   [app.assets]  optional, for an app outside the contract: "<os>-<arch>" = "Name_{version}.ext"
 #                 (docs/release-contract.md › Apps outside the contract)
+#   control       optional, its control channel for agents (docs/control-protocol.md › Opening a
+#                 Crafting App for agents): { style = "port", port = 7879 } opens it with
+#                 --control <port>; "port-and-token-file" adds --control-token-file <file>;
+#                 "file" (no port) is --control <file>, the app picking its own port. Each app has
+#                 a port of its own, the same as ArtCraft Launcher gives it.
 #
 # Checked against GitHub on 2026-10-09: all twelve crafts publish the contract's full asset set.
 schema = 1
 # Bumped on every published change. A remote catalog replaces the built-in one only when its
 # revision is not older (docs/architecture.md § 12).
-revision = 1
+revision = 2
 
 # Where a newer catalog and the suite's aggregated release feed are published, signed with this
 # key (`cargo xtask feed`, docs/releasing.md › The feed). One request per check instead of one
@@ -48,6 +53,7 @@ name = "PhotoCraft"
 tagline = "Image editing: layers, masks, type and real PSD files"
 repo = "storytold/photocraft"
 website = "https://getartcraft.com/apps/photocraft"
+control = { style = "port-and-token-file", port = 7878 }
 
 [[app]]
 id = "vectorcraft"
@@ -55,6 +61,7 @@ name = "VectorCraft"
 tagline = "Vector illustration"
 repo = "storytold/vectorcraft"
 website = "https://getartcraft.com/apps/vectorcraft"
+control = { style = "port", port = 7879 }
 
 [[app]]
 id = "filmcraft"
@@ -62,6 +69,7 @@ name = "FilmCraft"
 tagline = "Video editing, color and sound"
 repo = "storytold/filmcraft"
 website = "https://getartcraft.com/apps/filmcraft"
+control = { style = "port", port = 7880 }
 
 [[app]]
 id = "lightcraft"
@@ -69,6 +77,7 @@ name = "LightCraft"
 tagline = "Photo library and raw development"
 repo = "storytold/lightcraft"
 website = "https://getartcraft.com/apps/lightcraft"
+control = { style = "port", port = 7881 }
 
 [[app]]
 id = "pdfcraft"
@@ -77,6 +86,7 @@ tagline = "Reading, organizing and protecting PDFs"
 repo = "storytold/pdfcraft"
 website = "https://getartcraft.com/apps/pdfcraft"
 former_slugs = ["printcraft"]
+control = { style = "file" }
 
 [[app]]
 id = "effectcraft"
@@ -84,6 +94,7 @@ name = "EffectCraft"
 tagline = "Motion graphics and visual effects"
 repo = "storytold/effectcraft"
 website = "https://getartcraft.com/apps/effectcraft"
+control = { style = "port", port = 7883 }
 
 [[app]]
 id = "designcraft"
@@ -91,42 +102,49 @@ name = "DesignCraft"
 tagline = "Page layout and publishing"
 repo = "storytold/designcraft"
 website = "https://getartcraft.com/apps/designcraft"
+control = { style = "port", port = 7884 }
 
 [[app]]
 id = "cadcraft"
 name = "CADCraft"
 tagline = "Computer-aided design and drafting"
 repo = "storytold/cadcraft"
+control = { style = "port", port = 7888 }
 
 [[app]]
 id = "deckcraft"
 name = "DeckCraft"
 tagline = "Presentations and slide shows"
 repo = "storytold/deckcraft"
+control = { style = "port", port = 7886 }
 
 [[app]]
 id = "gridcraft"
 name = "GridCraft"
 tagline = "Spreadsheets"
 repo = "storytold/gridcraft"
+control = { style = "port", port = 7887 }
 
 [[app]]
 id = "soundcraft"
 name = "SoundCraft"
 tagline = "Audio recording, editing and mixing"
 repo = "storytold/soundcraft"
+control = { style = "port", port = 7889 }
 
 [[app]]
 id = "wordcraft"
 name = "WordCraft"
 tagline = "Word processing"
 repo = "storytold/wordcraft"
+control = { style = "port", port = 7885 }
 
 # ArtCraft itself (the AI studio) is a different stack and doesn't follow the contract: tags
 # `artcraft-v<version>`, Tauri-style asset names, no Linux build, no SHA256SUMS.txt. Its builds
 # are matched by these patterns; their digests come from the signed aggregated feed, so it can
 # only be installed while that feed is published (docs/release-contract.md › Apps outside the
 # contract). Windows ships an MSI only, which the toolbox doesn't install (M2), so no pattern.
+# It has no control channel.
 [[app]]
 id = "artcraft"
 name = "ArtCraft"

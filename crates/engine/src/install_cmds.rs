@@ -1,4 +1,5 @@
-//! `app.install` and `app.update` (background jobs), `app.uninstall` and `app.launch`.
+//! `app.install` and `app.update` (background jobs), `app.uninstall` and `app.launch` (with the
+//! app's control channel, for agents: [`crate::agent_control`]).
 //!
 //! Installing and updating are one pipeline, download → verify → place → check → activate →
 //! record, on one worker thread:
@@ -55,7 +56,7 @@ pub(crate) fn specs() -> Vec<CommandSpec> {
             start: Some(start_update),
         },
         CommandSpec { id: UNINSTALL, label: "Uninstall", params: r#"{"app":"<id>"}"#, enabled: can_change_installs, run: uninstall, start: None },
-        CommandSpec { id: LAUNCH, label: "Open", params: r#"{"app":"<id>"}"#, enabled: always, run: launch, start: None },
+        CommandSpec { id: LAUNCH, label: "Open", params: r#"{"app":"<id>","control"?:bool}"#, enabled: always, run: launch, start: None },
     ]
 }
 
@@ -577,15 +578,35 @@ fn uninstall(s: &mut Session, p: &Value) -> Result<Value> {
     Ok(json!({"app": app.id, "version": inst.version, "removed": inst.path, "removedVersions": kept_too, "warnings": warnings}))
 }
 
+/// Open the app; with its control channel when its `agentControl` setting is on or `control`
+/// asks for it (`false` opens it without, whatever the setting). The reply's `control` says how an
+/// agent connects.
 fn launch(s: &mut Session, p: &Value) -> Result<Value> {
-    params::only(p, &["app"])?;
-    let app = params::app(s, p)?;
-    let inst = s.inventory().current(&app.id).ok_or_else(|| refused(format!("{} isn't installed", echo(&app.name))))?;
+    params::only(p, &["app", "control"])?;
+    let app = params::app(s, p)?.clone();
+    let want = match params::object(p)?.get("control") {
+        None | Some(Value::Null) => None,
+        Some(Value::Bool(b)) => Some(*b),
+        Some(other) => return Err(EngineError::BadParams(format!("`control` must be true or false, got {}", params::kind(other)))),
+    };
+    let inst = s.inventory().current(&app.id).ok_or_else(|| refused(format!("{} isn't installed", echo(&app.name))))?.clone();
     if !inst.active {
         return Err(refused(format!("no version of {} is active", echo(&app.name))));
     }
-    artcraft_toolbox_install::launch(inst.kind, Path::new(&inst.path))?;
-    Ok(json!({"app": app.id, "version": inst.version, "path": inst.path}))
+    let path = Path::new(&inst.path);
+    let control = crate::agent_control::opening(s, &app, want)?;
+    let (info, args) = control.map_or((None, Vec::new()), |(info, args)| (Some(info), args));
+    // Launch Services hands arguments only to a copy it starts: an app already open without its
+    // channel would just come forward, leaving the agent nothing to connect to.
+    if let Some(info) = &info
+        && inst.kind == PackageKind::Dmg
+        && artcraft_toolbox_install::is_running(path)
+        && !crate::agent_control::answers(info)
+    {
+        return Err(refused(format!("{} is already open without agent control: quit it, then open it again", app.name)));
+    }
+    artcraft_toolbox_install::launch(inst.kind, path, &args)?;
+    Ok(json!({"app": app.id, "version": inst.version, "path": inst.path, "control": crate::agent_control::reply(info.as_ref())}))
 }
 
 #[cfg(test)]

@@ -117,6 +117,17 @@ makes its inventory drift. The toolbox never passes its own `ARTCRAFT_TOOLBOX_*`
 GitHub token among them) to an app. Started any other way (the Dock, the Start Menu), a craft gets
 no signal; the toolbox notices a self-update on its next look at the disk (Gotchas 4).
 
+## Control channel (optional)
+
+A craft with a control channel says how it takes it in its catalog entry
+(`control = { style, port }`, docs/control-protocol.md › Opening a Crafting App for agents). The
+toolbox relies on: `--control <port>` listening on `127.0.0.1:<port>`; PhotoCraft's
+`--control-token-file <file>`, which it creates (mode `0600` on Unix) when missing and reuses
+otherwise; PdfCraft's `--control <file>`, which picks a free port and writes `{"port", "token",
+"pid"}` to `<file>` without making its folder. Changing a flag means changing the catalog entry
+(and its revision) in the same release. Checked against PhotoCraft's `docs/control-protocol.md`
+on 2026-10-13; the other crafts' styles and ports are ArtCraft Launcher's (its commit 5308279).
+
 ## Measured state (2026-10-10)
 
 `cargo xtask contract`: all 12 catalog apps pass (22 assets per latest release, 24 for PdfCraft,

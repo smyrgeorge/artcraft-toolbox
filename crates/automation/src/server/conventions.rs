@@ -9,7 +9,9 @@ const APPS: &str = "artcraft-toolbox://apps";
 const INSTRUCTIONS: &str = "ArtCraft Toolbox installs, updates, rolls back and launches the Crafting Apps (PhotoCraft, VectorCraft, …). \
 Start with apps_status (every app's install and update state), discover command ids and parameter docs with command_list, \
 and act with command_run or command_batch: updates.check fetches the release feeds, app.install / app.update / app.rollback / \
-app.uninstall / app.launch manage one app, apps.updateAll every app, toolbox.update the toolbox itself. Background commands \
+app.uninstall / app.launch manage one app, apps.updateAll every app, toolbox.update the toolbox itself. \
+app.launch with control: true opens a craft with its own control channel, for you to drive its window: the reply's control \
+says where it listens and which file holds its token. Background commands \
 wait by default (wait: false returns a job for jobs_list / jobs_cancel). Every download is verified before it is installed; \
 nothing ever elevates. ui_get, ui_set and control_call need bridge mode (a running desktop app). \
 Read artcraft-toolbox://apps and artcraft-toolbox://commands for live JSON state.";

@@ -1,5 +1,6 @@
 //! Per-app commands beyond status: `app.settings.get` / `app.settings.set` (overrides of the
-//! global channel and auto-update, and a pinned version) and `app.releases` (versions, notes).
+//! global channel and auto-update, a pinned version, and whether it opens with its control
+//! channel for agents, on which port) and `app.releases` (versions, notes).
 
 use artcraft_toolbox_release::asset;
 use serde_json::{Value, json};
@@ -13,7 +14,7 @@ pub(crate) fn specs() -> Vec<CommandSpec> {
         CommandSpec {
             id: "app.settings.set",
             label: "Change App Settings",
-            params: r#"{"app":"<id>","channel"?:"stable|prerelease"|null,"autoUpdate"?:bool|null,"pinned"?:"x.y.z"|null}"#,
+            params: r#"{"app":"<id>","channel"?:"stable|prerelease"|null,"autoUpdate"?:bool|null,"pinned"?:"x.y.z"|null,"agentControl"?:bool|null,"controlPort"?:1024..65535|null}"#,
             enabled: always,
             run: set,
             start: None,
@@ -22,14 +23,19 @@ pub(crate) fn specs() -> Vec<CommandSpec> {
     ]
 }
 
-/// The effective settings of `app`, and which of them are its own.
+/// The effective settings of `app`, and which of them are its own. `control`: its control channel
+/// (`null` when it has none), how it opens and where an agent finds it.
 fn describe(s: &Session, app: &str) -> Value {
     let st = s.settings();
+    let control = s.control_info(app);
     json!({
         "app": app,
         "channel": st.channel_for(app),
         "autoUpdate": st.auto_update_for(app),
         "pinned": st.pinned(app),
+        "agentControl": control.as_ref().is_some_and(|c| c.on),
+        "controlPort": control.as_ref().and_then(|c| c.port),
+        "control": control.map(|c| json!({"style": c.style, "port": c.port, "defaultPort": c.default_port, "address": c.address(), "file": c.file})),
         "overrides": st.apps.get(app).cloned().unwrap_or_default(),
     })
 }
@@ -42,14 +48,25 @@ fn get(s: &mut Session, p: &Value) -> Result<Value> {
 
 /// All or nothing, like `settings.set`; `null` clears an override.
 fn set(s: &mut Session, p: &Value) -> Result<Value> {
-    params::only(p, &["app", "channel", "autoUpdate", "pinned"])?;
-    let id = params::app(s, p)?.id.clone();
+    params::only(p, &["app", "channel", "autoUpdate", "pinned", "agentControl", "controlPort"])?;
+    let (id, name) = params::app(s, p).map(|a| (a.id.clone(), a.name.clone()))?;
     let changes: Vec<(&String, &Value)> = params::object(p)?.iter().filter(|(k, _)| k.as_str() != "app").collect();
     if changes.is_empty() {
         return Err(EngineError::BadParams("no settings given".into()));
     }
+    let control = s.control_info(&id);
     let mut next = s.settings().clone();
     for (k, v) in changes {
+        // An app's control channel can be switched on, or moved, only when it has one to move.
+        match (k.as_str(), &control) {
+            ("agentControl" | "controlPort", None) if !v.is_null() => {
+                return Err(EngineError::BadParams(format!("{name} has no control channel")));
+            }
+            ("controlPort", Some(c)) if !v.is_null() && c.default_port.is_none() => {
+                return Err(EngineError::BadParams(format!("{name} picks its own control port")));
+            }
+            _ => {}
+        }
         next.set_app(&id, k, v)?;
     }
     s.set_settings(next)?;

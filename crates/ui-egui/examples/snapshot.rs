@@ -24,6 +24,8 @@
 //! tray icon); `--fold` folds the "Available apps" panel. `--toolbox-update <version>` draws the
 //! toolbox's own update offer (a newer ArtCraft Toolbox published, this copy installed as a
 //! package), and `--toolbox-ready <version>` that update downloaded, waiting for a restart.
+//! `--agent-control <app>` switches an app's control channel on (for agents), and `--menu <app>`
+//! opens its row's ⋮ menu.
 
 use std::sync::Arc;
 
@@ -217,6 +219,13 @@ fn main() -> Result<(), String> {
     if online || installing.is_some() {
         app.session.execute("settings.set", serde_json::json!({ "checkIntervalHours": 0 })).map_err(|e| e.to_string())?;
     }
+    for id in args.windows(2).filter(|w| w[0] == "--agent-control").map(|w| &w[1]) {
+        app.session.execute("app.settings.set", serde_json::json!({ "app": id, "agentControl": true })).map_err(|e| e.to_string())?;
+    }
+    let menu = match arg(&args, "--menu") {
+        Some(id) => Some(app.session.catalog().get(&id).map(|a| a.name.clone()).ok_or(format!("--menu: unknown app `{id}`"))?),
+        None => None,
+    };
     if let Some(id) = &installing {
         app.session.start(INSTALL, serde_json::json!({ "app": id })).map_err(|e| e.to_string())?;
         // Let the download reach its stopping point.
@@ -256,6 +265,12 @@ fn main() -> Result<(), String> {
     });
     // A few frames more than layout needs: CJK fallback fonts load one per frame.
     harness.run_steps(8);
+    if let Some(name) = menu {
+        use egui_kittest::kittest::Queryable;
+        let label = artcraft_toolbox_ui_egui::i18n::fmt(artcraft_toolbox_ui_egui::i18n::t("More actions for {app}"), &[("app", &name)]);
+        harness.query_by_label(&label).ok_or(format!("--menu: no menu for {name} (is it installed?)"))?.click();
+        harness.run_steps(4);
+    }
     let img = harness.render().map_err(|e| format!("render: {e}"))?;
     if let Some(dir) = std::path::Path::new(&out).parent() {
         std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;

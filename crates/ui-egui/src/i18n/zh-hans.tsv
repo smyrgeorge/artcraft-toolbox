@@ -187,3 +187,11 @@
 	ArtCraft Toolbox couldn't start	ArtCraft Toolbox 无法启动
 	Metal graphics aren't available on this Mac; ArtCraft Toolbox and the Crafting Apps need them.	此 Mac 不支持 Metal 图形，而 ArtCraft Toolbox 和 Crafting Apps 需要它。
 	Details are in the log: {path}	详细信息见日志：{path}
+	Agent control	智能体控制
+	{app} opens with --control, so an agent can drive its window over a local JSON connection while you watch. It applies the next time {app} opens.	{app} 将带 --control 启动，智能体可以通过本地 JSON 连接操作它的窗口，你可以在一旁看着。下次打开 {app} 时生效。
+	Port	端口
+	Port {port}	端口 {port}
+	{app} picks its own port	{app} 会自行选择端口
+	{app} picks a free port and writes it, with a token, to {file}	{app} 会选择一个空闲端口，并将它和令牌一起写入 {file}
+	Agents connect to {address} with the token in {file}	智能体使用 {file} 中的令牌连接到 {address}
+	Agents connect to {address}	智能体连接到 {address}

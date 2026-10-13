@@ -1,15 +1,16 @@
 //! An app's page: what it is, its status, its own settings (channel, auto-update, a pinned
-//! version) and its versions with their release notes. Settings changes are `app.settings.set`
-//! commands, like every other action.
+//! version, whether it opens for agents and on which port) and its versions with their release
+//! notes. Settings changes are `app.settings.set` commands, like every other action.
 
-use artcraft_toolbox_engine::{AppStatus, Status};
+use artcraft_toolbox_engine::{AppStatus, ControlInfo, Status};
+use artcraft_toolbox_model::settings::MIN_CONTROL_PORT;
 use artcraft_toolbox_release::asset;
 use serde_json::{Value, json};
 
 use crate::actions::{self, Clicked};
 use crate::i18n::{fmt, tn};
 use crate::theme::Tokens;
-use crate::widgets::{self, app_tile, card, panel, panel_title, subhead};
+use crate::widgets::{self, app_tile, card, panel, panel_title, subhead, toggle_row};
 use crate::{ToolboxApp, wording};
 
 /// Versions listed on the page (the feed asks GitHub for 20).
@@ -172,6 +173,7 @@ fn header(app: &ToolboxApp, ui: &mut egui::Ui, st: &AppStatus, icon: Option<&egu
 fn settings(app: &ToolboxApp, ui: &mut egui::Ui, st: &AppStatus, t: &Tokens) -> Option<(&'static str, Value)> {
     let global = app.session.settings();
     let own = global.apps.get(&st.id).cloned().unwrap_or_default();
+    let control = app.session.control_info(&st.id);
     let versions: Vec<String> =
         app.session.feed(&st.id).map(|f| f.releases.iter().take(MAX_VERSIONS).map(|r| r.version.to_string()).collect()).unwrap_or_default();
     let mut change = None;
@@ -228,7 +230,44 @@ fn settings(app: &ToolboxApp, ui: &mut egui::Ui, st: &AppStatus, t: &Tokens) -> 
             });
             ui.end_row();
         });
+        if let Some(c) = &control
+            && let Some(ch) = agent_control(ui, &st.name, c, t)
+        {
+            change = Some(ch);
+        }
     });
+    change
+}
+
+/// The app's control channel: the switch that opens it with one (like its menu's), the port it
+/// listens on (changed on Enter; the catalog's port clears the override) and, switched on, how an
+/// agent connects, to copy into the agent's configuration.
+fn agent_control(ui: &mut egui::Ui, app: &str, c: &ControlInfo, t: &Tokens) -> Option<(&'static str, Value)> {
+    let mut change = None;
+    ui.add_space(4.0);
+    ui.separator();
+    let mut on = c.on;
+    if toggle_row(ui, &mut on, tl!("Agent control"), t).on_hover_text(wording::agent_control_tip(app)).changed() {
+        change = Some(("agentControl", json!(on)));
+    }
+    ui.horizontal(|ui| {
+        ui.label(tl!("Port"));
+        match (c.port, c.default_port) {
+            (Some(current), Some(default)) => {
+                let mut port = current;
+                let field = egui::DragValue::new(&mut port).range(MIN_CONTROL_PORT..=u16::MAX).speed(0.0).update_while_editing(false);
+                if ui.add_enabled(c.on, field).changed() && port != current {
+                    change = Some(("controlPort", if port == default { Value::Null } else { json!(port) }));
+                }
+            }
+            _ => {
+                ui.add(egui::Label::new(egui::RichText::new(wording::control_port(app, c)).color(t.text_dim)).wrap());
+            }
+        }
+    });
+    if let Some(hint) = c.on.then(|| wording::agent_hint(app, c)).flatten() {
+        ui.add(egui::Label::new(egui::RichText::new(hint).small().color(t.text_dim)).wrap().selectable(true));
+    }
     change
 }
 

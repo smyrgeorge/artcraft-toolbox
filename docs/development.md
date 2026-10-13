@@ -86,13 +86,13 @@ Agents and tests talk to the toolbox in JSON lines (`docs/control-protocol.md`) 
 (`docs/mcp.md`). The running window:
 
 ```sh
-cargo run -p artcraft-toolbox -- --control 7878 --control-token-file /tmp/tb.token
+cargo run -p artcraft-toolbox -- --control 7877 --control-token-file /tmp/tb.token
 # in another terminal
 TOKEN=$(cat /tmp/tb.token)
 printf '%s\n' "{\"id\":0,\"method\":\"auth\",\"params\":{\"token\":\"$TOKEN\"}}" \
   '{"id":1,"method":"ui.set","params":{"tab":"settings"}}' \
-  '{"id":2,"method":"engine.execute","params":{"command":"updates.check"}}' | nc 127.0.0.1 7878
-cargo run -p artcraft-toolbox-cli -- mcp --bridge 127.0.0.1:7878 --control-token-file /tmp/tb.token
+  '{"id":2,"method":"engine.execute","params":{"command":"updates.check"}}' | nc 127.0.0.1 7877
+cargo run -p artcraft-toolbox-cli -- mcp --bridge 127.0.0.1:7877 --control-token-file /tmp/tb.token
 ```
 
 Without a window, `artcraft-toolbox-cli serve` answers the same lines on stdio (no token) and
@@ -140,7 +140,9 @@ once, no automatic check). `--lang <code>` draws it in another language (default
 machine's), `--theme light|dark` in a theme and `--text-size 90..150` at a text size. `--popover` draws the popover's edge (rounded, as on
 macOS) and `--fold` folds the available apps. `--toolbox-update <version>` draws the toolbox's
 own update offer (docs/architecture.md § 7), `--toolbox-ready <version>` that update downloaded
-and waiting for a restart (also on the Settings tab's About card). The example draws
+and waiting for a restart (also on the Settings tab's About card). `--agent-control <app>`
+switches an app's control channel on, and `--menu <app>` opens its row's ⋮ menu (an installed
+app's: name it in `--installed` too). The example draws
 what the desktop app shows, with notifications and a tray icon available. Fill a scratch data
 folder for it with `ARTCRAFT_TOOLBOX_CONFIG_DIR=<dir> artcraft-toolbox-cli check` and
 `… run icons.refresh`.

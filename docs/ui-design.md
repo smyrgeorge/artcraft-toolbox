@@ -54,7 +54,8 @@ in the snapshot example.
 - **Click a row** (anywhere but its buttons) to open the app's **details page**: a back arrow,
   the app's card (icon, tagline, status, signature, links to GitHub, Releases, Website, and its
   actions), its own settings (channel, updates, pinned version: combo boxes whose first entry is
-  "Default (…)" naming the global value), and its versions, newest first and open, each with its
+  "Default (…)" naming the global value; under a rule, the Agent control switch, the port, which
+  Enter applies, and, switched on, how an agent connects, selectable), and its versions, newest first and open, each with its
   release notes rendered from Markdown. The back arrow or the Apps tab returns to the list.
 - **One action per row**, chosen by status: Install (not installed), Update (update available;
   filled with the accent: the action that matters), Open (installed and current), Adopt (a copy
@@ -63,7 +64,11 @@ in the snapshot example.
   it while that app is being checked. Update to a version that is kept switches to it at once,
   without a download.
 - **Installed rows** put the action on the right with a menu (⋮): Open, Update, Details,
-  Uninstall… (asks first, as on the details page). **Available rows** show the app's tagline and
+  Agent control, Uninstall… (asks first, as on the details page). **Agent control** is a switch
+  (`toggle_row`, as wide as the menu) for an app with a control channel: on, the app opens with
+  `--control` for an agent to drive it, and a dim "Port 7878" under it says where (hover: the
+  address and the token file). A click on the switch leaves the menu open, so the port shows as
+  it turns on; every other item closes it. **Available rows** show the app's tagline and
   Install under it, with the version it would install (and "pinned" when a pin caps it).
 - **"Update all (N)"** sits on the Installed panel's title line when more than one update waits;
   an app it can't update (running, on macOS) is named in the banner.

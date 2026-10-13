@@ -133,6 +133,51 @@ fn an_installed_app_menu_offers_details_and_uninstall() {
 }
 
 #[test]
+fn an_installed_app_menu_switches_agent_control() {
+    let root = temp("agent");
+    let mut h = harness(app(&root, true));
+    h.get_by_label("More actions for PhotoCraft").click();
+    h.run();
+    assert!(h.query_by_label("Port 7878").is_none(), "the port shows only while it's on");
+    h.get_by_label("Agent control").click();
+    h.run();
+    assert!(h.state().session.settings().agent_control("photocraft"));
+    // The menu stays open on the switch, so the port shows at once.
+    h.get_by_label("Port 7878");
+    h.get_by_label("Agent control").click();
+    h.run();
+    assert!(!h.state().session.settings().agent_control("photocraft"));
+    assert!(h.query_by_label("Port 7878").is_none());
+    // Any other item closes it.
+    h.get_by_label("Details").click();
+    h.run();
+    assert!(h.query_by_label("Uninstall…").is_none());
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
+fn an_app_page_sets_agent_control_and_its_port() {
+    let root = temp("agent-page");
+    let mut h = harness(app(&root, true));
+    h.state_mut().ui.selected = Some("vectorcraft".into());
+    h.run();
+    assert!(h.query_by_label("Agents connect to 127.0.0.1:7879").is_none(), "only while it's on");
+    h.get_by_label("Agent control").click();
+    h.run();
+    assert!(h.state().session.settings().agent_control("vectorcraft"));
+    h.get_by_label("Agents connect to 127.0.0.1:7879");
+    // Through the engine, as an agent would: the page follows.
+    h.state_mut().session.execute("app.settings.set", json!({"app": "vectorcraft", "controlPort": 9400})).unwrap();
+    h.run();
+    h.get_by_label("Agents connect to 127.0.0.1:9400");
+    // ArtCraft has no control channel: no rows for it.
+    h.state_mut().ui.selected = Some("artcraft".into());
+    h.run();
+    assert!(h.query_by_label("Agent control").is_none());
+    let _ = std::fs::remove_dir_all(&root);
+}
+
+#[test]
 fn the_banner_shows_an_error_until_dismissed() {
     let root = temp("banner");
     let mut a = app(&root, false);

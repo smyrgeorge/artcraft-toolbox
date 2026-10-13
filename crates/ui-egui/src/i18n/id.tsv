@@ -187,3 +187,11 @@
 	ArtCraft Toolbox couldn't start	ArtCraft Toolbox tidak dapat dimulai
 	Metal graphics aren't available on this Mac; ArtCraft Toolbox and the Crafting Apps need them.	Grafis Metal tidak tersedia di Mac ini; ArtCraft Toolbox dan Crafting Apps membutuhkannya.
 	Details are in the log: {path}	Detailnya ada di log: {path}
+	Agent control	Kendali agen
+	{app} opens with --control, so an agent can drive its window over a local JSON connection while you watch. It applies the next time {app} opens.	{app} dibuka dengan --control, sehingga agen dapat mengendalikan jendelanya melalui koneksi JSON lokal sementara Anda melihat. Berlaku saat {app} dibuka berikutnya.
+	Port	Port
+	Port {port}	Port {port}
+	{app} picks its own port	{app} memilih port sendiri
+	{app} picks a free port and writes it, with a token, to {file}	{app} memilih port yang kosong dan menuliskannya, bersama token, ke {file}
+	Agents connect to {address} with the token in {file}	Agen terhubung ke {address} dengan token di {file}
+	Agents connect to {address}	Agen terhubung ke {address}

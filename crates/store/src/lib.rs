@@ -10,6 +10,7 @@
 //! <data dir>/remote/feed.json     the aggregated feed's ETag and fetch time (its apps are in feeds/)
 //! <data dir>/icons/<app>.png      the app's icon, and <app>.json with its ETag and fetch time
 //! <data dir>/logs/                the desktop app's log files
+//! <data dir>/control/             what apps opened for agents keep their control tokens in
 //! ```
 //!
 //! Every file is untrusted on read (size-capped, parsed without panics) and replaced atomically on
@@ -36,6 +37,9 @@ pub const ICONS_DIR: &str = "icons";
 /// Largest icon accepted (a 128 px PNG is a few KB).
 pub const MAX_ICON_BYTES: usize = 512 * 1024;
 pub const LOGS_DIR: &str = "logs";
+/// Where an app opened with its control channel keeps its token or connection details
+/// (`<app>-control.token`, `<app>-control.json`): the app writes them, an agent reads them.
+pub const CONTROL_DIR: &str = "control";
 /// Largest cached feed file read back (a feed response is capped at 16 MiB; JSON escaping can
 /// grow it).
 pub const MAX_FEED_FILE_BYTES: usize = 40 * 1024 * 1024;
@@ -101,6 +105,11 @@ impl Store {
 
     pub fn logs_dir(&self) -> PathBuf {
         self.root.join(LOGS_DIR)
+    }
+
+    /// [`CONTROL_DIR`]. Made when an app is opened for agents, not before.
+    pub fn control_dir(&self) -> PathBuf {
+        self.root.join(CONTROL_DIR)
     }
 
     /// `None` when there is no settings file yet.

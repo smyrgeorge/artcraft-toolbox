@@ -187,3 +187,11 @@
 	ArtCraft Toolbox couldn't start	Δεν ήταν δυνατή η εκκίνηση του ArtCraft Toolbox
 	Metal graphics aren't available on this Mac; ArtCraft Toolbox and the Crafting Apps need them.	Τα γραφικά Metal δεν είναι διαθέσιμα σε αυτό το Mac. Το ArtCraft Toolbox και οι Crafting Apps τα χρειάζονται.
 	Details are in the log: {path}	Λεπτομέρειες υπάρχουν στο αρχείο καταγραφής: {path}
+	Agent control	Έλεγχος από πράκτορα
+	{app} opens with --control, so an agent can drive its window over a local JSON connection while you watch. It applies the next time {app} opens.	Το {app} ανοίγει με --control, ώστε ένας πράκτορας να χειρίζεται το παράθυρό του μέσω τοπικής σύνδεσης JSON ενώ εσείς παρακολουθείτε. Ισχύει από το επόμενο άνοιγμα του {app}.
+	Port	Θύρα
+	Port {port}	Θύρα {port}
+	{app} picks its own port	Το {app} επιλέγει μόνο του θύρα
+	{app} picks a free port and writes it, with a token, to {file}	Το {app} επιλέγει μια ελεύθερη θύρα και τη γράφει, μαζί με ένα διακριτικό, στο {file}
+	Agents connect to {address} with the token in {file}	Οι πράκτορες συνδέονται στο {address} με το διακριτικό από το {file}
+	Agents connect to {address}	Οι πράκτορες συνδέονται στο {address}

@@ -66,6 +66,63 @@ pub struct App {
     /// without one nothing is installed.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub assets: BTreeMap<String, String>,
+    /// How it serves its control channel, for agents (`control = { style = "port", port = 7879 }`);
+    /// `None`: it has none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub control: Option<Control>,
+}
+
+/// How an app opened with `--control` serves its control channel: JSON lines on a loopback port,
+/// through which an agent drives its window while the user watches.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ControlStyle {
+    /// `--control <port>`: it listens on `127.0.0.1:<port>`.
+    #[default]
+    Port,
+    /// `--control <port> --control-token-file <file>` (PhotoCraft): every connection authenticates
+    /// first, with the token in `<file>`, which the app writes when the file isn't there.
+    PortAndTokenFile,
+    /// `--control <file>` (PdfCraft): the app picks a free port and writes it, with a token, to
+    /// `<file>` as JSON (`{"port", "token", "pid"}`).
+    File,
+    /// A style this build doesn't know (a newer catalog's): the app opens without its channel.
+    #[serde(other)]
+    Unknown,
+}
+
+/// An app's control channel.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Control {
+    #[serde(default)]
+    pub style: ControlStyle,
+    /// The port it listens on until the user picks another; none for [`ControlStyle::File`],
+    /// which picks its own.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub port: Option<u16>,
+}
+
+/// The lowest port a control channel may use (below it, a port needs administrator rights).
+pub const MIN_CONTROL_PORT: u16 = 1024;
+
+impl Control {
+    /// Does it listen on a port the toolbox chooses (and the user can change)?
+    pub fn takes_port(&self) -> bool {
+        matches!(self.style, ControlStyle::Port | ControlStyle::PortAndTokenFile)
+    }
+
+    /// The arguments that open the app with its channel on `port`, keeping its token or
+    /// connection details in `file` ([`App::control_file_name`]). `None` for a style this build
+    /// doesn't know, or when the style needs a file and none is given.
+    pub fn args(&self, port: u16, file: Option<&str>) -> Option<Vec<String>> {
+        let port = port.to_string();
+        Some(match (self.style, file) {
+            (ControlStyle::Port, _) => vec!["--control".into(), port],
+            (ControlStyle::PortAndTokenFile, Some(file)) => vec!["--control".into(), port, "--control-token-file".into(), file.into()],
+            (ControlStyle::File, Some(file)) => vec!["--control".into(), file.into()],
+            (ControlStyle::PortAndTokenFile | ControlStyle::File, None) | (ControlStyle::Unknown, _) => return None,
+        })
+    }
 }
 
 impl App {
@@ -102,6 +159,21 @@ impl App {
     /// The GitHub REST endpoint listing its releases, newest first.
     pub fn releases_api_url(&self) -> String {
         format!("https://api.github.com/repos/{}/releases", self.repo)
+    }
+
+    /// Its control channel, when it has one this build can open.
+    pub fn control(&self) -> Option<&Control> {
+        self.control.as_ref().filter(|c| c.style != ControlStyle::Unknown)
+    }
+
+    /// The file it keeps its control token (`photocraft-control.token`) or connection details
+    /// (`pdfcraft-control.json`) in, for the styles that have one.
+    pub fn control_file_name(&self) -> Option<String> {
+        match self.control()?.style {
+            ControlStyle::PortAndTokenFile => Some(format!("{}-control.token", self.id)),
+            ControlStyle::File => Some(format!("{}-control.json", self.id)),
+            ControlStyle::Port | ControlStyle::Unknown => None,
+        }
     }
 }
 
@@ -230,6 +302,13 @@ impl Catalog {
                     return bad(format!("{id}: assets pattern `{}` {why}", short(pattern)));
                 }
             }
+            if let Some(c) = app.control() {
+                match c.port {
+                    Some(p) if p < MIN_CONTROL_PORT => return bad(format!("{id}: control port {p} is below {MIN_CONTROL_PORT}")),
+                    None if c.takes_port() => return bad(format!("{id}: control needs a port")),
+                    _ => {}
+                }
+            }
         }
         if let Some(remote) = &self.remote {
             for (what, url) in [("catalog", &remote.catalog), ("feed", &remote.feed)] {
@@ -331,6 +410,62 @@ mod tests {
         assert!(!artcraft.follows_contract() && artcraft.assets.contains_key("macos-universal"));
         assert_eq!(artcraft.bundle_id(), "ai.artcraft.app");
         assert!(c.apps.iter().filter(|a| a.id != "artcraft").all(App::follows_contract));
+    }
+
+    #[test]
+    fn every_craft_has_a_control_channel_on_a_port_of_its_own() {
+        let c = Catalog::builtin().unwrap();
+        let port = |id: &str| c.get(id).and_then(App::control).and_then(|c| c.port);
+        // The ports ArtCraft Launcher gives them, so an agent finds an app on the same port
+        // whichever of the two opened it.
+        for (id, p) in [
+            ("photocraft", 7878),
+            ("vectorcraft", 7879),
+            ("filmcraft", 7880),
+            ("lightcraft", 7881),
+            ("effectcraft", 7883),
+            ("designcraft", 7884),
+            ("wordcraft", 7885),
+            ("deckcraft", 7886),
+            ("gridcraft", 7887),
+            ("cadcraft", 7888),
+            ("soundcraft", 7889),
+        ] {
+            assert_eq!(port(id), Some(p), "{id}");
+        }
+        assert_eq!(c.get("pdfcraft").and_then(App::control).map(|c| (c.style, c.port)), Some((ControlStyle::File, None)), "PdfCraft picks its own");
+        assert_eq!(c.get("photocraft").and_then(App::control).map(|c| c.style), Some(ControlStyle::PortAndTokenFile));
+        assert!(c.get("artcraft").unwrap().control().is_none(), "ArtCraft has no control channel");
+        let mut ports: Vec<u16> = c.apps.iter().filter_map(|a| a.control()?.port).collect();
+        let n = ports.len();
+        ports.sort_unstable();
+        ports.dedup();
+        assert_eq!(ports.len(), n, "two apps share a port");
+    }
+
+    #[test]
+    fn control_styles_have_their_own_arguments_and_files() {
+        let app = |control: &str| {
+            Catalog::parse(&one(&format!("id = \"x\"\nname = \"XCraft\"\ntagline = \"\"\nrepo = \"o/x\"\ncontrol = {control}"))).map(|c| c.apps[0].clone())
+        };
+        let x = app("{ port = 7900 }").unwrap();
+        let c = x.control().unwrap();
+        assert_eq!((c.style, x.control_file_name()), (ControlStyle::Port, None));
+        assert_eq!(c.args(7901, None).unwrap(), ["--control", "7901"]);
+        let x = app("{ style = \"port-and-token-file\", port = 7900 }").unwrap();
+        assert_eq!(x.control_file_name().as_deref(), Some("x-control.token"));
+        assert_eq!(x.control().unwrap().args(7900, Some("/c/x-control.token")).unwrap(), ["--control", "7900", "--control-token-file", "/c/x-control.token"]);
+        assert_eq!(x.control().unwrap().args(7900, None), None, "no token file, no channel");
+        let x = app("{ style = \"file\" }").unwrap();
+        assert_eq!(x.control_file_name().as_deref(), Some("x-control.json"));
+        assert_eq!(x.control().unwrap().args(0, Some("/c/x-control.json")).unwrap(), ["--control", "/c/x-control.json"]);
+        // A newer catalog's style: the catalog still loads, and the app opens as usual.
+        let x = app("{ style = \"socket\", port = 7900 }").unwrap();
+        assert!(x.control().is_none() && x.control_file_name().is_none());
+        for (control, want) in [("{ port = 80 }", "below 1024"), ("{ style = \"port\" }", "needs a port"), ("{ port = 70000 }", "TOML")] {
+            let e = app(control).unwrap_err().to_string();
+            assert!(e.contains(want), "{control}: {e}");
+        }
     }
 
     #[test]

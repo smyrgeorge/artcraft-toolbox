@@ -1,11 +1,13 @@
 //! The Apps tab: every Crafting App with its status and its one action, in two panels. Installed
-//! apps show their version line, the action (Update, Open, Adopt) and a menu (⋮) with the rest;
-//! available apps show their tagline with Install under it. "Update all" when more than one update
+//! apps show their version line, the action (Update, Open, Adopt) and a menu (⋮) with the rest,
+//! and the switch that opens the app for agents; available apps show their tagline with Install
+//! under it. "Update all" when more than one update
 //! is waiting; a faint footer says when the toolbox last checked.
 
 use artcraft_toolbox_engine::install_cmds::{UNINSTALL, UPDATE};
 use artcraft_toolbox_engine::versions_cmds::UPDATE_ALL;
-use artcraft_toolbox_engine::{AppStatus, Status};
+use artcraft_toolbox_engine::{AppStatus, ControlInfo, Status};
+use serde_json::json;
 
 use crate::actions::{self, Clicked};
 use crate::i18n::fmt;
@@ -117,6 +119,8 @@ enum MenuChoice {
     Action(Clicked),
     Details,
     Uninstall,
+    /// Open the app with its control channel from now on, or not.
+    AgentControl(bool),
 }
 
 /// One app: click anywhere but its buttons to open its details.
@@ -163,6 +167,9 @@ fn row(app: &mut ToolboxApp, ui: &mut egui::Ui, r: &AppStatus, t: &Tokens) {
         Some(MenuChoice::Action(c)) => actions::perform(app, &r.id, c),
         Some(MenuChoice::Details) => app.ui.selected = Some(r.id.clone()),
         Some(MenuChoice::Uninstall) => app.ui.confirm_uninstall = Some(r.id.clone()),
+        Some(MenuChoice::AgentControl(on)) => {
+            app.run("app.settings.set", json!({ "app": r.id, "agentControl": on }));
+        }
         None if response.clicked() => app.ui.selected = Some(r.id.clone()),
         None => {}
     }
@@ -260,11 +267,12 @@ fn name_and_status(ui: &mut egui::Ui, r: &AppStatus, job: Option<&artcraft_toolb
     }
 }
 
-/// The ⋮ menu of an installed app: Open, Update, Details, Uninstall….
+/// The ⋮ menu of an installed app: Open, Update, Details, Agent control, Uninstall…. A click on
+/// the switch leaves it open, so the port shows as it turns on; every other item closes it.
 fn menu(ui: &mut egui::Ui, session: &artcraft_toolbox_engine::Session, r: &AppStatus, busy: bool, t: &Tokens) -> Option<MenuChoice> {
     let button = widgets::icon_button(ui, "ellipsis-vertical", &fmt(tl!("More actions for {app}"), &[("app", &r.name)]), false, t);
     let mut choice = None;
-    egui::Popup::menu(&button).show(|ui| {
+    egui::Popup::menu(&button).close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside).show(|ui| {
         ui.set_min_width(150.0);
         if actions::installed(r) && ui.button(tl!("Open")).clicked() {
             choice = Some(MenuChoice::Action(Clicked::Open));
@@ -278,6 +286,14 @@ fn menu(ui: &mut egui::Ui, session: &artcraft_toolbox_engine::Session, r: &AppSt
         if ui.button(tl!("Details")).clicked() {
             choice = Some(MenuChoice::Details);
         }
+        if actions::installed(r)
+            && let Some(control) = session.control_info(&r.id)
+        {
+            ui.separator();
+            if let Some(c) = agent_control(ui, &r.name, &control, t) {
+                choice = Some(c);
+            }
+        }
         if actions::installed(r) && !busy {
             ui.separator();
             let enabled = session.disabled_reason(UNINSTALL).is_none();
@@ -285,8 +301,34 @@ fn menu(ui: &mut egui::Ui, session: &artcraft_toolbox_engine::Session, r: &AppSt
                 choice = Some(MenuChoice::Uninstall);
             }
         }
+        if choice.as_ref().is_some_and(|c| !matches!(c, MenuChoice::AgentControl(_))) {
+            ui.close();
+        }
     });
     choice
+}
+
+/// The menu's switch for the app's control channel and, switched on, the port it listens on (how
+/// an agent connects, on hover). The port is changed on the app's page.
+fn agent_control(ui: &mut egui::Ui, app: &str, control: &ControlInfo, t: &Tokens) -> Option<MenuChoice> {
+    let mut on = control.on;
+    // In line with the menu's buttons, which pad their text.
+    let pad = ui.spacing().button_padding.x.round().clamp(0.0, 127.0) as i8;
+    let changed = egui::Frame::NONE
+        .inner_margin(egui::Margin::symmetric(pad, 0))
+        .show(ui, |ui| {
+            let changed = widgets::toggle_row(ui, &mut on, tl!("Agent control"), t).on_hover_text(wording::agent_control_tip(app)).changed();
+            if on {
+                let port = egui::Label::new(egui::RichText::new(wording::control_port(app, control)).small().color(t.text_dim)).selectable(false);
+                let port = ui.add(port);
+                if let Some(hint) = wording::agent_hint(app, control) {
+                    port.on_hover_text(hint);
+                }
+            }
+            changed
+        })
+        .inner;
+    changed.then_some(MenuChoice::AgentControl(on))
 }
 
 /// The status line under an app's name, and its colour.
