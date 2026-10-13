@@ -17,9 +17,9 @@ use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable;
 use sha2::Digest;
 
-const FILE: &str = "artcraft-toolbox-0.2.0-linux-x86_64.AppImage";
-const URL: &str = "https://github.com/smyrgeorge/artcraft-toolbox/releases/download/v0.2.0/artcraft-toolbox-0.2.0-linux-x86_64.AppImage";
-const SUMS: &str = "https://github.com/smyrgeorge/artcraft-toolbox/releases/download/v0.2.0/SHA256SUMS.txt";
+const FILE: &str = "artcraft-toolbox-99.0.0-linux-x86_64.AppImage";
+const URL: &str = "https://github.com/smyrgeorge/artcraft-toolbox/releases/download/v99.0.0/artcraft-toolbox-99.0.0-linux-x86_64.AppImage";
+const SUMS: &str = "https://github.com/smyrgeorge/artcraft-toolbox/releases/download/v99.0.0/SHA256SUMS.txt";
 
 fn temp(tag: &str) -> PathBuf {
     static N: AtomicUsize = AtomicUsize::new(0);
@@ -40,15 +40,15 @@ fn sha(bytes: &[u8]) -> String {
     sha2::Sha256::digest(bytes).iter().map(|b| format!("{b:02x}")).collect()
 }
 
-/// A GitHub with ArtCraft Toolbox 0.2.0 for Linux (its feed, checksums and AppImage) and nothing
-/// for the apps.
+/// A GitHub with ArtCraft Toolbox 99.0.0 for Linux (its feed, checksums and AppImage) and nothing
+/// for the apps. Far ahead of any real version: a development build runs the crate's own.
 struct Fake;
 
 fn feed() -> String {
     serde_json::json!([{
-        "tag_name": "v0.2.0",
+        "tag_name": "v99.0.0",
         "assets": [
-            {"name": FILE, "size": appimage(b"0.2.0").len(), "browser_download_url": URL},
+            {"name": FILE, "size": appimage(b"99.0.0").len(), "browser_download_url": URL},
             {"name": "SHA256SUMS.txt", "size": 100, "browser_download_url": SUMS},
         ]
     }])
@@ -58,7 +58,7 @@ fn feed() -> String {
 impl Transport for Fake {
     fn get(&self, req: &Request<'_>) -> Result<Response, NetError> {
         let body = if req.url == SUMS {
-            format!("{}  {FILE}\n", sha(&appimage(b"0.2.0")))
+            format!("{}  {FILE}\n", sha(&appimage(b"99.0.0")))
         } else if req.url.contains("/artcraft-toolbox/releases") {
             feed()
         } else {
@@ -68,13 +68,13 @@ impl Transport for Fake {
     }
     fn download(&self, url: &str, from: u64) -> Result<Download, NetError> {
         assert_eq!(url, URL);
-        let body = appimage(b"0.2.0");
+        let body = appimage(b"99.0.0");
         let rest = body.get(from as usize..).unwrap_or_default().to_vec();
         Ok(Download { reader: Box::new(std::io::Cursor::new(rest)), offset: from, total: Some(body.len() as u64) })
     }
 }
 
-/// A session running "ArtCraft Toolbox `running`" from an AppImage in `root`, with 0.2.0
+/// A session running "ArtCraft Toolbox `running`" from an AppImage in `root`, with 99.0.0
 /// published; `fetched`: its feed already known.
 fn session(root: &std::path::Path, running: Version, fetched: bool) -> Session {
     let store = Store::open(root.join("data")).unwrap();
@@ -121,16 +121,16 @@ fn the_offer_downloads_the_update_and_asks_for_a_restart() {
     let root = temp("offer");
     let mut h = harness(ToolboxApp::new(session(&root, Version::new(0, 1, 0), true)));
     h.run();
-    h.get_by_label("0.2.0 is available");
+    h.get_by_label("99.0.0 is available");
     h.get_by_label("Update").click();
     wait_for_jobs(&mut h);
-    h.get_by_label("0.2.0 is downloaded · restart to update");
-    assert_eq!(h.state().session.staged_update().map(|u| u.version.clone()), Some(Version::new(0, 2, 0)));
-    assert!(root.join("data/self-update/artcraft-toolbox/0.2.0/artcraft-toolbox.AppImage").is_file());
+    h.get_by_label("99.0.0 is downloaded · restart to update");
+    assert_eq!(h.state().session.staged_update().map(|u| u.version.clone()), Some(Version::new(99, 0, 0)));
+    assert!(root.join("data/self-update/artcraft-toolbox/99.0.0/artcraft-toolbox.AppImage").is_file());
     // The About card says the same.
     h.state_mut().ui.tab = Tab::Settings;
     h.run();
-    h.get_by_label("0.2.0 is downloaded · restart to update");
+    h.get_by_label("99.0.0 is downloaded · restart to update");
     assert!(!h.state().restart_wanted);
     h.get_by_label("Restart to update").click();
     h.run();
@@ -141,7 +141,7 @@ fn the_offer_downloads_the_update_and_asks_for_a_restart() {
 #[test]
 fn up_to_date_and_not_packaged_copies_say_so() {
     let root = temp("uptodate");
-    let mut app = ToolboxApp::new(session(&root, Version::new(0, 2, 0), true));
+    let mut app = ToolboxApp::new(session(&root, Version::new(99, 0, 0), true));
     app.ui.tab = Tab::Settings;
     let mut h = harness(app);
     h.run();
@@ -152,7 +152,7 @@ fn up_to_date_and_not_packaged_copies_say_so() {
     s.set_self_install(None);
     let mut h = harness(ToolboxApp::new(s));
     h.run();
-    let _ = h.get_by_label("0.2.0 is available");
+    let _ = h.get_by_label("99.0.0 is available");
     h.get(egui_kittest::kittest::by().label_contains("This copy can't update itself"));
     assert!(h.query_by_label("Update").is_none());
     let _ = std::fs::remove_dir_all(&root);
@@ -176,8 +176,8 @@ fn automatic_updates_download_the_toolbox_too_and_announce_it_ready() {
     let mut h = harness(ToolboxApp::with_services(s, services));
     wait_for_jobs(&mut h);
     wait_for_jobs(&mut h);
-    assert_eq!(*sent.lock().unwrap(), [("Update ready".to_string(), "ArtCraft Toolbox 0.2.0 will be used after a restart".to_string())]);
-    assert_eq!(h.state().session.staged_update().map(|u| u.version.clone()), Some(Version::new(0, 2, 0)));
+    assert_eq!(*sent.lock().unwrap(), [("Update ready".to_string(), "ArtCraft Toolbox 99.0.0 will be used after a restart".to_string())]);
+    assert_eq!(h.state().session.staged_update().map(|u| u.version.clone()), Some(Version::new(99, 0, 0)));
     h.get_by_label("Restart to update");
     let _ = std::fs::remove_dir_all(&root);
 }
