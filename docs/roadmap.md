@@ -16,7 +16,7 @@ Status legend: ✅ done · 🟡 in progress · ⬜ not started. Updated 2026-10-
 
 ## Current focus: every milestone has landed; next is shipping
 
-v0.1.0 was published on 2026-10-10 (unsigned: no certificates yet) and the signed feed is live
+v0.2.0 was published on 2026-10-13 (v0.1.0 on 2026-10-10; both unsigned: no certificates yet) and the signed feed is live
 (the `feed` branch; scheduled hourly, run by GitHub every few hours, so a stale feed sends the
 installed apps to the API, issue #3). Open work, in order: configure the signing secrets
 (docs/releasing.md) and cut the first signed release; then the dev log's "still open" bullets

@@ -13,7 +13,7 @@
 </p>
 
 > [!NOTE]
-> **Under development.** The toolbox works end to end and 0.1.0 is out, but releases aren't
+> **Under development.** The toolbox works end to end and 0.2.0 is out, but releases aren't
 > signed yet and things still change; see [the roadmap](docs/roadmap.md).
 
 ## Screenshots

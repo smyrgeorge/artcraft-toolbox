@@ -20,7 +20,7 @@ Dropped from PhotoCraft's pipeline, because the toolbox doesn't need them: the e
    in the root `Cargo.toml`:
 
    ```sh
-   cargo xtask version                 # prints the current version, e.g. 0.1.0
+   cargo xtask version                 # prints the current version, e.g. 0.2.0
    cargo xtask version set 0.2.0       # or 0.2.0-rc.1; updates Cargo.toml and Cargo.lock
    ```
 
@@ -70,7 +70,7 @@ elevation, and the toolbox never elevates): it says so and is updated the way it
 Every binary reports its version, the commit and the build date: `artcraft-toolbox --version`,
 `artcraft-toolbox-cli --version`, and Settings › About. CI sets `ARTCRAFT_TOOLBOX_BUILD_SHA` and
 `ARTCRAFT_TOOLBOX_BUILD_DATE`, and `crates/engine/src/build_info.rs` reads them at compile time.
-A plain `cargo build` doesn't set them and reports `0.1.0 (dev build)`.
+A plain `cargo build` doesn't set them and reports `<version> (dev build)`.
 
 ### macOS
 
@@ -224,12 +224,13 @@ exports the identity's SHA-1 as `MACOS_SIGN_IDENTITY`. The keychain is deleted a
 the job.
 
 **The signer is part of the contract with the toolbox's users:** once a signed version is
-installed, the toolbox refuses any later version signed by anyone else. Changing the
-certificate's team (or shipping an unsigned release after signed ones) means every user has to
-reinstall by hand. No signing secrets are configured yet (2026-10-10): v0.1.0 and the next
-releases are ad-hoc signed on macOS and unsigned on Windows, which the toolbox shows as "No
-platform signature" and accepts as the reference for later ones. The first signed release will
-therefore not replace an installed unsigned one: say so in its notes.
+installed, the toolbox refuses any later version signed by anyone else, or not signed at all.
+Changing the certificate's team (or shipping an unsigned release after signed ones) means every
+user has to reinstall by hand. An unsigned copy has no signer to compare with, so it accepts
+the first signed release as an update, and that release's signer is the reference from then on
+(`toolbox_cmds.rs` and `install_cmds.rs` check only when the replaced copy is signed). No
+signing secrets are configured yet (2026-10-13): v0.1.0 and v0.2.0 are ad-hoc signed on macOS
+and unsigned on Windows, which the toolbox shows as "No platform signature".
 
 ## The feed
 
