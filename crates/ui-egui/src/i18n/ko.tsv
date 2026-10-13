@@ -184,3 +184,6 @@
 	Up to date	최신 상태
 	the toolbox is already updating	toolbox가 이미 업데이트 중입니다
 	The AI creative studio	AI 크리에이티브 스튜디오
+	ArtCraft Toolbox couldn't start	ArtCraft Toolbox를 시작할 수 없습니다
+	Metal graphics aren't available on this Mac; ArtCraft Toolbox and the Crafting Apps need them.	이 Mac에서는 Metal 그래픽을 사용할 수 없습니다. ArtCraft Toolbox와 Crafting Apps에는 Metal이 필요합니다.
+	Details are in the log: {path}	자세한 내용은 로그에 있습니다: {path}

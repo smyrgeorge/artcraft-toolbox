@@ -184,3 +184,6 @@
 	Up to date	Sudah terbaru
 	the toolbox is already updating	toolbox sedang diperbarui
 	The AI creative studio	Studio kreatif berbasis AI
+	ArtCraft Toolbox couldn't start	ArtCraft Toolbox tidak dapat dimulai
+	Metal graphics aren't available on this Mac; ArtCraft Toolbox and the Crafting Apps need them.	Grafis Metal tidak tersedia di Mac ini; ArtCraft Toolbox dan Crafting Apps membutuhkannya.
+	Details are in the log: {path}	Detailnya ada di log: {path}

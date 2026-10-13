@@ -184,3 +184,6 @@
 	Up to date	Ενημερωμένο
 	the toolbox is already updating	το toolbox ενημερώνεται ήδη
 	The AI creative studio	Το δημιουργικό στούντιο με AI
+	ArtCraft Toolbox couldn't start	Δεν ήταν δυνατή η εκκίνηση του ArtCraft Toolbox
+	Metal graphics aren't available on this Mac; ArtCraft Toolbox and the Crafting Apps need them.	Τα γραφικά Metal δεν είναι διαθέσιμα σε αυτό το Mac. Το ArtCraft Toolbox και οι Crafting Apps τα χρειάζονται.
+	Details are in the log: {path}	Λεπτομέρειες υπάρχουν στο αρχείο καταγραφής: {path}

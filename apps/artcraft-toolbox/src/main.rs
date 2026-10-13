@@ -13,6 +13,7 @@
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
+mod alert;
 mod control_server;
 mod crash_guard;
 mod logging;
@@ -25,6 +26,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use artcraft_toolbox_engine::{build_info, setup};
+use artcraft_toolbox_ui_egui::i18n::{self, Lang};
 use artcraft_toolbox_ui_egui::{Services, ToolboxApp};
 use popover::Popover;
 use tray::{Tray, TrayAction};
@@ -195,6 +197,8 @@ fn main() -> ExitCode {
         Err(e) => {
             log::error!("{e}");
             eprintln!("ArtCraft Toolbox could not start: {e}");
+            i18n::set_current(Lang::from_pref("auto"));
+            alert::startup_failed(&e.to_string(), false, None);
             return ExitCode::FAILURE;
         }
     };
@@ -217,9 +221,13 @@ fn main() -> ExitCode {
             opened.warnings.push(e.to_string());
         }
     }
+    let mut log_file = None;
     if let (Some(logger), Some(store)) = (logger, opened.session.store()) {
         match logger.attach_dir(&store.logs_dir()) {
-            Ok(path) => log::info!("logging to {}", path.display()),
+            Ok(path) => {
+                log::info!("logging to {}", path.display());
+                log_file = Some(path);
+            }
             Err(e) => log::warn!("no log file: {e}"),
         }
     }
@@ -230,14 +238,15 @@ fn main() -> ExitCode {
         log::info!("{change}");
     }
     let (session, warning) = (opened.session, opened.warnings.into_iter().next());
+    // In the saved language from here: the tray's labels (made with the window) and the alert if
+    // the window can't open. The window runs on this thread.
+    i18n::set_current(Lang::from_pref(&session.settings().language));
     let popover = popover::SUPPORTED;
     let result = eframe::run_native(
         "ArtCraft Toolbox",
         native_options(popover),
         Box::new(move |cc| {
             ToolboxApp::setup_context(&cc.egui_ctx);
-            // The tray's labels are made now: in the saved language.
-            artcraft_toolbox_ui_egui::i18n::set_current(artcraft_toolbox_ui_egui::i18n::Lang::from_pref(&session.settings().language));
             let ctx = cc.egui_ctx.clone();
             let tray = match Tray::new(popover, move || ctx.request_repaint()) {
                 Ok(t) => {
@@ -273,6 +282,8 @@ fn main() -> ExitCode {
         Err(e) => {
             log::error!("window: {e}");
             eprintln!("ArtCraft Toolbox could not open its window: {e}");
+            // The renderer (wgpu: Metal on a Mac) couldn't start, or the window couldn't be made.
+            alert::startup_failed(&e.to_string(), matches!(e, eframe::Error::Wgpu(_)), log_file.as_deref());
             ExitCode::FAILURE
         }
     }

@@ -184,3 +184,6 @@
 	Up to date	Atualizado
 	the toolbox is already updating	a toolbox já está sendo atualizada
 	The AI creative studio	O estúdio criativo com IA
+	ArtCraft Toolbox couldn't start	Não foi possível iniciar o ArtCraft Toolbox
+	Metal graphics aren't available on this Mac; ArtCraft Toolbox and the Crafting Apps need them.	Os gráficos Metal não estão disponíveis neste Mac; o ArtCraft Toolbox e os Crafting Apps precisam deles.
+	Details are in the log: {path}	Os detalhes estão no log: {path}

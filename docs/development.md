@@ -226,6 +226,11 @@ what a bug report attaches. Defaults: `info` for the toolbox's crates, `warn` fo
 `RUST_LOG` takes env_logger-style directives (`debug`, `warn,artcraft_toolbox_net=trace`,
 `artcraft_toolbox*=debug`). The logger is PhotoCraft's, ported (`apps/artcraft-toolbox/src/logging.rs`).
 
+A start that fails before any window shows (the data folder, or the renderer: no Metal on a Mac,
+as on some Macs running macOS through OpenCore Legacy Patcher) also shows a native alert on
+macOS, with the error and the log file's path (`apps/artcraft-toolbox/src/alert.rs`); opened from
+Finder, a menu-bar app has nowhere else to say it. `WGPU_BACKEND=opengl` reproduces it on any Mac.
+
 ## Versions
 
 The version lives in one place, `[workspace.package] version` in the root `Cargo.toml`:

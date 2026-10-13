@@ -46,6 +46,24 @@ pub fn tray_labels() -> [&'static str; 3] {
     [tl!("Open ArtCraft Toolbox"), tl!("Check for Updates"), tl!("Quit ArtCraft Toolbox")]
 }
 
+/// The alert of a start that failed before any window showed (the desktop app's `alert`): title
+/// and message. `graphics`: the renderer couldn't start, which on a Mac (the only platform that
+/// shows the alert) means no Metal. `error` stays in English, like every engine message; `log`
+/// is the log file, when there is one.
+pub fn startup_failure(error: &str, graphics: bool, log: Option<&str>) -> (String, String) {
+    let mut message = String::new();
+    if graphics {
+        message.push_str(tl!("Metal graphics aren't available on this Mac; ArtCraft Toolbox and the Crafting Apps need them."));
+        message.push_str("\n\n");
+    }
+    message.push_str(error);
+    if let Some(log) = log {
+        message.push_str("\n\n");
+        message.push_str(&fmt(tl!("Details are in the log: {path}"), &[("path", log)]));
+    }
+    (tl!("ArtCraft Toolbox couldn't start").to_string(), message)
+}
+
 /// An app's one-line description from the catalog (`catalog.toml`), in the current language.
 pub fn tagline(s: &str) -> &str {
     crate::i18n::t(s)
